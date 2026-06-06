@@ -1,32 +1,10 @@
 // chrome.storage.local 的薄封装。
 // 所有持久化项的 key 都集中在这里，方便审计。
 
+// API Key 不再走 storage（改由 .env 注入，见 lib/config.ts）；这里只管白名单与设置。
 const KEYS = {
-  apiKey: 'deepseek_api_key',
   whitelist: 'whitelist_domains',
-  shortcut: 'shortcut_flip',
 } as const;
-
-export interface Settings {
-  apiKey: string;
-  /** 已开启自动翻译的域名集合。 */
-  whitelist: string[];
-  /** 仅用于设置页提示展示；真正的快捷键在 manifest commands 里。 */
-  shortcutLabel: string;
-}
-
-export async function getSettings(): Promise<Settings> {
-  const raw = await chrome.storage.local.get([KEYS.apiKey, KEYS.whitelist, KEYS.shortcut]);
-  return {
-    apiKey: typeof raw[KEYS.apiKey] === 'string' ? raw[KEYS.apiKey] : '',
-    whitelist: Array.isArray(raw[KEYS.whitelist]) ? raw[KEYS.whitelist] : [],
-    shortcutLabel: typeof raw[KEYS.shortcut] === 'string' ? raw[KEYS.shortcut] : 'Ctrl+A',
-  };
-}
-
-export async function setApiKey(key: string): Promise<void> {
-  await chrome.storage.local.set({ [KEYS.apiKey]: key });
-}
 
 export async function getWhitelist(): Promise<string[]> {
   const raw = await chrome.storage.local.get(KEYS.whitelist);
@@ -39,9 +17,15 @@ export async function setWhitelist(list: string[]): Promise<void> {
   await chrome.storage.local.set({ [KEYS.whitelist]: cleaned });
 }
 
+/**
+ * 当前域名是否在白名单。匹配规则：精确命中，或是某条白名单的子域。
+ * 这样开启 `example.com` 即覆盖 `docs.example.com`、`www.example.com`，
+ * 符合"按域名粒度"的直觉（白名单项已在写入时做过小写/去前缀规整）。
+ */
 export async function isDomainEnabled(domain: string): Promise<boolean> {
+  const host = domain.toLowerCase();
   const list = await getWhitelist();
-  return list.includes(domain.toLowerCase());
+  return list.some((entry) => host === entry || host.endsWith('.' + entry));
 }
 
 export async function setDomainEnabled(domain: string, enabled: boolean): Promise<void> {

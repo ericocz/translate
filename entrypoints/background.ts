@@ -1,19 +1,57 @@
-// background service worker：内容脚本通过 chrome.runtime.connect 建立 port，
-// 把待译块发过来；这里调用 DeepSeek、把流块按 [[id]] 拼齐后逐块回送。
+// background service worker：
+//  ① 翻译 port（薄适配层）——内容脚本把待译块发来，委托 translateBlocks 编排，逐块回送；
+//  ② 工具栏图标三态——按 tab 维护 未开启/已开启/翻译中/出错，让你在工具栏一眼看出某站点状态；
+//  ③ 工具栏快捷键——翻译 / 取消翻译当前网站。
+// 不含任何翻译业务逻辑（都在 lib/translator.ts）。
 
-import { streamTranslate, type DeepSeekClient } from '@/lib/deepseek';
-import { getSettings } from '@/lib/storage';
+import { translateBlocks, type TranslationJob } from '@/lib/translator';
+import { DEEPSEEK_API_KEY } from '@/lib/config';
+import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import { PORT_NAME, type BgToContent, type ContentToBg } from '@/lib/messages';
-import { cacheGetMany, cacheSetMany } from '@/lib/cache';
-import { validateMarkers, allowedIdsFromSource } from '@/lib/markers';
-import type { FailureInfo } from '@/lib/types';
+import { setTabIcon, hostOf } from '@/lib/icon';
 
 export default defineBackground(() => {
+  // 「翻译中 / 出错」是按 tab 的临时叠加态；基线 on/off 永远由白名单决定。
+  const overlay = new Map<number, 'translating' | 'error'>();
+
+  /** 刷新某 tab 的图标：有叠加态优先显示，否则按域名是否在白名单显示 on/off。 */
+  async function refreshTabIcon(tabId: number, domain?: string): Promise<void> {
+    const ov = overlay.get(tabId);
+    if (ov) {
+      await setTabIcon(tabId, ov);
+      return;
+    }
+    let host = domain;
+    if (host === undefined) {
+      try {
+        host = hostOf((await chrome.tabs.get(tabId)).url);
+      } catch {
+        return; // tab 已不存在
+      }
+    }
+    const enabled = host ? await isDomainEnabled(host) : false;
+    await setTabIcon(tabId, enabled ? 'on' : 'off');
+  }
+
+  /** 给所有 tab 刷新基线图标（白名单变化、SW 启动时用）。 */
+  async function refreshAllTabs(): Promise<void> {
+    let tabs: chrome.tabs.Tab[];
+    try {
+      tabs = await chrome.tabs.query({});
+    } catch {
+      return;
+    }
+    for (const t of tabs) {
+      if (t.id !== undefined) await refreshTabIcon(t.id, hostOf(t.url));
+    }
+  }
+
+  // ---- ① 翻译 port，顺带驱动 翻译中/出错/完成 的图标叠加态 ----
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PORT_NAME) return;
-    let client: DeepSeekClient | null = null;
-    let totalBlocks = 0;
-    let doneBlocks = 0;
+    const tabId = port.sender?.tab?.id;
+    const domain = hostOf(port.sender?.url);
+    let job: TranslationJob | null = null;
 
     const send = (msg: BgToContent) => {
       try {
@@ -23,168 +61,87 @@ export default defineBackground(() => {
       }
     };
 
-    port.onMessage.addListener(async (msg: ContentToBg) => {
+    port.onMessage.addListener((msg: ContentToBg) => {
       if (msg.kind === 'cancel') {
-        client?.abort();
-        client = null;
+        job?.abort();
+        job = null;
+        if (tabId !== undefined) {
+          overlay.delete(tabId);
+          void refreshTabIcon(tabId, domain);
+        }
         return;
       }
       if (msg.kind !== 'start') return;
-      if (client) {
-        client.abort();
-        client = null;
+
+      job?.abort(); // 新请求到来：先中止上一轮
+      if (tabId !== undefined) {
+        overlay.set(tabId, 'translating');
+        void setTabIcon(tabId, 'translating');
       }
-      if (msg.blocks.length === 0) {
-        send({ kind: 'done' });
-        return;
-      }
-
-      totalBlocks = msg.blocks.length;
-      doneBlocks = 0;
-
-      // 1) 先查缓存：命中的块直接回传（0 token、毫秒级），只把未命中的交给模型。
-      const hitMap = await cacheGetMany(msg.blocks.map((b) => b.source));
-      const misses: { id: string; source: string }[] = [];
-      for (const b of msg.blocks) {
-        const cached = hitMap.get(b.source);
-        if (cached !== undefined) {
-          doneBlocks++;
-          send({ kind: 'block', id: b.id, translated: cached });
-        } else {
-          misses.push(b);
-        }
-      }
-      send({ kind: 'progress', done: doneBlocks, total: totalBlocks });
-      if (misses.length === 0) {
-        // 整页全部命中——连 API Key 都不需要。
-        send({ kind: 'done' });
-        return;
-      }
-
-      // 走到这里才需要 API Key。
-      const { apiKey } = await getSettings();
-      if (!apiKey) {
-        send({
-          kind: 'error',
-          failure: { kind: 'auth', message: '尚未配置 DeepSeek API Key，请到设置页填写。' },
-        });
-        return;
-      }
-
-      // 2) 未命中按 source 去重：同页重复内容（如多处相同按钮 / 文件名）只翻一次。
-      const byRepId = new Map<string, { ids: string[]; source: string }>();
-      const bySource = new Map<string, { ids: string[]; source: string }>();
-      const modelBlocks: { id: string; source: string }[] = [];
-      for (const b of misses) {
-        const g = bySource.get(b.source);
-        if (g) {
-          g.ids.push(b.id);
-        } else {
-          const grp = { ids: [b.id], source: b.source };
-          bySource.set(b.source, grp);
-          byRepId.set(b.id, grp); // 该组用首个 id 作为发给模型的代表 id
-          modelBlocks.push({ id: b.id, source: b.source });
-        }
-      }
-
-      // 3) 把未命中块分批翻译：单请求块数过多会超出模型输出上限被截断，导致尾部块永远
-      //    译不出 / 进不了缓存（实测整页 ~400 块单请求只译出 ~240）。分批（每批 BATCH_SIZE）
-      //    + 有限并发，既避免截断又够快；译完批量写缓存，下次刷新即可整页命中、零请求。
-      const BATCH_SIZE = 40;
-      const CONCURRENCY = 4;
-      const batches: { id: string; source: string }[][] = [];
-      for (let i = 0; i < modelBlocks.length; i += BATCH_SIZE) {
-        batches.push(modelBlocks.slice(i, i + BATCH_SIZE));
-      }
-
-      const toCache: { source: string; translated: string }[] = [];
-      const activeClients = new Set<DeepSeekClient>();
-      let aborted = false;
-      let successBlocks = 0;
-      let lastFailure: FailureInfo | null = null;
-
-      // 把整批集合包成一个可整体 abort 的 client，挂到外层 client（供 cancel / 断连时中止）。
-      const thisRun: DeepSeekClient = {
-        abort: () => {
-          aborted = true;
-          for (const c of activeClients) c.abort();
-          activeClients.clear();
-        },
-      };
-      client = thisRun;
-
-      const runBatch = (batch: { id: string; source: string }[]) =>
-        new Promise<void>((resolve) => {
-          if (aborted) {
-            resolve();
-            return;
-          }
-          const c = streamTranslate(apiKey, batch, {
-            onBlock: (repId, translated) => {
-              const grp = byRepId.get(repId);
-              if (!grp) return; // 未知 id（模型乱编）：忽略
-              // 把该 source 的译文回传给共享它的所有原始块。
-              for (const id of grp.ids) {
-                doneBlocks++;
-                send({ kind: 'block', id, translated });
-              }
-              send({ kind: 'progress', done: doneBlocks, total: totalBlocks });
-              if (validateMarkers(translated, allowedIdsFromSource(grp.source)).ok) {
-                successBlocks++;
-                toCache.push({ source: grp.source, translated });
-              }
-            },
-            onDone: () => {
-              activeClients.delete(c);
-              resolve();
-            },
-            onError: (failure) => {
-              activeClients.delete(c);
-              lastFailure = failure; // 单批失败不打断其余批次；其块留待下次刷新按缓存未命中重试
-              resolve();
-            },
-          });
-          activeClients.add(c);
-        });
-
-      void (async () => {
-        let idx = 0;
-        const worker = async () => {
-          while (idx < batches.length && !aborted) {
-            await runBatch(batches[idx++]!);
-          }
-        };
-        await Promise.all(
-          Array.from({ length: Math.min(CONCURRENCY, batches.length) }, () => worker())
-        );
-        if (!aborted) {
-          await cacheSetMany(toCache);
-          // 全失败才报错；部分成功照常结束（未成功的块留待"重试未完成"或下次刷新）。
-          if (successBlocks === 0 && lastFailure) {
-            send({ kind: 'error', failure: lastFailure });
-          } else {
+      const thisJob: TranslationJob = translateBlocks(
+        async () => DEEPSEEK_API_KEY,
+        msg.blocks,
+        {
+          onBlock: (id, translated) => send({ kind: 'block', id, translated }),
+          onDone: () => {
+            if (job === thisJob) job = null;
+            if (tabId !== undefined) {
+              overlay.delete(tabId);
+              void refreshTabIcon(tabId, domain);
+            }
             send({ kind: 'done' });
-          }
+          },
+          onError: (failure) => {
+            if (job === thisJob) job = null;
+            if (tabId !== undefined) {
+              overlay.set(tabId, 'error');
+              void setTabIcon(tabId, 'error');
+            }
+            send({ kind: 'error', failure });
+          },
         }
-        if (client === thisRun) client = null;
-      })();
+      );
+      job = thisJob;
     });
 
     port.onDisconnect.addListener(() => {
-      client?.abort();
-      client = null;
+      job?.abort();
+      job = null;
+      // 页面卸载 / 导航：清掉叠加态，重新加载后按白名单显示基线。
+      if (tabId !== undefined) overlay.delete(tabId);
     });
   });
 
-  // 工具栏快捷键：整页翻面。
+  // ---- ② 工具栏快捷键：翻译 / 取消翻译当前网站（与 popup 主按钮同一路径） ----
   chrome.commands.onCommand.addListener(async (command) => {
-    if (command !== 'toggle-flip') return;
+    if (command !== 'toggle-site') return;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
+    if (!tab?.id || !tab.url) return;
+    const domain = hostOf(tab.url);
+    if (!domain) return; // chrome:// / data: 等非普通页面
+    const next = !(await isDomainEnabled(domain));
+    await setDomainEnabled(domain, next);
     try {
-      await chrome.tabs.sendMessage(tab.id, { kind: 'flip-page' });
+      await chrome.tabs.sendMessage(tab.id, { kind: 'toggle-site', enabled: next });
     } catch {
-      // tab 上没有 content script（如 chrome://）—— 忽略。
+      // 该 tab 无 content script（如 chrome://）—— 白名单已写入，忽略即可。
+    }
+    // 图标基线随白名单变化由下面的 onSettingsChanged 统一刷新。
+  });
+
+  // ---- ③ 图标基线刷新：白名单变化 / 切 tab / tab 加载完成 / SW 启动 ----
+  onSettingsChanged(() => void refreshAllTabs());
+
+  chrome.tabs.onActivated.addListener(({ tabId }) => void refreshTabIcon(tabId));
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // 开始导航：旧的翻译叠加态作废。
+    if (changeInfo.status === 'loading' && changeInfo.url) overlay.delete(tabId);
+    if (changeInfo.status === 'complete' || changeInfo.url) {
+      void refreshTabIcon(tabId, hostOf(tab.url));
     }
   });
+
+  chrome.runtime.onInstalled.addListener(() => void refreshAllTabs());
+  chrome.runtime.onStartup.addListener(() => void refreshAllTabs());
 });

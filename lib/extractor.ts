@@ -4,20 +4,23 @@
 // - 块级元素：p / li / h1~h6 / td / th / blockquote / dt / dd / figcaption / summary。
 //   还允许"叶子块"——含直接文本子节点、且没有再嵌套块级后代的 div/section/aside/article/header/footer 等。
 // - 抽取时跳过 code / pre / script / style / noscript / template；行内 <code> 同样跳过其文字。
-// - 内联样式元素（带语义的 span/a/strong/em/b/i/u/sub/sup/small/mark/kbd/abbr）转成 <gN>...</gN>。
-// - 无文字内联对象（br/img/svg/input/button-without-text 等）转成 <xN/>。
+// - 含可翻译文字的元素（内联样式 span/a/strong/em… 或 div/section 等容器）转成 <gN>...</gN>，保留属性壳。
+// - 无文字子树（br/img/svg/input，或仅裹图标/图片的容器如 .navbar__logo）整体转成 <xN/>，深克隆保形。
 // - 标记编号在每个块内独立从 0 开始。
 //
 // 副作用：抽取阶段会在每个块的 DOM 根节点写上 data-trans-id；保存 originalHTML
 // 不在这里做（content script 在替换前再 cache，避免抽取期就持有一份大字符串）。
 
-import { nextPairMarker, selfMarker } from './markers';
+import { pairMarker, selfMarker } from './markers';
 import type { TransBlock } from './types';
 
 const BLOCK_TAGS = new Set([
   'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH',
   'BLOCKQUOTE', 'DT', 'DD', 'FIGCAPTION', 'SUMMARY', 'CAPTION',
 ]);
+
+// 硬块 CSS 选择器：从 BLOCK_TAGS 派生一次，供 hasDescendantHardBlock 复用（避免每块都重建字符串）。
+const BLOCK_SELECTOR = Array.from(BLOCK_TAGS).join(',').toLowerCase();
 
 // "叶子块"：仅当其内部不含上面那种典型块标签时，才被当作单独翻译单元。
 // 这样可以处理 <div>顶栏按钮文字</div>、<button>Submit</button> 这种界面文字。
@@ -107,8 +110,7 @@ export function extractBlocks(root: HTMLElement): ExtractResult {
 
 function hasDescendantHardBlock(el: Element): boolean {
   // querySelector 比再开一个 walker 简单可靠。
-  const sel = Array.from(BLOCK_TAGS).join(',').toLowerCase();
-  return el.querySelector(sel) !== null;
+  return el.querySelector(BLOCK_SELECTOR) !== null;
 }
 
 function hasDirectText(el: Element): boolean {
@@ -127,20 +129,60 @@ function hasDirectText(el: Element): boolean {
   return false;
 }
 
-function containsLetter(s: string): boolean {
-  // 没有任何字母字符的块（纯标点 / 数字 / 表情）不必翻。
-  return /[A-Za-z]/.test(s);
+function containsLetter(source: string): boolean {
+  // 判断块里有没有「真正需要翻译的英文字母」。
+  // 关键：必须先剥掉占位标记再判断——否则标记里的 g/x 字母会被误当成正文字母，
+  // 把纯图片单元格（source 仅 "<x0/>"）、纯数字（"<g0>1.</g0>"）等无文字块也抽进来，
+  // 白白多发请求、拉低翻译占比（HN 的排名格 / 投票箭头格就是这么混进来的）。
+  const text = source.replace(/<\/?[gx]\d+\/?>/g, '');
+  return /[A-Za-z]/.test(text);
+}
+
+/**
+ * aria-hidden="true"：对辅助技术隐藏，按 ARIA 规范属装饰性 / 重复内容（图标、标题的阴影副本等），
+ * 不该承载"别处没有的有效信息"。一律不翻译、原样保留——见 serializeBlock 里的踩坑说明。
+ */
+function isAriaHidden(el: Element): boolean {
+  return el.getAttribute('aria-hidden') === 'true';
+}
+
+/**
+ * 子树内是否存在「会被翻译的文字」：含字母、且不在 code / 媒体（SKIP）/ aria-hidden 子树内。
+ * 决定一个容器是整体保形（<xN/>，无可翻译文字时）还是保壳递归（<gN>，有文字时）。
+ * 与 containsLetter 的字母判定保持一致（[A-Za-z]）。
+ */
+function hasTranslatableText(el: Element): boolean {
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (/[A-Za-z]/.test(node.textContent ?? '')) return true;
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const child = node as Element;
+    // code / svg / 媒体里的文字不译；无文字内联对象本就没文字；aria-hidden 是装饰/重复——都不算可翻译文字。
+    if (SKIP_TAGS.has(child.tagName) || INLINE_VOID_TAGS.has(child.tagName) || isAriaHidden(child)) continue;
+    if (hasTranslatableText(child)) return true;
+  }
+  return false;
 }
 
 /**
  * 把一个块内部序列化为带占位标记的纯文本。
- * 递归遍历子节点；遇到内联样式元素 → 包成 <gN>...</gN>；遇到无文字内联对象 → <xN/>；
- * 遇到 code/pre 等跳过元素 → 整段以其原始 textContent 嵌入（但不能翻），用 <xN/> 替代更稳。
- * 这里选择：跳过元素用单个 <xN/> 占位，把原元素整体存入 styleMap[n] 以便重建时直接放回去。
+ * 递归遍历子节点，按「子树里有没有可翻译文字」分流：
+ *   - 有文字的元素（内联样式或 div/section 等容器）→ 保留属性壳，包成 <gN>...</gN> 再递归内部；
+ *   - 无文字的子树（code/媒体、br/img、或只裹图片/图标的容器 wrapper）→ 单个 <xN/> 占位，
+ *     原元素整体深克隆进 styleMap[n]，重建时原样贴回（保住其结构与 class，不破坏依赖它的 CSS）。
  */
 function serializeBlock(root: Element, styleMap: Map<number, Element>): string {
   let counter = 0;
   const out: string[] = [];
+
+  // 占位 + 深克隆原物：自闭合 <xN/>，重建时整段贴回。代码/媒体/无文字容器共用。
+  const emitVoid = (el: Element) => {
+    const n = counter++;
+    styleMap.set(n, el.cloneNode(true) as Element);
+    out.push(selfMarker(n));
+  };
 
   const visit = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -151,32 +193,44 @@ function serializeBlock(root: Element, styleMap: Map<number, Element>): string {
     const el = node as Element;
     const tag = el.tagName;
 
+    // aria-hidden 子树：装饰性 / 重复内容（最典型：标题的阴影副本——一份可见正文 + 一份
+    // aria-hidden 的同字绝对定位副本）。整体当 <xN/> 深克隆原样保留，绝不送翻。
+    // 踩坑：若把它和它所复制的可见文字一起送给模型，模型会"去重"只回一份、把另一份连标记带文字
+    // 一起丢掉（省略标记能过 validateMarkers）。一旦丢的是 in-flow 那份、留下的是绝对定位副本，
+    // 容器就没有了参与流式布局的内容，width:max-content 塌缩到≈0，中文随即逐字竖排并溢出。
+    if (isAriaHidden(el)) {
+      emitVoid(el);
+      return;
+    }
+    // 代码 / SVG / 媒体：一律自闭合占位，原物深克隆进 styleMap，重建时整段贴回。
     if (SKIP_TAGS.has(tag)) {
-      // 代码 / SVG / 媒体 一律占位，原物在 styleMap，重建时整段贴回。
-      const n = counter++;
-      styleMap.set(n, el.cloneNode(true) as Element);
-      out.push(selfMarker(n));
+      emitVoid(el);
       return;
     }
+    // 无文字内联对象（br / img / hr / input / picture …）：同样自闭合深克隆。
     if (INLINE_VOID_TAGS.has(tag)) {
-      const n = counter++;
-      styleMap.set(n, el.cloneNode(true) as Element);
-      out.push(selfMarker(n));
+      emitVoid(el);
       return;
     }
-    if (INLINE_STYLE_TAGS.has(tag)) {
-      const n = counter++;
-      // 克隆一份"壳"：保留属性，但清空 children，重建时把译文塞回去。
-      const shell = el.cloneNode(false) as Element;
-      styleMap.set(n, shell);
-      const [open, close] = nextPairMarker(n);
-      out.push(open);
-      for (const child of Array.from(el.childNodes)) visit(child);
-      out.push(close);
+    // 不含「可翻译文字」的子树（典型：只裹 logo 图片的 <div class="navbar__logo">）：
+    // 整体按 <xN/> 深克隆保形，绝不拆开。拆开会丢掉这层 wrapper 的 class，依赖它的 CSS
+    // （如 .navbar__logo img { height:100% }）随之失配，图片回退到自然尺寸而异常放大。
+    // 用单个 <xN/> 也比「成对空壳 <gN></gN>」更稳：模型不会把一个独立占位删掉。
+    if (!hasTranslatableText(el)) {
+      emitVoid(el);
       return;
     }
-    // 其他元素（不太可能在块内出现）按容器递归。
+
+    // 含可翻译文字的元素——内联样式（<a>/<strong>…）或容器（<div>/<section>…）一视同仁：
+    // 保留「壳」（属性，清空 children）成对包裹，再递归处理内部文字。
+    // 历史坑：早期非内联容器走「透明递归」被丢弃，重建后这层 wrapper 的 class 消失。
+    const n = counter++;
+    const shell = el.cloneNode(false) as Element;
+    styleMap.set(n, shell);
+    const [open, close] = pairMarker(n);
+    out.push(open);
     for (const child of Array.from(el.childNodes)) visit(child);
+    out.push(close);
   };
 
   for (const child of Array.from(root.childNodes)) visit(child);

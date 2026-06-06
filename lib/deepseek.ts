@@ -140,10 +140,9 @@ function classifyNetworkError(e: unknown): FailureInfo {
 async function consumeSse(stream: ReadableStream<Uint8Array>, handlers: DeepSeekHandlers) {
   const reader = stream.getReader();
   const decoder = new TextDecoder('utf-8');
+  // SSE 以 \n\n 分事件、行以 "data:" 开头；buf 负责按行切分，切块缓冲在 splitter 内部维护。
   let buf = '';
-  // 按行解析：SSE 以 \n\n 分事件，行以 "data: " 开头。
-  let textBuf = '';
-  const splitter = createBlockSplitter((id, translated) => handlers.onBlock(id, translated));
+  const splitter = createBlockSplitter(handlers.onBlock);
 
   try {
     while (true) {
@@ -158,8 +157,7 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, handlers: DeepSeek
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trimStart();
         if (data === '[DONE]') {
-          // 收尾：刷出最后一块。
-          textBuf = splitter.flush(textBuf);
+          splitter.flush(); // 收尾：刷出最后一块
           handlers.onDone();
           return;
         }
@@ -169,7 +167,7 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, handlers: DeepSeek
           };
           const delta = json.choices?.[0]?.delta?.content;
           if (typeof delta === 'string' && delta.length > 0) {
-            textBuf = splitter.feed(textBuf, delta);
+            splitter.feed(delta);
           }
         } catch {
           // 单事件解析失败不致命，继续读下一条。
@@ -177,7 +175,7 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, handlers: DeepSeek
       }
     }
     // 流自然结束但没收到 [DONE]：也刷一次。
-    splitter.flush(textBuf);
+    splitter.flush();
     handlers.onDone();
   } finally {
     reader.releaseLock();
@@ -221,14 +219,14 @@ function createBlockSplitter(onBlock: (id: string, translated: string) => void) 
   };
 
   return {
-    feed(_prevBuf: string, chunk: string): string {
+    /** 喂入一段流文本；识别出的完整块即时回调，缓冲在内部累积。 */
+    feed(chunk: string): void {
       acc += chunk;
       process(false);
-      return '';
     },
-    flush(_prevBuf: string): string {
+    /** 流结束时调用，确认并回调最后一块。 */
+    flush(): void {
       process(true);
-      return '';
     },
   };
 }

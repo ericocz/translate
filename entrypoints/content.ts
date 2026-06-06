@@ -58,6 +58,9 @@ export default defineContentScript({
 
     const enabled = await isDomainEnabled(domain);
     if (enabled) {
+      // 等 hydration 完成再开译，避免在 React hydrate 期间改 DOM 触发 #418；
+      // 也让抽取发生在页面完全渲染后，块集更稳定（缓存命中更一致）。
+      await waitForHydration();
       await runTranslation();
     }
 
@@ -74,7 +77,7 @@ export default defineContentScript({
     });
 
     // popup 消息。
-    chrome.runtime.onMessage.addListener((msg: PopupQuery | { kind: 'flip-page' }, _sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((msg: PopupQuery, _sender, sendResponse) => {
       (async () => {
         if (msg.kind === 'query-status') {
           sendResponse(buildStatusReply());
@@ -88,16 +91,6 @@ export default defineContentScript({
           } else if (state.records.size === 0) {
             await runTranslation();
           }
-          sendResponse(buildStatusReply());
-          return;
-        }
-        if (msg.kind === 'retry-failed') {
-          await retryFailed();
-          sendResponse(buildStatusReply());
-          return;
-        }
-        if (msg.kind === 'flip-page') {
-          flipPage();
           sendResponse(buildStatusReply());
           return;
         }
@@ -125,21 +118,16 @@ export default defineContentScript({
     );
 
     function buildStatusReply(): StatusReply {
-      let done = 0;
-      let failed = 0;
-      for (const r of state.records.values()) {
-        if (r.status === 'done') done++;
-        else if (r.status === 'failed') failed++;
-      }
-      const total = state.records.size;
-      const reply: StatusReply = {
-        enabled: state.records.size > 0 || state.running,
-        done,
-        total,
-        failed,
-        running: state.running,
-      };
+      const reply: StatusReply = { running: state.running };
       if (state.lastError) reply.error = state.lastError;
+      // 极轻进度：已译完段数 / 总段数（供 popup 显示 "12 / 40 段" 与进度条）。
+      const total = state.records.size;
+      if (total > 0) {
+        let done = 0;
+        for (const r of state.records.values()) if (r.status === 'done') done++;
+        reply.done = done;
+        reply.total = total;
+      }
       return reply;
     }
 
@@ -215,45 +203,16 @@ export default defineContentScript({
         return;
       }
       const frag = rebuild(translated, rec.styleMap);
+      // aria-hidden 的「阴影副本」（与可见正文同字、绝对定位叠在背后）用译文镜像：
+      // 它在 extractor 里按 <xN/> 原样保留（不送翻，避免模型把重复内容去重后丢掉可见正文），
+      // 但保留的是英文，会与可见译文重叠成中英混排——这里用译文把它刷成中文。
+      syncAriaHiddenShadows(frag, rec.source);
       rec.translatedFrag = frag;
       rec.status = 'done';
       // 若整页处于"看英文"模式或该块被局部锁为英文，则不刷 DOM。
       if (state.mode !== 'zh') return;
       if (state.perBlockMode.get(id) === 'en') return;
       replaceWithFadeIn(rec.root, frag.cloneNode(true) as DocumentFragment);
-    }
-
-    async function retryFailed() {
-      const failed: { id: string; source: string }[] = [];
-      for (const rec of state.records.values()) {
-        if (rec.status !== 'done') {
-          rec.status = 'pending';
-          failed.push({ id: rec.id, source: rec.source });
-        }
-      }
-      if (failed.length === 0) return;
-      state.lastError = undefined;
-      state.running = true;
-      openPortAndStart(failed);
-    }
-
-    function flipPage() {
-      // 整页翻面：两个方向都把局部 Ctrl+点击覆盖清掉，避免之后再点回来时残留。
-      state.perBlockMode.clear();
-      if (state.mode === 'zh') {
-        state.mode = 'en';
-        for (const rec of state.records.values()) {
-          replaceRaw(rec.root, rec.originalHTML);
-        }
-      } else {
-        state.mode = 'zh';
-        for (const rec of state.records.values()) {
-          if (rec.translatedFrag) {
-            replaceWithFadeIn(rec.root, rec.translatedFrag.cloneNode(true) as DocumentFragment);
-          }
-          // 翻译失败的块：rec.translatedFrag 为 null，保持英文，符合设计。
-        }
-      }
     }
 
     function toggleSingle(rec: BlockRecord) {
@@ -280,6 +239,31 @@ export default defineContentScript({
 
 // ---------------- 工具 ----------------
 
+/**
+ * 等 dom-compat（MAIN world）发出的 hydration 就绪信号后再开译，消除 React #418。
+ * 优先级：已就绪属性 → 'imt-ready' 事件 → load 后兜底 → 绝对超时兜底（防永久等待 /
+ * dom-compat 未注入的情况）。
+ */
+function waitForHydration(): Promise<void> {
+  if (document.documentElement.getAttribute('data-imt-ready') === '1') {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    document.addEventListener('imt-ready', done, { once: true });
+    // dom-compat 缺席时的兜底：load 之后稍等也开译（多半已过 hydration）。
+    if (document.readyState === 'complete') setTimeout(done, 1500);
+    else window.addEventListener('load', () => setTimeout(done, 1500), { once: true });
+    // 绝对兜底，避免永久等待。
+    setTimeout(done, 8000);
+  });
+}
+
 function injectStyle() {
   if (document.getElementById(STYLE_ID)) return;
   const s = document.createElement('style');
@@ -302,4 +286,35 @@ function replaceWithFadeIn(target: HTMLElement, frag: DocumentFragment) {
 
 function replaceRaw(target: HTMLElement, html: string) {
   target.innerHTML = html;
+}
+
+/**
+ * 把块内「aria-hidden 阴影副本」刷成译文。
+ *
+ * 模式：标题等常用「一份可见正文 + 一份 aria-hidden 的同字绝对定位副本」做描边/阴影。
+ * extractor 把 aria-hidden 子树按 <xN/> 原样保留（不送翻），重建出的副本仍是英文，
+ * 会和可见译文叠在一起成中英混排。这里在重建后的 fragment 顶层找这种副本，用译文镜像它。
+ *
+ * 安全前提：只镜像「英文文字 == 原文可见文字」的副本（据 source 反推可见原文）。
+ * 这样既能命中真正的阴影副本，又不会误伤「aria-hidden 才是唯一可见文字」等其它用法
+ * （那种情形也会被镜像成译文，仍是正确结果）。
+ */
+function syncAriaHiddenShadows(frag: DocumentFragment, source: string): void {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+  // 原文可见文字 = source 去掉占位标记（aria-hidden 已是 <xN/>，不含其文字）。
+  const visibleText = norm(source.replace(/<\/?[gx]\d+\/?>/g, ''));
+  if (!visibleText) return;
+
+  const top = Array.from(frag.childNodes);
+  const isAH = (n: Node): n is Element =>
+    n.nodeType === Node.ELEMENT_NODE && (n as Element).getAttribute('aria-hidden') === 'true';
+  // 可见节点（非 aria-hidden）= 已是译文，作为镜像源。
+  const visibleNodes = top.filter((n) => !isAH(n));
+  if (visibleNodes.length === 0) return;
+
+  for (const n of top) {
+    if (isAH(n) && norm(n.textContent ?? '') === visibleText) {
+      n.replaceChildren(...visibleNodes.map((v) => v.cloneNode(true)));
+    }
+  }
 }

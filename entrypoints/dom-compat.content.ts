@@ -36,5 +36,27 @@ export default defineContentScript({
       }
       return origInsertBefore.call(this, newNode, referenceNode);
     } as typeof Node.prototype.insertBefore;
+
+    // —— 通知内容脚本"可以开始注入了"，把翻译推迟到 React hydration 之后，消除 #418 ——
+    // React #418 是 hydration 文本不匹配告警：若在 hydrate 期间就把英文换成中文，React 会报错。
+    // hydration 是同步提交、发生在主脚本执行期间；到 'load' 之后主线程进入空闲时基本已完成。
+    // 本脚本在 React 同一世界（MAIN）跑，此处通过共享 DOM（属性 + 事件）把信号传给 isolated
+    // 世界的内容脚本——跨世界的 DOM 事件可被对方监听，属性更是共享，双保险。
+    const signalReady = () => {
+      document.documentElement.setAttribute('data-imt-ready', '1');
+      document.dispatchEvent(new CustomEvent('imt-ready'));
+    };
+    const scheduleReady = () => {
+      const idle = () => {
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(signalReady, { timeout: 2000 });
+        } else {
+          setTimeout(signalReady, 200);
+        }
+      };
+      if (document.readyState === 'complete') idle();
+      else window.addEventListener('load', idle, { once: true });
+    };
+    scheduleReady();
   },
 });

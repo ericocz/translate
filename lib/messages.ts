@@ -22,13 +22,6 @@ export interface BlockDoneMsg {
   translated: string;
 }
 
-/** background -> content：流式中间块（暂未拼齐，可以丢给前端做进度计数）。 */
-export interface ProgressMsg {
-  kind: 'progress';
-  done: number;
-  total: number;
-}
-
 /** background -> content：整个流结束。 */
 export interface DoneMsg {
   kind: 'done';
@@ -40,25 +33,21 @@ export interface ErrorMsg {
   failure: { kind: 'network' | 'api' | 'auth' | 'unknown'; message: string };
 }
 
-export type BgToContent = BlockDoneMsg | ProgressMsg | DoneMsg | ErrorMsg;
+export type BgToContent = BlockDoneMsg | DoneMsg | ErrorMsg;
 
 // ---------- popup ↔ content（chrome.tabs.sendMessage）----------
 
 export type PopupQuery =
   | { kind: 'query-status' }
-  | { kind: 'retry-failed' }
-  | { kind: 'flip-page' }
   | { kind: 'toggle-site'; enabled: boolean };
 
 export interface StatusReply {
-  /** 是否激活（在白名单中）。 */
-  enabled: boolean;
-  /** 当前进度。 */
-  done: number;
-  total: number;
-  failed: number;
   /** 是否正在翻译中。 */
   running: boolean;
   /** 错误（若有）。 */
   error?: string;
+  /** 已译完段数（用于 popup 的极轻进度文字；未抽取时不带）。 */
+  done?: number;
+  /** 总段数。 */
+  total?: number;
 }

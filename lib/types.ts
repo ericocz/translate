@@ -10,13 +10,6 @@ export interface TransBlock {
   styleMap: Map<number, Element>;
 }
 
-/** 翻译状态机：用于 popup 显示与图标。 */
-export type SiteState =
-  | { kind: 'idle' }
-  | { kind: 'translating'; done: number; total: number }
-  | { kind: 'done'; total: number; failed: number }
-  | { kind: 'error'; message: string };
-
 /** 失败原因分类，用于错误提示。 */
 export type FailureKind = 'network' | 'api' | 'auth' | 'unknown';
 

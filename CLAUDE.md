@@ -18,7 +18,7 @@
 - **框架**：[WXT](https://wxt.dev/)（基于 Vite，处理 MV3 样板、内容脚本 HMR）。若不用 WXT，则用 Vite + `@crxjs/vite-plugin`。
 - **包管理**：pnpm。
 - **UI（popup/设置页）**：React（项目作者有十年 React 经验）。
-- **存储**：`chrome.storage.local`（白名单、API Key、快捷键等设置）；**翻译缓存用 IndexedDB**（见 `lib/cache.ts`）。
+- **存储**：`chrome.storage.local`（白名单等设置）；API Key 改由 `.env` 在构建时注入（见 `lib/config.ts`）；**翻译缓存用 IndexedDB**（见 `lib/cache.ts`）。
 - 偏好轻量、可组合的模块，避免引入重框架；**引入任何较重的依赖前先与我确认**。
 
 ---
@@ -26,14 +26,14 @@
 ## 体验铁律（实现时不可违背）
 
 1. **系统提示词逐字节稳定。** 系统提示词是一个常量字符串，放在每次请求的最前面。绝不把页面内容、块编号等任何动态信息拼进系统提示词。变化的内容一律放在它之后。这是 DeepSeek 前缀缓存命中的前提，直接关系速度与成本。
-2. **原文永不销毁。** 用译文替换某块之前，必须先把该块的原始 HTML 保存下来（按块 ID 存入 Map，或挂到 DOM 节点的 data 属性）。Ctrl+点击切换、整页翻面、重试、失败降级全都依赖它。
+2. **原文永不销毁。** 用译文替换某块之前，必须先把该块的原始 HTML 保存下来（按块 ID 存入 Map，或挂到 DOM 节点的 data 属性）。Ctrl+点击切换、失败降级、取消时还原英文全都依赖它。
 3. **占位标记协议必须校验。** 内联样式以成对 `<g0>…</g0>` 和自闭合 `<x0/>` 标记交给模型；样式映射表只存在客户端，绝不发给模型。模型返回后，重建样式前先校验标记是否平衡、编号是否合法；校验不通过的块视为失败，保持英文原文。
 4. **显式关闭思考模式。** `deepseek-v4-flash` **默认开启**思考（会先流式输出 `reasoning_content` 再出 `content`，慢且多耗 token）。必须在请求体顶层加 `thinking: { type: 'disabled' }` 关闭；翻译是确定性改写，不需要推理，关闭后首 token 快约 3.5×。模型字符串 `deepseek-v4-flash`。
 5. **块 ID 稳定。** 每个可翻译块分配稳定 ID（如 `data-trans-id`），用于流式回填、重试、切换的定位。
 6. **代码不翻。** 抽取时跳过代码块；行内代码（如 `fetch()`）保持英文。
 7. **全部可见文字都翻，不区分内容类型，按 DOM 顺序自上而下。** 不做正文识别，不做视口优先。
 8. **原文先渲染。** 页面加载即显示完整英文原文，译文到达后逐块替换，替换用短暂淡入过渡，不可硬切。
-9. **API Key 绝不写入日志**，只存 `chrome.storage`。
+9. **API Key 绝不写入日志**，也绝不在 UI 暴露；由 `.env`（已 gitignore）在构建时注入，唯一读取处是 `lib/config.ts`。用户不在设置页配置 Key。
 
 ---
 
@@ -43,9 +43,9 @@
 2. **抽取**：用 `TreeWalker` 遍历 `document.body`，识别块级元素（p / li / h1~h6 / td / blockquote 等）为翻译单元，分配 ID，存原文 HTML。对每块递归处理其内部：文本节点拼成待译文本，承载样式的内联元素就地转成 `<gN>`/`<xN>` 标记，并记录“编号→原始内联元素”映射。
 3. **请求（带缓存）**：内容脚本把所有块（DOM 顺序）发给 service worker；worker 先查 IndexedDB 缓存（`lib/cache.ts`），命中的块直接回传（0 token、毫秒级），未命中的按 source **去重**、再**分批（每批约 40 块，避免输出超 `max_tokens` 被截断）** 调用 DeepSeek（流式、关思考），译出并校验通过后写入缓存。
 4. **流式回填**：service worker 通过长连接（`chrome.runtime.connect` port）把流块转发给内容脚本；内容脚本边收边按 `[[id]]` 切分，每收齐一块就校验标记、重建样式、淡入替换对应 DOM 节点。
-5. **失败处理**：失败/未达的块保持英文原文；popup 提供“重试未完成的部分”，因前缀缓存而廉价快速。流被中途切断同理。单批失败不影响其余批次。
-6. **查看原文**：Ctrl+点击某块 → 该块在原文/译文间粘滞切换；快捷键 → 整页在全中文/全英文间瞬间翻面（均无需重新请求，靠本地保存的原文）。
-7. **取消**：白名单关闭某域名 → 当前页所有块立即还原为英文原文。
+5. **失败处理**：失败/未达的块保持英文原文；想重来就在 popup 关掉再开该站点（整页重译，命中缓存故廉价快速）。流被中途切断同理。单批失败不影响其余批次。
+6. **查看原文**：Ctrl+点击某块 → 该块在原文/译文间粘滞切换（无需重新请求，靠本地保存的原文）。
+7. **翻译 / 取消（手动）**：popup 主按钮或快捷键（默认 `Alt+Shift+A`，Mac `⌘⇧A`）切换当前网站是否在自动翻译列表——加入即整页翻译，移出即把当前页所有块立即还原为英文原文。
 
 ---
 
@@ -82,17 +82,20 @@
 
 ```
 entrypoints/
-  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、整页翻面、还原
-  background.ts         # service worker：缓存查询/写入 + 去重 + 分批 DeepSeek 调用 + SSE 流转发
-  dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore，防 React 协调崩溃
-  popup/  options/      # React：站点开关/重试/进度；白名单、API Key、快捷键
+  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、还原
+  background.ts         # service worker：薄 port 适配层（收发消息 + job 生命周期）+ 工具栏图标三态驱动（storage/tabs/port → setIcon）；翻译编排委托 lib/translator.ts
+  dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号（推迟注入消除 #418）
+  popup/  options/      # React「素 Quiet」设计：popup 单按钮（翻译/取消此网站 + 快捷键 + 极轻进度/状态）；options 管「自动翻译的网站」列表 + 快捷键提示
 lib/
+  translator.ts # 翻译编排：缓存优先 → 按 source 去重 → 分批 + 有限并发调 DeepSeek → 校验 → 写缓存（不依赖 chrome.*，可单测；回显不入缓存）
   extractor.ts  # TreeWalker 抽取块 + 生成 <gN>/<xN> 标记 + styleMap
-  markers.ts    # 标记序列化/校验/还原；allowedIdsFromSource（从 source 反推编号，供 bg 端做等价校验）
-  rebuilder.ts  # 依据 styleMap 把带标记的译文重建为 DOM
+  markers.ts    # 唯一标记词法 tokenizeMarkers（validate 与 rebuild 共用）；allowedIdsFromSource（从 source 反推编号，供 bg 端等价校验）
+  rebuilder.ts  # 依据 styleMap + tokenizeMarkers 把带标记的译文重建为 DOM
   deepseek.ts   # 请求构造（稳定前缀 + thinking:disabled）、SSE 解析、createBlockSplitter 流式切块
   cache.ts      # IndexedDB 内容寻址翻译缓存（键 = 版本(模型+prompt 哈希):cyrb53(source)；LRU 淘汰）
-  storage.ts    # 白名单 / API Key / 设置
+  config.ts     # DeepSeek API Key 唯一读取处（构建时由 .env 的 WXT_DEEPSEEK_API_KEY 注入）
+  storage.ts    # 白名单 / 设置（不再含 API Key）
+  icon.ts       # 工具栏图标三态封装：off/on/翻译中/出错 → chrome.action.setIcon + setBadge（图标位图在 public/icon/，由 design/decode-icons.mjs 从 canvas 生成）
   prompt.ts     # 系统提示词常量（唯一来源，禁止动态拼接）
   messages.ts   # content ↔ background ↔ popup 消息协议
   types.ts      # 共享类型
@@ -102,7 +105,8 @@ lib/
 
 ## 已知限制 / 跨框架坑
 
-- **React/Next.js 站点（如 react.dev）**：直接替换 DOM 会与 React 协调冲突，曾导致 `removeChild NotFoundError` → 错误边界 → 整页“client-side exception”崩溃；缓存+关思考让译文在 hydration 期间就快速注入，会稳定触发。已由 `dom-compat.content.ts`（MAIN world、React 之前打补丁使 removeChild/insertBefore 容错）消除**致命**崩溃；残留一个**良性**的 hydration 文本不匹配告警（React #418），不影响渲染与翻译。
+- **具体站点的翻译异常案例记在 [`翻译问题记录.md`](翻译问题记录.md)（经验库）**：修任何"某页面翻译出问题"前先查它有无同类前例；修完把新案例按模板回填，并对"涉及模块"相同的历史案例逐条跑一遍其"复现与验证"，防止改了别处把老问题改回去。
+- **React/Next.js 站点（如 react.dev）**：直接替换 DOM 会与 React 协调冲突，曾导致 `removeChild NotFoundError` → 错误边界 → 整页“client-side exception”崩溃；缓存+关思考让译文在 hydration 期间就快速注入，会稳定触发。两道防线：① `dom-compat.content.ts`（MAIN world、React 之前打补丁使 removeChild/insertBefore 容错）消除**致命**崩溃；② 同一脚本在 `load` + 主线程空闲时发“就绪”信号（DOM 属性 `data-imt-ready` + `imt-ready` 事件），内容脚本**推迟到 hydration 完成后再抽取/注入**，消除 React #418（hydration 文本不匹配）告警。注意：紧接 `chrome.runtime.reload()` 后的首次刷新，content script 可能尚未注册、推迟失效而偶发 #418，属测试假象，稳定加载后即 0。
 - 翻译动态/交互界面不如静态正文稳定：页面自身 JS 重渲染可能把已替换的中文打回英文。
 - 仅处理加载时已存在的内容；异步追加的内容不自动翻译（不上 MutationObserver）。
 - **缓存是内容寻址**：页面每次渲染的块集若有变化（动态内容），变化部分会重新翻译，刷新请求数收敛到“变化块”而非 0，属正确行为。
