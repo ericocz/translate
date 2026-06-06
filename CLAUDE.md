@@ -82,7 +82,7 @@
 
 ```
 entrypoints/
-  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、还原
+  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、还原；含晚渲染 SPA 的有界沉降补抽（settleAndReextract）
   background.ts         # service worker：薄 port 适配层（收发消息 + job 生命周期）+ 工具栏图标三态驱动（storage/tabs/port → setIcon）；翻译编排委托 lib/translator.ts
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号（推迟注入消除 #418）
   popup/  options/      # React「素 Quiet」设计：popup 单按钮（翻译/取消此网站 + 快捷键 + 极轻进度/状态）；options 管「自动翻译的网站」列表 + 快捷键提示
@@ -106,9 +106,9 @@ lib/
 ## 已知限制 / 跨框架坑
 
 - **具体站点的翻译异常案例记在 [`翻译问题记录.md`](翻译问题记录.md)（经验库）**：修任何"某页面翻译出问题"前先查它有无同类前例；修完把新案例按模板回填，并对"涉及模块"相同的历史案例逐条跑一遍其"复现与验证"，防止改了别处把老问题改回去。
-- **React/Next.js 站点（如 react.dev）**：直接替换 DOM 会与 React 协调冲突，曾导致 `removeChild NotFoundError` → 错误边界 → 整页“client-side exception”崩溃；缓存+关思考让译文在 hydration 期间就快速注入，会稳定触发。两道防线：① `dom-compat.content.ts`（MAIN world、React 之前打补丁使 removeChild/insertBefore 容错）消除**致命**崩溃；② 同一脚本在 `load` + 主线程空闲时发“就绪”信号（DOM 属性 `data-imt-ready` + `imt-ready` 事件），内容脚本**推迟到 hydration 完成后再抽取/注入**，消除 React #418（hydration 文本不匹配）告警。注意：紧接 `chrome.runtime.reload()` 后的首次刷新，content script 可能尚未注册、推迟失效而偶发 #418，属测试假象，稳定加载后即 0。
+- **React/Next.js 站点（如 react.dev）**：直接替换 DOM 会与 React 协调冲突，曾导致 `removeChild NotFoundError` → 错误边界 → 整页“client-side exception”崩溃；缓存+关思考让译文在 hydration 期间就快速注入，会稳定触发。两道防线：① `dom-compat.content.ts`（MAIN world、React 之前打补丁使 removeChild/insertBefore 容错）消除**致命**崩溃；② 同一脚本在 `load` + 主线程空闲时发“就绪”信号（DOM 属性 `data-imt-ready` + `imt-ready` 事件），内容脚本**推迟到 hydration 后再抽取/注入**，**多数站**消除 React #418（hydration 文本不匹配）告警。**但并非全部**：把 hydration **延迟/流式**到 `load` 之后的站（Jest/Webpack/Stripe/DigitalOcean/HackerNoon 等）仍会 #418/#425——这是**可恢复**告警、页面仍正确译出，且与**翻译缓存预热**强相关（缓存热→注入快→更易撞 hydration）；试过「等 DOM 静默再发信号」实测无效已回退，详见经验库 [#3](翻译问题记录.md)(A)。注意：紧接 `chrome.runtime.reload()` 后的首次刷新也会偶发 #418（content script 尚未注册），属测试假象，需充分预热后再判。
 - 翻译动态/交互界面不如静态正文稳定：页面自身 JS 重渲染可能把已替换的中文打回英文。
-- 仅处理加载时已存在的内容；异步追加的内容不自动翻译（不上 MutationObserver）。
+- 主要处理加载时已存在的内容。**例外：晚渲染 SPA 的「有界沉降补抽」**——内容脚本初译后会做最多 5 轮、每轮 1200ms 的有限重抽（`content.ts` `settleAndReextract`），把首屏**客户端渐进渲染**的晚到块补译（如 MongoDB 文档，初抽 0 → 补到 172/172）；某轮 0 新块即停、对正常站是 no-op。仍**不上常驻 MutationObserver**，故这之后才异步追加的内容、或被 SPA 重渲染打回英文的块，不会再翻。见经验库 [#3](翻译问题记录.md)(B)。
 - **缓存是内容寻址**：页面每次渲染的块集若有变化（动态内容），变化部分会重新翻译，刷新请求数收敛到“变化块”而非 0，属正确行为。
 
 ---

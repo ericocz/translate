@@ -11,3 +11,4 @@ dist
 # 本地密钥：DeepSeek API Key 注入用，绝不提交（.env.example 是占位模板，照常提交）
 .env
 .env.*.local
+.test-shots/

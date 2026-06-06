@@ -44,12 +44,15 @@ export default defineContentScript({
       mode: 'en' | 'zh';
       perBlockMode: Map<string, 'en' | 'zh'>;
       running: boolean;
+      /** 一次"整页翻译（含沉降补抽）"是否进行中，防重入。 */
+      translating: boolean;
       lastError?: string;
     } = {
       records: new Map(),
       mode: 'en',
       perBlockMode: new Map(),
       running: false,
+      translating: false,
     };
 
     injectStyle();
@@ -131,17 +134,21 @@ export default defineContentScript({
       return reply;
     }
 
-    async function runTranslation() {
-      if (state.running) return;
-      // 1) 抽取——原文已经在页面上"垫"着了，因为这是 document_idle 才跑的。
+    /**
+     * 把当前 DOM 里「尚未认领」的块抽取并入 state.records，返回这批新块。
+     * extractBlocks 的 acceptNode 会跳过 [data-trans-id] 子树，所以重跑只会拿到新出现的块。
+     * 坑：extractBlocks 内部每次都从 b1 重新编号，重抽会与上轮 id 撞——故第 ≥1 轮按轮次加前缀
+     *     重写为唯一 id（同时改写元素的 data-trans-id），保证 records 唯一、Ctrl+点击查找正确。
+     */
+    function extractInto(round: number): { id: string; source: string }[] {
       const { blocks, rootById } = extractBlocks(document.body);
-      if (blocks.length === 0) return;
-      state.records.clear();
-      state.lastError = undefined;
+      const fresh: { id: string; source: string }[] = [];
       for (const b of blocks) {
         const root = rootById.get(b.id)!;
-        state.records.set(b.id, {
-          id: b.id,
+        const uid = round === 0 ? b.id : `r${round}.${b.id}`;
+        if (uid !== b.id) root.dataset['transId'] = uid;
+        state.records.set(uid, {
+          id: uid,
           root,
           source: b.source,
           styleMap: b.styleMap,
@@ -149,33 +156,96 @@ export default defineContentScript({
           translatedFrag: null,
           status: 'pending',
         });
+        fresh.push({ id: uid, source: b.source });
       }
-      // 2) 建立 port，开始流式翻译。
+      return fresh;
+    }
+
+    async function runTranslation() {
+      if (state.translating) return;
+      state.translating = true;
+      try {
+        state.records.clear();
+        state.lastError = undefined;
+        state.mode = 'zh';
+        // 1) 初次抽取——原文已经在页面上"垫"着了，因为这是 document_idle 才跑的。
+        const initial = extractInto(0);
+        if (initial.length > 0) {
+          state.running = true;
+          openPortAndStart(initial);
+        }
+        // 2) 沉降补抽：晚渲染 SPA（如 MongoDB 文档）首屏正文晚于抽取时机，初抽可能为空或不全。
+        //    有界重抽把后到的块补译；正常站第 1 轮就 0 新块、立即结束。
+        await settleAndReextract();
+      } finally {
+        state.translating = false;
+      }
+    }
+
+    /**
+     * 有界「沉降-补抽」：最多 MAX_ROUNDS 轮、每轮间隔后重抽，累积晚到的新块；某轮 0 新块即判定
+     * 页面已稳、停止。把累积的晚到块在初译 job 结束后用一个 port job 串行补译（避免并发 port
+     * 互相 disconnect 取消在途任务）。硬上限防长轮询/动态站跑飞（呼应"不上 MutationObserver"）。
+     */
+    async function settleAndReextract() {
+      const MAX_ROUNDS = 5;
+      const INTERVAL = 1200;
+      const late: { id: string; source: string }[] = [];
+      for (let round = 1; round <= MAX_ROUNDS; round++) {
+        await sleep(INTERVAL);
+        if (state.mode !== 'zh') return; // 期间被关站/切回英文
+        const fresh = extractInto(round);
+        if (fresh.length === 0) break; // 已稳
+        late.push(...fresh);
+      }
+      if (late.length === 0 || state.mode !== 'zh') return;
+      await waitForIdle(); // 等初译 job 完成，串行补译
+      if (state.mode !== 'zh') return;
       state.running = true;
-      state.mode = 'zh';
-      openPortAndStart(blocks.map((b) => ({ id: b.id, source: b.source })));
+      openPortAndStart(late);
+    }
+
+    /** 等当前流式 job 结束（state.running 落回 false），带绝对上限防卡死。 */
+    function waitForIdle(): Promise<void> {
+      return new Promise((resolve) => {
+        if (!state.running) return resolve();
+        let waited = 0;
+        const tick = () => {
+          if (!state.running || waited >= 20000) return resolve();
+          waited += 150;
+          setTimeout(tick, 150);
+        };
+        setTimeout(tick, 150);
+      });
     }
 
     function openPortAndStart(payload: { id: string; source: string }[]) {
       port?.disconnect();
-      port = chrome.runtime.connect({ name: PORT_NAME });
-      port.onMessage.addListener((msg: BgToContent) => {
+      // 用局部 p 捕获本次 port：沉降补抽会串行起多个 job，旧 port 的回调若在新 job 启动后才触发，
+      // 必须用 `port === p` 守卫，避免它把当前 port / running 清掉（否则补译 job 会被误判结束）。
+      const p = chrome.runtime.connect({ name: PORT_NAME });
+      port = p;
+      p.onMessage.addListener((msg: BgToContent) => {
         if (msg.kind === 'block') {
-          applyBlock(msg.id, msg.translated);
+          applyBlock(msg.id, msg.translated); // 块回填始终生效（属于 records，与是否当前 port 无关）
         } else if (msg.kind === 'done') {
-          state.running = false;
+          if (port === p) state.running = false;
         } else if (msg.kind === 'error') {
-          state.running = false;
-          state.lastError = msg.failure.message;
+          if (port === p) {
+            state.running = false;
+            state.lastError = msg.failure.message;
+          }
           // 失败的视觉表现：失败块就保持英文，无须特别处理。
         }
       });
-      port.onDisconnect.addListener(() => {
-        state.running = false;
-        port = null;
+      p.onDisconnect.addListener(() => {
+        if (port === p) {
+          state.running = false;
+          port = null;
+        }
       });
       const startMsg: ContentToBg = { kind: 'start', blocks: payload };
-      port.postMessage(startMsg);
+      p.postMessage(startMsg);
     }
 
     function cancelStream() {
@@ -238,6 +308,10 @@ export default defineContentScript({
 });
 
 // ---------------- 工具 ----------------
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * 等 dom-compat（MAIN world）发出的 hydration 就绪信号后再开译，消除 React #418。
