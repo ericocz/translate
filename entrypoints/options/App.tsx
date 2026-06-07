@@ -5,13 +5,18 @@ export function Options() {
   const [list, setList] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState('');
   const [shortcut, setShortcut] = useState(suggestedShortcut);
+  // Chrome 是否真的绑定了快捷键：getAll() 返回非空才算（reload/更新后常返空，见经验）。
+  const [bound, setBound] = useState(false);
 
   useEffect(() => {
     void (async () => setList(await getWhitelist()))();
     // 显示实际快捷键（用户可能在 chrome://extensions/shortcuts 改过）；为空则保留建议键。
     void chrome.commands.getAll().then((cmds) => {
       const real = cmds.find((c) => c.name === 'toggle-site')?.shortcut;
-      if (real) setShortcut(real);
+      if (real) {
+        setShortcut(real);
+        setBound(true);
+      }
     });
   }, []);
 
@@ -33,7 +38,13 @@ export function Options() {
     [list]
   );
 
+  // 「修改快捷键」：MV3 不允许扩展用 API 改快捷键，只能打开 Chrome 原生改键页引导用户。
+  const openShortcuts = useCallback(() => {
+    void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  }, []);
+
   const valid = normalizeDomain(newDomain) !== '';
+  const keys = parseShortcut(shortcut);
 
   return (
     <div className="wrap">
@@ -88,11 +99,35 @@ export function Options() {
         )}
       </section>
 
-      <p className="kbd-note">
-        <span>翻译 / 取消翻译当前网站</span>
-        <kbd>{shortcut}</kbd>
-        <span className="kbd-sub">在 chrome://extensions/shortcuts 可改</span>
-      </p>
+      <section className="card">
+        <div className="card-h">
+          <h2>快捷键</h2>
+        </div>
+        <p className="muted">翻译 / 取消翻译当前网站。</p>
+
+        <div className="kbd-row">
+          <div className="keys">
+            {keys.length > 0 ? (
+              keys.map((k, i) => (
+                <kbd className="keycap" key={i}>
+                  {k}
+                </kbd>
+              ))
+            ) : (
+              <span className="muted">未设置</span>
+            )}
+          </div>
+          <button className="ghost" onClick={openShortcuts}>
+            修改快捷键 ›
+          </button>
+        </div>
+
+        <p className="muted">
+          {bound
+            ? '快捷键由 Chrome 管理。点「修改快捷键」会打开浏览器的扩展快捷键页，在那里改成顺手的组合。'
+            : 'Chrome 还没绑定这个快捷键（扩展更新或重载后常见）。点「修改快捷键」去绑定。'}
+        </p>
+      </section>
     </div>
   );
 }
@@ -111,6 +146,30 @@ function Mark() {
 function suggestedShortcut(): string {
   const isMac = /mac/i.test(navigator.platform || navigator.userAgent);
   return isMac ? '⌘⇧A' : 'Alt+Shift+A';
+}
+
+/**
+ * 把 chrome.commands 的快捷键字符串拆成单个键，用于渲染独立键帽。
+ * 兼容两种格式：非 Mac 用 '+' 分隔（Alt+Shift+A）；Mac 是符号连写（⌘⇧A），
+ * 其中 ⌘⌥⇧⌃ 各算一个修饰键、其余连续字符（可能是 F5 这类多字符主键）合为一键。
+ */
+function parseShortcut(s: string): string[] {
+  if (!s) return [];
+  if (s.includes('+')) {
+    return s
+      .split('+')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+  const mods = new Set(['⌘', '⌥', '⇧', '⌃']);
+  const keys: string[] = [];
+  let main = '';
+  for (const ch of s) {
+    if (mods.has(ch)) keys.push(ch);
+    else main += ch;
+  }
+  if (main) keys.push(main);
+  return keys;
 }
 
 function normalizeDomain(input: string): string {
