@@ -113,3 +113,39 @@ export function allowedIdsFromSource(source: string): Set<number> {
   while ((m = MARKER_RE.exec(source)) !== null) ids.add(Number(m[3]));
   return ids;
 }
+
+// 「整块就是单个内联包装裹住全部文字」的源结构：可选前导/尾随自闭占位 + 唯一一对 <gN>…</gN>。
+// 典型：超链接型块 <a>整句话</a> → source 形如 (<xA/>)* <gN> 任意内容 </gN> (<xB/>)*。
+const SOLE_WRAPPER_RE = /^\s*((?:<x\d+\/>\s*)*)<g(\d+)>([\s\S]*)<\/g\2>\s*((?:<x\d+\/>\s*)*)\s*$/;
+const LEADING_VOIDS_RE = /^\s*((?:<x\d+\/>\s*)*)/;
+const TRAILING_VOIDS_RE = /((?:\s*<x\d+\/>)*\s*)$/;
+
+/**
+ * 补回被模型整对省略的「最外层唯一内联包装」标记。
+ *
+ * 踩坑（superuser 热门问题侧栏）：当一个块的全部文字都裹在单个内联元素里（最典型是
+ * 超链接 <a>整句</a>，source = `<x0/><g1>整句</g1>`），模型偶尔会把整对 <g1></g1>
+ * 省略、只回译文文本。validateMarkers 故意允许省略成对标记（容忍丢弃无意义的内联包装），
+ * 于是 rebuild 拿不到 open token、不重建这层壳——<a> 连同它的 href / class 一起消失：
+ *   ① 链接失效（功能性丢失）；② 文字直接落进父元素，若父元素是 white-space:nowrap
+ *      （热门问题 li 正是如此），中文不再换行、整行横向溢出（英文同理，但译前有 <a> 上的
+ *      width/white-space 规则兜着所以正常，形成「译前正常、译后溢出」）。
+ *
+ * 仅处理「单个最外层包装裹住全部文字」这一明确情形（多包装/并列包装不动，避免误裹）：
+ * 若 source 命中 SOLE_WRAPPER_RE 且译文里没有这层 <gN>，就把译文中「前导占位之后、尾随占位
+ * 之前」的实际译文重新裹进 <gN>…</gN>。补回的就是原元素的壳，等价于模型本应保留它，安全。
+ */
+export function restoreSoleWrapper(translated: string, source: string): string {
+  const m = SOLE_WRAPPER_RE.exec(source);
+  if (!m) return translated;
+  const wrapperId = m[2];
+  // 译文已含这层包装（模型正常保留）→ 无需修复。
+  if (new RegExp(`<g${wrapperId}>`).test(translated)) return translated;
+  // 拆出译文的前导 / 尾随自闭占位，把中间真正的译文裹进 <gN>。
+  const lead = (LEADING_VOIDS_RE.exec(translated) ?? ['', ''])[1] ?? '';
+  const afterLead = translated.slice(lead.length);
+  const trail = (TRAILING_VOIDS_RE.exec(afterLead) ?? ['', ''])[1] ?? '';
+  const mid = afterLead.slice(0, afterLead.length - trail.length);
+  if (mid.trim().length === 0) return translated; // 没有可裹的文字，放弃（纯占位）
+  return `${lead}<g${wrapperId}>${mid}</g${wrapperId}>${trail}`;
+}

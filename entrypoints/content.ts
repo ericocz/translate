@@ -7,7 +7,7 @@
 // - failedIds: 翻译失败 / 校验失败的块 id
 
 import { extractBlocks } from '@/lib/extractor';
-import { validateMarkers } from '@/lib/markers';
+import { validateMarkers, restoreSoleWrapper } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
 import { isDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import {
@@ -265,14 +265,18 @@ export default defineContentScript({
     function applyBlock(id: string, translated: string) {
       const rec = state.records.get(id);
       if (!rec) return;
+      // 补回模型整对省略的「最外层唯一内联包装」（最典型：超链接 <a> 裹住整块文字）。
+      // 否则 rebuild 拿不到 open token、不重建这层壳，文字直接落进父元素——链接失效，且在
+      // white-space:nowrap 的容器里（如热门问题侧栏 li）中文不换行、整行溢出。见经验库。
+      const repaired = restoreSoleWrapper(translated, rec.source);
       // 校验标记。
       const allowedIds = new Set<number>([...rec.styleMap.keys()]);
-      const check = validateMarkers(translated, allowedIds);
+      const check = validateMarkers(repaired, allowedIds);
       if (!check.ok) {
         rec.status = 'failed';
         return;
       }
-      const frag = rebuild(translated, rec.styleMap);
+      const frag = rebuild(repaired, rec.styleMap);
       // aria-hidden 的「阴影副本」（与可见正文同字、绝对定位叠在背后）用译文镜像：
       // 它在 extractor 里按 <xN/> 原样保留（不送翻，避免模型把重复内容去重后丢掉可见正文），
       // 但保留的是英文，会与可见译文重叠成中英混排——这里用译文把它刷成中文。
