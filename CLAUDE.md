@@ -120,4 +120,5 @@ lib/
 - 优先用浏览器原生 API（TreeWalker、ReadableStream、IndexedDB），少引第三方库。
 - **命令**：`pnpm dev`（开发，HMR）/ `pnpm build`（产物 → `output/chrome-mv3`，作为“解包扩展”加载）/ `pnpm compile`（`tsc --noEmit` 类型检查，提交前必跑）/ `pnpm zip`（打包）。
 - **验证**：纯函数（markers / 切块 / 缓存逻辑）用一次性 `node xxx.mjs` 脚本单测；端到端用 Chrome DevTools（调试 Chrome 开在 `:9222`）——可连扩展 service worker 的 CDP 目标看 DeepSeek 请求/响应、用 `chrome.runtime.reload()` 从磁盘重载解包扩展、查页面控制台崩溃。注意 background 发出的请求在页面 network 里看不到，要去 service worker 上下文查。
+- **全站回归测试**：目标语料见 [`测试网站清单.md`](测试网站清单.md)（150 个英文站，按“易翻车维度”选，非按流量）；每轮结果汇总进 [`测试运行记录.md`](测试运行记录.md)，标 ✅/⚠️/❌，❌ 项转经验库立案。改抽取/标记/重建后建议据此回归。
 ```
