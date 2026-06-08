@@ -12,7 +12,13 @@ interface PopupState {
   status: StatusReply | null;
   loading: boolean;
   /** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
-  usage: { loggedIn: boolean; used: number; limit: number | null; remaining: number | null } | null;
+  usage: {
+    loggedIn: boolean;
+    used?: number;
+    limit?: number | null;
+    remaining?: number | null;
+    tokensToday?: number;
+  } | null;
   /** 已登录邮箱；未登录为 null。 */
   email: string | null;
 }
@@ -51,9 +57,10 @@ export function Popup() {
       if (r.ok) {
         return (await r.json()) as {
           loggedIn: boolean;
-          used: number;
-          limit: number | null;
-          remaining: number | null;
+          used?: number;
+          limit?: number | null;
+          remaining?: number | null;
+          tokensToday?: number;
         };
       }
     } catch {
@@ -198,7 +205,7 @@ export function Popup() {
         <span className="foot-hint">
           {s.usage
             ? s.usage.loggedIn
-              ? '已登录 · 无限翻译'
+              ? `已登录 · 今日 ${s.usage.tokensToday ?? 0} token`
               : `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
             : s.enabled
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
