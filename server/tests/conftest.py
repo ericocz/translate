@@ -24,7 +24,7 @@ async def db_session():
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE translation_cache, anon_usage, users, sessions, daily_usage, quota_tier CASCADE"
+                "TRUNCATE translation_cache, anon_usage, users, sessions, daily_usage, quota_tier, events, error_logs CASCADE"
             )
         )
     # pytest-asyncio 每个测试用新事件循环；asyncpg 连接绑定在创建它的 loop 上。

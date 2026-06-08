@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -67,6 +68,38 @@ class DailyUsage(Base):
     input_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     output_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     pages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class Event(Base):
+    """运营打点：只存 host（不存完整 URL/正文）。props 放计数/耗时等非敏感字段。"""
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    props: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class ErrorLog(Base):
+    """客户端/服务端错误上报。context 仅放脱敏字段（host、失败类等）。"""
+
+    __tablename__ = "error_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
 
 class QuotaTier(Base):
