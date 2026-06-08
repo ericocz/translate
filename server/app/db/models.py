@@ -57,6 +57,18 @@ class User(Base):
     )
 
 
+class DailyUsage(Base):
+    """登录用户每日 Token 记账（含缓存命中归因）。pages = 当日翻译请求计数。"""
+
+    __tablename__ = "daily_usage"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    local_date: Mapped[str] = mapped_column(String(10), primary_key=True)
+    input_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    pages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class Session(Base):
     """登录会话：refresh token 只存 sha256 哈希；access 是短时 JWT 无需存。"""
 
