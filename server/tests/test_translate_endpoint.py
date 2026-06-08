@@ -6,7 +6,12 @@ from httpx import ASGITransport
 
 from app.main import app
 from app.routers.deps import current_user_optional
-from app.routers.translate import get_anon_quota, get_cache, get_deepseek_stream
+from app.routers.translate import (
+    get_anon_quota,
+    get_cache,
+    get_daily_usage,
+    get_deepseek_stream,
+)
 from app.services.quota import QuotaDecision
 
 
@@ -36,6 +41,17 @@ class FakeQuotaDeny:
         return QuotaDecision(False, 3, 3, "今日免费 3 页已用完，登录后免费畅用")
 
 
+class FakeDaily:
+    def __init__(self):
+        self.added: list[tuple[int, int, int, int]] = []
+
+    async def add(self, user_id, local_date, input_tokens, output_tokens, pages=0):
+        self.added.append((user_id, input_tokens, output_tokens, pages))
+
+    async def tokens_today(self, user_id, local_date):
+        return sum(i + o for _, i, o, _ in self.added)
+
+
 def parse_sse(text: str) -> list[tuple[str, str]]:
     events: list[tuple[str, str]] = []
     cur = None
@@ -52,6 +68,7 @@ def override():
     app.dependency_overrides[get_cache] = lambda: FakeCache()
     app.dependency_overrides[get_deepseek_stream] = lambda: fake_stream
     app.dependency_overrides[get_anon_quota] = lambda: FakeQuotaAllow()
+    app.dependency_overrides[get_daily_usage] = lambda: FakeDaily()
     yield
     app.dependency_overrides.clear()
 
@@ -99,4 +116,24 @@ async def test_logged_in_skips_quota(override):
         kinds = [e for e, _ in parse_sse(resp.text)]
         assert "block" in kinds and "done" in kinds and "quota" not in kinds
     finally:
+        app.dependency_overrides.pop(current_user_optional, None)
+
+
+async def test_logged_in_records_daily_usage(override):
+    fake_daily = FakeDaily()
+    app.dependency_overrides[get_daily_usage] = lambda: fake_daily
+    app.dependency_overrides[current_user_optional] = lambda: 7
+    try:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/v1/translate",
+                json={"blocks": [{"id": "b1", "source": "Hi"}], "pageKey": "p1"},
+                headers={"X-Device-Id": "dev1", "Authorization": "Bearer x"},
+            )
+        assert resp.status_code == 200
+        assert fake_daily.added and fake_daily.added[0][0] == 7
+        assert fake_daily.added[0][1] + fake_daily.added[0][2] > 0  # 记了 token
+    finally:
+        app.dependency_overrides.pop(get_daily_usage, None)
         app.dependency_overrides.pop(current_user_optional, None)

@@ -17,8 +17,10 @@ from app.services.translator import (
     DoneEvent,
     ErrorEvent,
     SourceBlock,
+    UsageEvent,
     translate,
 )
+from app.services.usage_repo import DailyUsageRepo
 
 router = APIRouter()
 
@@ -52,6 +54,11 @@ async def get_anon_quota() -> AsyncIterator[AnonQuotaRepo]:
         yield AnonQuotaRepo(s)
 
 
+async def get_daily_usage() -> AsyncIterator[DailyUsageRepo]:
+    async with async_session() as s:
+        yield DailyUsageRepo(s)
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -63,6 +70,7 @@ async def translate_endpoint(
     cache=Depends(get_cache),
     quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
+    daily=Depends(get_daily_usage),
     user_id: int | None = Depends(current_user_optional),
 ):
     device_id = request.headers.get("x-device-id", "")
@@ -93,6 +101,10 @@ async def translate_endpoint(
         ):
             if isinstance(ev, BlockEvent):
                 yield _sse("block", {"id": ev.id, "translated": ev.translated})
+            elif isinstance(ev, UsageEvent):
+                # 登录用户记当日 token（含缓存命中归因）；匿名不记 daily_usage（走页配额）。
+                if user_id is not None:
+                    await daily.add(user_id, local_date, ev.input_tokens, ev.output_tokens, pages=1)
             elif isinstance(ev, DoneEvent):
                 yield _sse("done", {})
             elif isinstance(ev, ErrorEvent):
