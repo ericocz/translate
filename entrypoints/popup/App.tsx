@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
 import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
-import { getAccessToken } from '@/lib/auth';
+import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 
 interface PopupState {
@@ -13,6 +13,8 @@ interface PopupState {
   loading: boolean;
   /** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
   usage: { loggedIn: boolean; used: number; limit: number | null; remaining: number | null } | null;
+  /** 已登录邮箱；未登录为 null。 */
+  email: string | null;
 }
 
 export function Popup() {
@@ -23,6 +25,7 @@ export function Popup() {
     status: null,
     loading: true,
     usage: null,
+    email: null,
   });
   // 「翻译 / 取消翻译此网站」的快捷键，显示在按钮里。先给本平台建议键兜底，
   // 随后 chrome.commands.getAll() 有实际绑定再覆盖（见历史：更新安装时 getAll 可能为空）。
@@ -62,7 +65,7 @@ export function Popup() {
   const refresh = useCallback(async () => {
     const tab = await getActiveTab();
     if (!tab?.url) {
-      setS({ domain: '', favicon: '', enabled: false, status: null, loading: false, usage: null });
+      setS({ domain: '', favicon: '', enabled: false, status: null, loading: false, usage: null, email: await getEmail() });
       return;
     }
     let domain = '';
@@ -74,7 +77,8 @@ export function Popup() {
     const enabled = domain ? await isDomainEnabled(domain) : false;
     const status = tab.id ? await querySafe(tab.id, { kind: 'query-status' }) : null;
     const usage = await fetchUsage();
-    setS({ domain, favicon: tab.favIconUrl ?? '', enabled, status, loading: false, usage });
+    const email = await getEmail();
+    setS({ domain, favicon: tab.favIconUrl ?? '', enabled, status, loading: false, usage, email });
   }, [fetchUsage]);
 
   useEffect(() => {
@@ -127,6 +131,8 @@ export function Popup() {
   return (
     <div className="pop">
       <Brand enabled={s.enabled} />
+
+      <AccountSection email={s.email} onChanged={() => void refresh()} />
 
       <div className="domain">
         {s.favicon ? (
@@ -199,6 +205,93 @@ export function Popup() {
               : '开启即整页翻译'}
         </span>
         <button className="link" onClick={openSettings}>设置 ›</button>
+      </div>
+    </div>
+  );
+}
+
+/** 账号区：已登录显示邮箱 + 登出；未登录折叠为一行 CTA，点开展为登录/注册表单。 */
+function AccountSection({ email, onChanged }: { email: string | null; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [emailInput, setEmailInput] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onLogout = useCallback(async () => {
+    await logout();
+    onChanged();
+  }, [onChanged]);
+
+  const onSubmit = useCallback(async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      if (mode === 'register') await register(emailInput.trim(), pw);
+      else await login(emailInput.trim(), pw);
+      setPw('');
+      setOpen(false);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setBusy(false);
+    }
+  }, [mode, emailInput, pw, onChanged]);
+
+  if (email) {
+    return (
+      <div className="acct">
+        <span className="acct-email">{email}</span>
+        <button className="link" onClick={() => void onLogout()}>登出</button>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <div className="acct">
+        <span className="acct-email">未登录 · 免费 3 页/天</span>
+        <button className="link" onClick={() => setOpen(true)}>登录 / 注册</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="authbox">
+      <input
+        type="email"
+        placeholder="邮箱"
+        value={emailInput}
+        onChange={(e) => setEmailInput(e.target.value)}
+        autoComplete="username"
+      />
+      <input
+        type="password"
+        placeholder="密码（至少 6 位）"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+        autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void onSubmit();
+        }}
+      />
+      {err && <span className="auth-err">{err}</span>}
+      <button className="action action--on" onClick={() => void onSubmit()} disabled={busy}>
+        <span>{busy ? '请稍候…' : mode === 'register' ? '注册并登录' : '登录'}</span>
+      </button>
+      <div className="auth-row">
+        <button
+          className="link"
+          onClick={() => {
+            setErr(null);
+            setMode(mode === 'login' ? 'register' : 'login');
+          }}
+        >
+          {mode === 'login' ? '没有账号？注册' : '已有账号？登录'}
+        </button>
+        <button className="link" onClick={() => setOpen(false)}>收起</button>
       </div>
     </div>
   );

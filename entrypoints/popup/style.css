@@ -154,3 +154,20 @@ body {
 .msg { display: flex; flex-direction: column; gap: 4px; }
 .msg-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--fg); }
 .msg-sub { margin: 0; font-size: 12px; color: var(--fg2); }
+
+/* 账号区 */
+.acct { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.acct-email { font-size: 12px; color: var(--fg2); word-break: break-all; }
+.authbox { display: flex; flex-direction: column; gap: 7px; }
+.authbox input {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.authbox input:focus { outline: none; border-color: var(--peach); }
+.auth-err { font-size: 11.5px; color: var(--err); }
+.auth-row { display: flex; align-items: center; justify-content: space-between; }
