@@ -12,3 +12,7 @@ dist
 .env
 .env.*.local
 .test-shots/
+
+# 本地工具产物 / 配置
+.pytest_cache/
+.claude/settings.local.json
