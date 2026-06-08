@@ -1,0 +1,85 @@
+import json
+from typing import AsyncIterator
+
+import httpx
+
+from app.core.hashing import MODEL
+from app.core.prompt import SYSTEM_PROMPT
+
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+
+
+class DeepSeekError(Exception):
+    def __init__(self, kind: str, message: str) -> None:
+        self.kind = kind  # network | api | auth
+        self.message = message
+        super().__init__(message)
+
+
+def build_request_body(blocks: list[tuple[str, str]]) -> dict:
+    """稳定系统提示词前缀 + 关思考；变化的块列表放 user 消息。对应客户端铁律 1/4：
+    - system 逐字节稳定 → 命中 DeepSeek 前缀缓存；
+    - thinking:disabled → V4 Flash 默认开思考，关掉后首 token 快约 3.5×、不产生 reasoning_tokens。"""
+    user = "\n".join(f"[[{bid}]] {src}" for bid, src in blocks)
+    return {
+        "model": MODEL,
+        "stream": True,
+        "thinking": {"type": "disabled"},
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user},
+        ],
+    }
+
+
+async def stream_content_deltas(
+    client: httpx.AsyncClient, api_key: str, blocks: list[tuple[str, str]]
+) -> AsyncIterator[str]:
+    """调 DeepSeek 流式接口，逐个 yield delta.content 文本。错误按 network/api/auth 分类抛出。
+
+    失败分类（对齐 lib/deepseek.ts）：
+    - 401/403 → auth；其余 4xx/5xx → api；fetch/连接层异常 → network（多半是代理未连通）。
+    """
+    body = build_request_body(blocks)
+    headers = {
+        "Authorization": f"Bearer {api_key}",  # 绝不写日志
+        "Content-Type": "application/json",
+    }
+    try:
+        async with client.stream("POST", DEEPSEEK_URL, json=body, headers=headers) as resp:
+            if resp.status_code in (401, 403):
+                raise DeepSeekError("auth", "DeepSeek API Key 无效或已过期")
+            if resp.status_code >= 400:
+                text = (await resp.aread()).decode("utf-8", "replace")
+                summary = " ".join(text[:200].split())
+                raise DeepSeekError("api", f"DeepSeek 接口报错 {resp.status_code}：{summary}")
+            async for line in resp.aiter_lines():
+                if not line or line.startswith(":"):
+                    continue
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].lstrip()
+                if data == "[DONE]":
+                    return
+                try:
+                    obj = json.loads(data)
+                    delta = obj["choices"][0]["delta"].get("content")
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue  # 单事件解析失败不致命
+                if isinstance(delta, str) and delta:
+                    yield delta
+    except DeepSeekError:
+        raise
+    except httpx.HTTPError as e:
+        raise DeepSeekError("network", f"无法连通 DeepSeek：{e}") from e
+
+
+async def stream_with_default_client(
+    api_key: str, blocks: list[tuple[str, str]]
+) -> AsyncIterator[str]:
+    """生产用便捷包装：每次开一个 httpx client 调上游。
+    签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。"""
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
+        async for delta in stream_content_deltas(client, api_key, blocks):
+            yield delta
