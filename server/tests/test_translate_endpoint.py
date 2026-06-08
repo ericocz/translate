@@ -5,6 +5,7 @@ import pytest
 from httpx import ASGITransport
 
 from app.main import app
+from app.routers.deps import current_user_optional
 from app.routers.translate import get_anon_quota, get_cache, get_deepseek_stream
 from app.services.quota import QuotaDecision
 
@@ -81,3 +82,21 @@ async def test_translate_blocked_emits_quota(override):
     kinds = [e for e, _ in evs]
     assert "quota" in kinds
     assert "block" not in kinds and "done" not in kinds  # 拒绝即不译
+
+
+async def test_logged_in_skips_quota(override):
+    # 即使配额仓库会拒绝，登录用户（current_user_optional 返回 user_id）也照常翻译
+    app.dependency_overrides[get_anon_quota] = lambda: FakeQuotaDeny()
+    app.dependency_overrides[current_user_optional] = lambda: 1
+    try:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/v1/translate",
+                json={"blocks": [{"id": "b1", "source": "Hi"}], "pageKey": "p1"},
+                headers={"X-Device-Id": "dev1", "Authorization": "Bearer x"},
+            )
+        kinds = [e for e, _ in parse_sse(resp.text)]
+        assert "block" in kinds and "done" in kinds and "quota" not in kinds
+    finally:
+        app.dependency_overrides.pop(current_user_optional, None)

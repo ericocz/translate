@@ -11,6 +11,7 @@ from app.db.base import async_session
 from app.services import deepseek
 from app.services.cache import TranslationCacheRepo
 from app.services.quota import AnonQuotaRepo
+from app.routers.deps import current_user_optional
 from app.services.translator import (
     BlockEvent,
     DoneEvent,
@@ -62,6 +63,7 @@ async def translate_endpoint(
     cache=Depends(get_cache),
     quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
+    user_id: int | None = Depends(current_user_optional),
 ):
     device_id = request.headers.get("x-device-id", "")
     ip = request.client.host if request.client else None
@@ -70,8 +72,9 @@ async def translate_endpoint(
 
     # 匿名配额闸门（P2；P3 登录用户将在此跳过）。有 pageKey + deviceId 才计。
     # 在返回流之前 await 完成判定/计数；拒绝则流里只发 quota、不查缓存不调模型。
+    # 登录用户（user_id 非空）跳过匿名配额：无限翻译（用量记账留 P4、限流留 P5）。
     decision = None
-    if req.pageKey and device_id:
+    if user_id is None and req.pageKey and device_id:
         decision = await quota.check_and_count(device_id, local_date, req.pageKey, ip)
 
     async def gen() -> AsyncIterator[str]:
