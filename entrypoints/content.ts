@@ -10,6 +10,7 @@ import { extractBlocks } from '@/lib/extractor';
 import { validateMarkers, restoreSoleWrapper } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
 import { isDomainEnabled, onSettingsChanged } from '@/lib/storage';
+import type { FailureKind } from '@/lib/types';
 import {
   PORT_NAME,
   type BgToContent,
@@ -49,6 +50,7 @@ export default defineContentScript({
       /** 全局单调抽取批次号：保证跨路由、跨沉降轮次的 data-trans-id 唯一（batch 0 用裸 id，≥1 加 r 前缀）。 */
       seq: number;
       lastError?: string;
+      lastErrorKind?: FailureKind;
     } = {
       records: new Map(),
       mode: 'en',
@@ -139,6 +141,7 @@ export default defineContentScript({
     function buildStatusReply(): StatusReply {
       const reply: StatusReply = { running: state.running };
       if (state.lastError) reply.error = state.lastError;
+      if (state.lastErrorKind) reply.errorKind = state.lastErrorKind;
       // 极轻进度：已译完段数 / 总段数（供 popup 显示 "12 / 40 段" 与进度条）。
       const total = state.records.size;
       if (total > 0) {
@@ -184,6 +187,7 @@ export default defineContentScript({
       // 支持 SPA 连续快速跳转时新译覆盖旧译、互不串扰。
       const myEpoch = ++state.epoch;
       state.lastError = undefined;
+      state.lastErrorKind = undefined;
       state.mode = 'zh';
       // 1) 初次抽取——首页加载时原文已"垫"着（document_idle）；SPA 新路由则可能尚未渲染，
       //    抽到 0 也无妨，下面的沉降补抽会把晚到的新路由内容补上。
@@ -277,6 +281,7 @@ export default defineContentScript({
           if (port === p) {
             state.running = false;
             state.lastError = msg.failure.message;
+            state.lastErrorKind = msg.failure.kind;
           }
           // 失败的视觉表现：失败块就保持英文，无须特别处理。
         }

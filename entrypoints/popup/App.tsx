@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
+import { BACKEND_URL } from '@/lib/config';
+import { getDeviceId, localDateString } from '@/lib/device';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 
 interface PopupState {
@@ -8,6 +10,8 @@ interface PopupState {
   enabled: boolean;
   status: StatusReply | null;
   loading: boolean;
+  /** 当前设备当日免费用量（未登录时显示「N/3 页」）；后端不可达时为 null。 */
+  usage: { used: number; limit: number; remaining: number } | null;
 }
 
 export function Popup() {
@@ -17,6 +21,7 @@ export function Popup() {
     enabled: false,
     status: null,
     loading: true,
+    usage: null,
   });
   // 「翻译 / 取消翻译此网站」的快捷键，显示在按钮里。先给本平台建议键兜底，
   // 随后 chrome.commands.getAll() 有实际绑定再覆盖（见历史：更新安装时 getAll 可能为空）。
@@ -29,10 +34,23 @@ export function Popup() {
     });
   }, []);
 
+  const fetchUsage = useCallback(async () => {
+    try {
+      const deviceId = await getDeviceId();
+      const r = await fetch(`${BACKEND_URL}/v1/usage?localDate=${localDateString()}`, {
+        headers: { 'X-Device-Id': deviceId },
+      });
+      if (r.ok) return (await r.json()) as { used: number; limit: number; remaining: number };
+    } catch {
+      // 后端不可达时不显示用量，不报错。
+    }
+    return null;
+  }, []);
+
   const refresh = useCallback(async () => {
     const tab = await getActiveTab();
     if (!tab?.url) {
-      setS({ domain: '', favicon: '', enabled: false, status: null, loading: false });
+      setS({ domain: '', favicon: '', enabled: false, status: null, loading: false, usage: null });
       return;
     }
     let domain = '';
@@ -43,8 +61,9 @@ export function Popup() {
     }
     const enabled = domain ? await isDomainEnabled(domain) : false;
     const status = tab.id ? await querySafe(tab.id, { kind: 'query-status' }) : null;
-    setS({ domain, favicon: tab.favIconUrl ?? '', enabled, status, loading: false });
-  }, []);
+    const usage = await fetchUsage();
+    setS({ domain, favicon: tab.favIconUrl ?? '', enabled, status, loading: false, usage });
+  }, [fetchUsage]);
 
   useEffect(() => {
     void refresh();
@@ -107,7 +126,12 @@ export function Popup() {
       </div>
 
       {/* 状态行（一行极轻文字，不是进度条横幅） */}
-      {err ? (
+      {err && st?.errorKind === 'quota' ? (
+        <div className="status">
+          <span className="dot dot--off" />
+          <span>{err}</span>
+        </div>
+      ) : err ? (
         <div className="status status--err">
           <span className="dot dot--err" />
           <span>{err}</span>
@@ -154,7 +178,11 @@ export function Popup() {
 
       <div className="foot">
         <span className="foot-hint">
-          {s.enabled ? (err ? '关掉再开可整页重译' : '自动翻译已开启') : '开启即整页翻译'}
+          {s.usage
+            ? `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
+            : s.enabled
+              ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
+              : '开启即整页翻译'}
         </span>
         <button className="link" onClick={openSettings}>设置 ›</button>
       </div>
