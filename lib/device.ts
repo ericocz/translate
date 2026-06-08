@@ -20,3 +20,30 @@ export function localDateString(d: Date = new Date()): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+// 非加密快速哈希（cyrb53）：把页面 URL 压成短稳定 key，URL 不出本机（只发哈希给后端）。
+function cyrb53(str: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed;
+  let h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/** 页面身份 key：规范化（去 #fragment，保留 query）后哈希。用于匿名「每页一次」去重。 */
+export function pageKeyFromUrl(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    return cyrb53(u.origin + u.pathname + u.search);
+  } catch {
+    return cyrb53(url);
+  }
+}
