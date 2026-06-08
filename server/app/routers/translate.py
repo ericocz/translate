@@ -1,7 +1,8 @@
 import json
+from datetime import date
 from typing import AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -9,6 +10,7 @@ from app.core.config import settings
 from app.db.base import async_session
 from app.services import deepseek
 from app.services.cache import TranslationCacheRepo
+from app.services.quota import AnonQuotaRepo
 from app.services.translator import (
     BlockEvent,
     DoneEvent,
@@ -27,7 +29,8 @@ class BlockIn(BaseModel):
 
 class TranslateRequest(BaseModel):
     blocks: list[BlockIn]
-    localDate: str | None = None  # P2 匿名配额用，本期忽略
+    localDate: str | None = None  # 用户本地日 YYYY-MM-DD（匿名配额按本地日跨天重置）
+    pageKey: str | None = None    # 客户端算好的页面身份哈希（匿名「每页一次」）
 
 
 # ---- 依赖（测试可覆盖）----
@@ -42,6 +45,12 @@ async def get_cache() -> AsyncIterator[TranslationCacheRepo]:
         yield TranslationCacheRepo(s)
 
 
+async def get_anon_quota() -> AsyncIterator[AnonQuotaRepo]:
+    """每请求开一个 DB session，返回匿名配额仓库。"""
+    async with async_session() as s:
+        yield AnonQuotaRepo(s)
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -49,12 +58,30 @@ def _sse(event: str, data: dict) -> str:
 @router.post("/v1/translate")
 async def translate_endpoint(
     req: TranslateRequest,
+    request: Request,
     cache=Depends(get_cache),
+    quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
 ):
+    device_id = request.headers.get("x-device-id", "")
+    ip = request.client.host if request.client else None
+    local_date = req.localDate or date.today().isoformat()
     blocks = [SourceBlock(b.id, b.source) for b in req.blocks]
 
+    # 匿名配额闸门（P2；P3 登录用户将在此跳过）。有 pageKey + deviceId 才计。
+    # 在返回流之前 await 完成判定/计数；拒绝则流里只发 quota、不查缓存不调模型。
+    decision = None
+    if req.pageKey and device_id:
+        decision = await quota.check_and_count(device_id, local_date, req.pageKey, ip)
+
     async def gen() -> AsyncIterator[str]:
+        if decision is not None and not decision.allowed:
+            yield _sse("quota", {
+                "message": decision.message,
+                "used": decision.used,
+                "limit": decision.limit,
+            })
+            return
         async for ev in translate(
             blocks,
             cache=cache,
