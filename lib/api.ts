@@ -6,6 +6,7 @@
 
 import { BACKEND_URL } from './config';
 import { getDeviceId, localDateString } from './device';
+import { getAccessToken } from './auth';
 import { createSseParser } from './sse';
 import type { FailureInfo, FailureKind } from './types';
 
@@ -40,11 +41,17 @@ export function translateViaBackend(
       // storage 不可用时退化为匿名占位，不阻断翻译。
     }
 
+    const accessToken = await getAccessToken();
+
     let resp: Response;
     try {
       resp = await fetch(`${BACKEND_URL}/v1/translate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({ blocks, localDate: localDateString(), pageKey }),
         signal: controller.signal,
       });

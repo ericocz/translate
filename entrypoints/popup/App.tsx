@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
 import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
+import { getAccessToken } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 
 interface PopupState {
@@ -10,8 +11,8 @@ interface PopupState {
   enabled: boolean;
   status: StatusReply | null;
   loading: boolean;
-  /** 当前设备当日免费用量（未登录时显示「N/3 页」）；后端不可达时为 null。 */
-  usage: { used: number; limit: number; remaining: number } | null;
+  /** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
+  usage: { loggedIn: boolean; used: number; limit: number | null; remaining: number | null } | null;
 }
 
 export function Popup() {
@@ -37,10 +38,21 @@ export function Popup() {
   const fetchUsage = useCallback(async () => {
     try {
       const deviceId = await getDeviceId();
+      const accessToken = await getAccessToken();
       const r = await fetch(`${BACKEND_URL}/v1/usage?localDate=${localDateString()}`, {
-        headers: { 'X-Device-Id': deviceId },
+        headers: {
+          'X-Device-Id': deviceId,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
       });
-      if (r.ok) return (await r.json()) as { used: number; limit: number; remaining: number };
+      if (r.ok) {
+        return (await r.json()) as {
+          loggedIn: boolean;
+          used: number;
+          limit: number | null;
+          remaining: number | null;
+        };
+      }
     } catch {
       // 后端不可达时不显示用量，不报错。
     }
@@ -179,7 +191,9 @@ export function Popup() {
       <div className="foot">
         <span className="foot-hint">
           {s.usage
-            ? `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
+            ? s.usage.loggedIn
+              ? '已登录 · 无限翻译'
+              : `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
             : s.enabled
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
               : '开启即整页翻译'}
