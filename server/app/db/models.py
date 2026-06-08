@@ -69,6 +69,20 @@ class DailyUsage(Base):
     pages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
+class QuotaTier(Base):
+    """登录用户梯度限流状态机：tier 决定日 Token 上限；strikes/clean_days 累计跨日表现；
+    notice 暂存升降档提醒，供 /v1/usage 取走。"""
+
+    __tablename__ = "quota_tier"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tier: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    strikes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    clean_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_day: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    notice: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Session(Base):
     """登录会话：refresh token 只存 sha256 哈希；access 是短时 JWT 无需存。"""
 

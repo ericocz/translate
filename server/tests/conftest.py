@@ -23,7 +23,9 @@ async def db_session():
         yield s
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE translation_cache, anon_usage, users, sessions, daily_usage CASCADE")
+            text(
+                "TRUNCATE translation_cache, anon_usage, users, sessions, daily_usage, quota_tier CASCADE"
+            )
         )
     # pytest-asyncio 每个测试用新事件循环；asyncpg 连接绑定在创建它的 loop 上。
     # 必须 dispose 引擎，否则下个测试在新 loop 复用旧连接 → InterfaceError。
