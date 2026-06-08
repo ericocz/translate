@@ -7,7 +7,12 @@
 import { translateBlocks, type TranslationJob } from '@/lib/translator';
 import { DEEPSEEK_API_KEY } from '@/lib/config';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
-import { PORT_NAME, type BgToContent, type ContentToBg } from '@/lib/messages';
+import {
+  PORT_NAME,
+  type BgToContent,
+  type ContentToBg,
+  type SpaNavigatedMsg,
+} from '@/lib/messages';
 import { setTabIcon, hostOf } from '@/lib/icon';
 
 export default defineBackground(() => {
@@ -144,4 +149,18 @@ export default defineBackground(() => {
 
   chrome.runtime.onInstalled.addListener(() => void refreshAllTabs());
   chrome.runtime.onStartup.addListener(() => void refreshAllTabs());
+
+  // ---- ④ SPA 同文档导航（pushState/replaceState）：通知 content 对新路由重译 ----
+  // content script 只在文档加载时注入一次；Next.js 等 App Router 点链接走 History API、
+  // 不重载文档，故内容脚本侧没有触发器。这里监听同文档导航，仅主框架 + 白名单站点才下发。
+  chrome.webNavigation.onHistoryStateUpdated.addListener(async ({ tabId, frameId, url }) => {
+    if (frameId !== 0) return; // 仅主框架，忽略 iframe
+    const domain = hostOf(url);
+    if (!domain || !(await isDomainEnabled(domain))) return; // 仅白名单站点
+    try {
+      await chrome.tabs.sendMessage(tabId, { kind: 'spa-navigated', url } satisfies SpaNavigatedMsg);
+    } catch {
+      // 该 tab 没有 content script（或尚未就绪）—— 忽略。
+    }
+  });
 });

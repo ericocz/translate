@@ -41,6 +41,15 @@ export type PopupQuery =
   | { kind: 'query-status' }
   | { kind: 'toggle-site'; enabled: boolean };
 
+/** background -> content：SPA 同文档导航（History API pushState/replaceState）发生，需对新路由重译。 */
+export interface SpaNavigatedMsg {
+  kind: 'spa-navigated';
+  url: string;
+}
+
+/** content 的 chrome.runtime.onMessage 监听的全部消息（popup + background）。 */
+export type TabMessage = PopupQuery | SpaNavigatedMsg;
+
 export interface StatusReply {
   /** 是否正在翻译中。 */
   running: boolean;

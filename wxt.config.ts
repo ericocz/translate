@@ -9,7 +9,8 @@ export default defineConfig({
     name: '沉浸式翻译（DeepSeek V4 Flash）',
     description: '把英文网页整页翻译成中文：原文先垫、流式逐块替换。',
     version: '0.1.0',
-    permissions: ['storage', 'commands'],
+    // webNavigation：监听 SPA 同文档导航（pushState/replaceState），对新路由触发翻译。
+    permissions: ['storage', 'commands', 'webNavigation'],
     host_permissions: ['<all_urls>', 'https://api.deepseek.com/*'],
     // 默认（未开启）图标：素方案的灰色双线。已开启时由 background 运行时
     // 换成 on-*（下线灌桃红）。图标文件在 public/icon/，构建后位于扩展根。

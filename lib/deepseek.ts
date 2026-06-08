@@ -196,7 +196,10 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, handlers: DeepSeek
  */
 function createBlockSplitter(onBlock: (id: string, translated: string) => void) {
   let acc = '';
-  const MARKER = /\[\[([A-Za-z0-9_-]+)\]\]/g;
+  // id 字符类必须含 `.`：沉降补抽 / SPA 新路由的块 id 形如 `r2.b30`（content.ts 的轮次/批次前缀）。
+  // 漏了 `.` 会让 `[[r2.b30]]` 整个标记匹配不上 → 该批模型译文无法切块回填、整页保持英文
+  // （缓存命中走另一路不受影响，故曾表现为"只译出极少数块"）。
+  const MARKER = /\[\[([A-Za-z0-9_.-]+)\]\]/g;
 
   const process = (flushAll: boolean) => {
     MARKER.lastIndex = 0;

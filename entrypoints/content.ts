@@ -14,7 +14,7 @@ import {
   PORT_NAME,
   type BgToContent,
   type ContentToBg,
-  type PopupQuery,
+  type TabMessage,
   type StatusReply,
 } from '@/lib/messages';
 
@@ -44,20 +44,25 @@ export default defineContentScript({
       mode: 'en' | 'zh';
       perBlockMode: Map<string, 'en' | 'zh'>;
       running: boolean;
-      /** 一次"整页翻译（含沉降补抽）"是否进行中，防重入。 */
-      translating: boolean;
+      /** 翻译轮次代号：每次 runTranslation 自增；在途的旧沉降循环据此自我作废（SPA 连续跳转时）。 */
+      epoch: number;
+      /** 全局单调抽取批次号：保证跨路由、跨沉降轮次的 data-trans-id 唯一（batch 0 用裸 id，≥1 加 r 前缀）。 */
+      seq: number;
       lastError?: string;
     } = {
       records: new Map(),
       mode: 'en',
       perBlockMode: new Map(),
       running: false,
-      translating: false,
+      epoch: 0,
+      seq: 0,
     };
 
     injectStyle();
 
     let port: chrome.runtime.Port | null = null;
+    // SPA 路由去重：同一 path+search 不重复重译（Next.js 等会对同地址发 replaceState / 滚动恢复）。
+    let lastRouteKey = location.pathname + location.search;
 
     const enabled = await isDomainEnabled(domain);
     if (enabled) {
@@ -80,7 +85,7 @@ export default defineContentScript({
     });
 
     // popup 消息。
-    chrome.runtime.onMessage.addListener((msg: PopupQuery, _sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((msg: TabMessage, _sender, sendResponse) => {
       (async () => {
         if (msg.kind === 'query-status') {
           sendResponse(buildStatusReply());
@@ -95,6 +100,17 @@ export default defineContentScript({
             await runTranslation();
           }
           sendResponse(buildStatusReply());
+          return;
+        }
+        if (msg.kind === 'spa-navigated') {
+          // SPA 同文档导航（History API）：content script 不会重新注入，需主动对新路由重译。
+          // 同 path+search 不重复触发（框架对同地址发 replaceState / 滚动恢复也会上报）。
+          const key = location.pathname + location.search;
+          if (key !== lastRouteKey) {
+            lastRouteKey = key;
+            void handleSpaNavigation();
+          }
+          sendResponse({ ok: true });
           return;
         }
       })();
@@ -137,15 +153,17 @@ export default defineContentScript({
     /**
      * 把当前 DOM 里「尚未认领」的块抽取并入 state.records，返回这批新块。
      * extractBlocks 的 acceptNode 会跳过 [data-trans-id] 子树，所以重跑只会拿到新出现的块。
-     * 坑：extractBlocks 内部每次都从 b1 重新编号，重抽会与上轮 id 撞——故第 ≥1 轮按轮次加前缀
-     *     重写为唯一 id（同时改写元素的 data-trans-id），保证 records 唯一、Ctrl+点击查找正确。
+     * 坑：extractBlocks 内部每次都从 b1 重新编号，多次抽取（沉降补抽 / SPA 新路由）会撞 id——
+     *     故用全局单调批次号 state.seq 加前缀：batch 0 用裸 id（首屏），≥1 用 r{batch}. 前缀，
+     *     保证跨轮次、跨路由唯一（同时改写元素的 data-trans-id），records 唯一、Ctrl+点击查找正确。
      */
-    function extractInto(round: number): { id: string; source: string }[] {
+    function extractInto(): { id: string; source: string }[] {
+      const batch = state.seq++;
       const { blocks, rootById } = extractBlocks(document.body);
       const fresh: { id: string; source: string }[] = [];
       for (const b of blocks) {
         const root = rootById.get(b.id)!;
-        const uid = round === 0 ? b.id : `r${round}.${b.id}`;
+        const uid = batch === 0 ? b.id : `r${batch}.${b.id}`;
         if (uid !== b.id) root.dataset['transId'] = uid;
         state.records.set(uid, {
           id: uid,
@@ -162,47 +180,72 @@ export default defineContentScript({
     }
 
     async function runTranslation() {
-      if (state.translating) return;
-      state.translating = true;
-      try {
-        state.records.clear();
-        state.lastError = undefined;
-        state.mode = 'zh';
-        // 1) 初次抽取——原文已经在页面上"垫"着了，因为这是 document_idle 才跑的。
-        const initial = extractInto(0);
-        if (initial.length > 0) {
-          state.running = true;
-          openPortAndStart(initial);
-        }
-        // 2) 沉降补抽：晚渲染 SPA（如 MongoDB 文档）首屏正文晚于抽取时机，初抽可能为空或不全。
-        //    有界重抽把后到的块补译；正常站第 1 轮就 0 新块、立即结束。
-        await settleAndReextract();
-      } finally {
-        state.translating = false;
+      // 每次翻译启一个新 epoch：在途的旧沉降循环（上一路由 / 上一次调用）据此自我作废，
+      // 支持 SPA 连续快速跳转时新译覆盖旧译、互不串扰。
+      const myEpoch = ++state.epoch;
+      state.lastError = undefined;
+      state.mode = 'zh';
+      // 1) 初次抽取——首页加载时原文已"垫"着（document_idle）；SPA 新路由则可能尚未渲染，
+      //    抽到 0 也无妨，下面的沉降补抽会把晚到的新路由内容补上。
+      //    注意：不再 records.clear()——SPA 跳转要保留仍挂载的共享 layout 已译块（见 handleSpaNavigation）；
+      //    首页 / 重新开站场景 records 本就为空（restoreAllEnglish 已清并把 seq 归零）。
+      const initial = extractInto();
+      if (initial.length > 0) {
+        state.running = true;
+        openPortAndStart(initial);
       }
+      // 2) 沉降补抽：晚渲染 SPA（如 MongoDB 文档）首屏正文晚于抽取时机，初抽可能为空或不全。
+      //    有界重抽把后到的块补译；正常站第 1 轮就 0 新块、立即结束。
+      await settleAndReextract(myEpoch);
     }
 
     /**
      * 有界「沉降-补抽」：最多 MAX_ROUNDS 轮、每轮间隔后重抽，累积晚到的新块；某轮 0 新块即判定
      * 页面已稳、停止。把累积的晚到块在初译 job 结束后用一个 port job 串行补译（避免并发 port
      * 互相 disconnect 取消在途任务）。硬上限防长轮询/动态站跑飞（呼应"不上 MutationObserver"）。
+     * epoch：本轮翻译代号；若期间发生新导航 / 关站（epoch 变了或切回英文）则立即作废退出。
      */
-    async function settleAndReextract() {
+    async function settleAndReextract(epoch: number) {
       const MAX_ROUNDS = 5;
       const INTERVAL = 1200;
+      const stale = () => state.epoch !== epoch || state.mode !== 'zh';
       const late: { id: string; source: string }[] = [];
       for (let round = 1; round <= MAX_ROUNDS; round++) {
         await sleep(INTERVAL);
-        if (state.mode !== 'zh') return; // 期间被关站/切回英文
-        const fresh = extractInto(round);
+        if (stale()) return; // 期间被新导航作废 / 关站切回英文
+        pruneStaleRecords(); // SPA 跳转后旧路由节点会陆续脱离 DOM，顺手清掉其记录（正常站为 no-op）
+        const fresh = extractInto();
         if (fresh.length === 0) break; // 已稳
         late.push(...fresh);
       }
-      if (late.length === 0 || state.mode !== 'zh') return;
+      if (late.length === 0 || stale()) return;
       await waitForIdle(); // 等初译 job 完成，串行补译
-      if (state.mode !== 'zh') return;
+      if (stale()) return;
       state.running = true;
       openPortAndStart(late);
+    }
+
+    /**
+     * SPA 同域路由切换（History API，content script 不会重新注入）后对新路由重译。
+     * 旧路由的页面节点会被框架换掉、其记录悬空；共享 layout（导航/侧栏/页脚）通常保持挂载、
+     * 已是中文，无需重译。故：取消旧路由在途流 → 删除已脱离 DOM 的旧块记录（保留 layout）
+     * → 对新出现的内容重抽 + 沉降补抽。seq 不归零，保证新块 id 不与保留的 layout 块相撞。
+     */
+    async function handleSpaNavigation(): Promise<void> {
+      if (!(await isDomainEnabled(location.hostname))) return; // 防御：导航途中被关站
+      cancelStream();
+      pruneStaleRecords();
+      await runTranslation();
+    }
+
+    /** 删除 root 已脱离文档的记录（SPA 跳转后的旧路由块）；保留仍挂载的块（如共享 layout）。 */
+    function pruneStaleRecords(): void {
+      for (const [id, rec] of state.records) {
+        if (!rec.root.isConnected) {
+          state.records.delete(id);
+          state.perBlockMode.delete(id);
+        }
+      }
     }
 
     /** 等当前流式 job 结束（state.running 落回 false），带绝对上限防卡死。 */
@@ -307,6 +350,7 @@ export default defineContentScript({
       }
       state.records.clear();
       state.perBlockMode.clear();
+      state.seq = 0; // 全清后下次翻译从裸 id（batch 0）重新开始
     }
   },
 });

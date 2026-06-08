@@ -83,10 +83,17 @@ export function extractBlocks(root: HTMLElement): ExtractResult {
     let claim = false;
 
     if (isHard) {
-      // 硬块：再看看里面是否含其他硬块（如 <li> 里嵌 <p>），若有则跳过自己，让深层来认领。
-      claim = !hasDescendantHardBlock(el);
+      // 硬块：含其他硬块（如 <li> 里嵌 <p>）时一般跳过自己、让深层来认领。
+      // 但若自己**还含直接文字 / 内联内容**（典型：紧凑列表项带子列表
+      // `<li>正文…<ul>…</ul></li>`、单元格 `<td>正文…<table>…</table></td>`），
+      // 那段直接文字不属于任何深层硬块——必须由自己认领整体，否则会漏翻（见经验库 #7）。
+      // 反例不受影响：松散列表 `<li><p>…</p></li>` 的文字都在 <p> 里、li 无直接文字
+      //（hasDirectText=false），仍让深层 <p> 认领，不会退化成大块。
+      claim = !hasDescendantHardBlock(el) || hasDirectText(el);
     } else if (isSoft) {
       // 软块认领条件：自己直接含可见文字 / 内联文字、且不含硬块。
+      // 软块不放开「有直接文字就认领整体」——div/main/section 等可能是整页级容器，
+      // 一旦认领整体会把大量后代硬块吞成一个巨型块；混合内容只在硬块（粒度可控）上处理。
       claim = hasDirectText(el) && !hasDescendantHardBlock(el);
     }
 

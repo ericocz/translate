@@ -39,7 +39,7 @@
 
 ## 翻译流水线
 
-1. **触发**：内容脚本判断当前域名是否在白名单；在则自动运行。
+1. **触发**：内容脚本判断当前域名是否在白名单；在则自动运行。SPA 同文档路由跳转（History API 软导航）由 service worker 的 `webNavigation.onHistoryStateUpdated` 监听、通知内容脚本对新路由重译（见模块 `background.ts` / `content.ts handleSpaNavigation`）。
 2. **抽取**：用 `TreeWalker` 遍历 `document.body`，识别块级元素（p / li / h1~h6 / td / blockquote 等）为翻译单元，分配 ID，存原文 HTML。对每块递归处理其内部：文本节点拼成待译文本，承载样式的内联元素就地转成 `<gN>`/`<xN>` 标记，并记录“编号→原始内联元素”映射。
 3. **请求（带缓存）**：内容脚本把所有块（DOM 顺序）发给 service worker；worker 先查 IndexedDB 缓存（`lib/cache.ts`），命中的块直接回传（0 token、毫秒级），未命中的按 source **去重**、再**分批（每批约 40 块，避免输出超 `max_tokens` 被截断）** 调用 DeepSeek（流式、关思考），译出并校验通过后写入缓存。
 4. **流式回填**：service worker 通过长连接（`chrome.runtime.connect` port）把流块转发给内容脚本；内容脚本边收边按 `[[id]]` 切分，每收齐一块就校验标记、重建样式、淡入替换对应 DOM 节点。
@@ -72,7 +72,7 @@
 - **模型**：`deepseek-v4-flash`（旧别名 `deepseek-chat`/`deepseek-reasoner` 计划于 2026-07-24 弃用，分别对应非思考/思考模式；新代码用显式名 + thinking 参数）。
 - **接口**：OpenAI 兼容，base URL `https://api.deepseek.com`，端点 `/v1/chat/completions`；用 `stream: true` 走 SSE。
 - **关思考参数（已确认）**：请求体顶层 `"thinking": {"type": "disabled"}`（实测对 `stream:true` + `/v1/chat/completions` 生效，关闭后流里不再有 `reasoning_content`）。文档：https://api-docs.deepseek.com/guides/thinking_mode 。
-- **流式切块易错点**：模型逐 token 返回，`[[id]]` 标记常被拆到多个小 chunk（如 `[[`、`b`、`1`、`]]`）。切块器必须把已到文本累积进缓冲、在**完整缓冲**上重新扫描标记，不能在单个 chunk 内就地判定边界（见 `lib/deepseek.ts` 的 `createBlockSplitter`，这是历史上踩过的坑）。
+- **流式切块易错点**：模型逐 token 返回，`[[id]]` 标记常被拆到多个小 chunk（如 `[[`、`b`、`1`、`]]`）。切块器必须把已到文本累积进缓冲、在**完整缓冲**上重新扫描标记，不能在单个 chunk 内就地判定边界（见 `lib/deepseek.ts` 的 `createBlockSplitter`，这是历史上踩过的坑）。**另一个坑**：块 id 不止 `bN`——沉降补抽 / SPA 新路由会用 `r{batch}.b{n}`（**带点**），故 `createBlockSplitter` 的标记正则字符类**必须含 `.`**，否则带点标记整批匹配不上、该批译文全丢（缓存命中走另一路不受影响，故曾表现为"只译出极少数块"）。见经验库 [#6](翻译问题记录.md)。
 - **缓存命中核对**：用响应里的 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` 核对前缀缓存；务必把稳定系统提示词放最前、逐字节不变。
 - 注意：作者在中国通过 Clash 代理访问，请求失败需区分“网络/代理未连通”与“接口报错”，错误信息要据此分类提示。
 
@@ -82,8 +82,8 @@
 
 ```
 entrypoints/
-  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、还原；含晚渲染 SPA 的有界沉降补抽（settleAndReextract）
-  background.ts         # service worker：薄 port 适配层（收发消息 + job 生命周期）+ 工具栏图标三态驱动（storage/tabs/port → setIcon）；翻译编排委托 lib/translator.ts
+  content.ts            # 内容脚本（isolated，document_idle）：抽取、标记、流式回填、Ctrl+点击、还原；含晚渲染 SPA 的有界沉降补抽（settleAndReextract）+ SPA 软导航重译（handleSpaNavigation，收 background 的 spa-navigated；epoch 防连续跳转串扰、seq 全局批次号保证带前缀 id 唯一）
+  background.ts         # service worker：薄 port 适配层（收发消息 + job 生命周期）+ 工具栏图标三态驱动（storage/tabs/port → setIcon）+ SPA 同文档导航监听（webNavigation.onHistoryStateUpdated → 通知 content 重译新路由）；翻译编排委托 lib/translator.ts
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号（推迟注入消除 #418）
   popup/  options/      # React「素 Quiet」设计：popup 单按钮（翻译/取消此网站 + 快捷键 + 极轻进度/状态）；options 管「自动翻译的网站」列表 + 快捷键提示
 lib/
@@ -108,7 +108,7 @@ lib/
 - **具体站点的翻译异常案例记在 [`翻译问题记录.md`](翻译问题记录.md)（经验库）**：修任何"某页面翻译出问题"前先查它有无同类前例；修完把新案例按模板回填，并对"涉及模块"相同的历史案例逐条跑一遍其"复现与验证"，防止改了别处把老问题改回去。
 - **React/Next.js 站点（如 react.dev）**：直接替换 DOM 会与 React 协调冲突，曾导致 `removeChild NotFoundError` → 错误边界 → 整页“client-side exception”崩溃；缓存+关思考让译文在 hydration 期间就快速注入，会稳定触发。两道防线：① `dom-compat.content.ts`（MAIN world、React 之前打补丁使 removeChild/insertBefore 容错）消除**致命**崩溃；② 同一脚本在 `load` + 主线程空闲时发“就绪”信号（DOM 属性 `data-imt-ready` + `imt-ready` 事件），内容脚本**推迟到 hydration 后再抽取/注入**，**多数站**消除 React #418（hydration 文本不匹配）告警。**但并非全部**：把 hydration **延迟/流式**到 `load` 之后的站（Jest/Webpack/Stripe/DigitalOcean/HackerNoon 等）仍会 #418/#425——这是**可恢复**告警、页面仍正确译出，且与**翻译缓存预热**强相关（缓存热→注入快→更易撞 hydration）；试过「等 DOM 静默再发信号」实测无效已回退，详见经验库 [#3](翻译问题记录.md)(A)。注意：紧接 `chrome.runtime.reload()` 后的首次刷新也会偶发 #418（content script 尚未注册），属测试假象，需充分预热后再判。
 - 翻译动态/交互界面不如静态正文稳定：页面自身 JS 重渲染可能把已替换的中文打回英文。
-- 主要处理加载时已存在的内容。**例外：晚渲染 SPA 的「有界沉降补抽」**——内容脚本初译后会做最多 5 轮、每轮 1200ms 的有限重抽（`content.ts` `settleAndReextract`），把首屏**客户端渐进渲染**的晚到块补译（如 MongoDB 文档，初抽 0 → 补到 172/172）；某轮 0 新块即停、对正常站是 no-op。仍**不上常驻 MutationObserver**，故这之后才异步追加的内容、或被 SPA 重渲染打回英文的块，不会再翻。见经验库 [#3](翻译问题记录.md)(B)。
+- 主要处理加载时已存在的内容。**例外一：晚渲染 SPA 的「有界沉降补抽」**——内容脚本初译后会做最多 5 轮、每轮 1200ms 的有限重抽（`content.ts` `settleAndReextract`），把首屏**客户端渐进渲染**的晚到块补译（如 MongoDB 文档，初抽 0 → 补到 172/172）；某轮 0 新块即停、对正常站是 no-op。**例外二：SPA 同文档路由跳转（History API 软导航）**——`background.ts` 用 `webNavigation.onHistoryStateUpdated` 监听 pushState/replaceState（仅主框架 + 白名单），通知 content 对新路由重抽+重译（`content.ts` `handleSpaNavigation`，删悬空旧块、保留仍挂载的共享 layout 已译块；新路由块用 `r{batch}.b{n}` 前缀 id，故切块器正则须认 `.`）；见经验库 [#6](翻译问题记录.md)。仍**不上常驻 MutationObserver**，故：① 软导航**之后**才异步追加的内容、② 被 SPA 原地重渲染**打回英文**的块，仍不会再翻。见经验库 [#3](翻译问题记录.md)(B)。
 - **缓存是内容寻址**：页面每次渲染的块集若有变化（动态内容），变化部分会重新翻译，刷新请求数收敛到“变化块”而非 0，属正确行为。
 
 ---
