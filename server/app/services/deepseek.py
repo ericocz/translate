@@ -79,7 +79,10 @@ async def stream_with_default_client(
     api_key: str, blocks: list[tuple[str, str]]
 ) -> AsyncIterator[str]:
     """生产用便捷包装：每次开一个 httpx client 调上游。
-    签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。"""
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
+    签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。
+
+    trust_env=False：后端直连 api.deepseek.com（DeepSeek 是中国服务、无需代理），
+    避免误用开发机环境里的个人 SOCKS 代理（也省去 socksio 依赖）。"""
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), trust_env=False) as client:
         async for delta in stream_content_deltas(client, api_key, blocks):
             yield delta
