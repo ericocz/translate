@@ -102,6 +102,36 @@ class ErrorLog(Base):
     context: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
 
+class Admin(Base):
+    """管理台管理员（与终端用户隔离）。"""
+
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="admin", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class UpstreamKey(Base):
+    """上游 DeepSeek Key 池（MVP：明文存库，响应脱敏只回末 4 位；加密存储留后续硬化）。"""
+
+    __tablename__ = "upstream_keys"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_value: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active|disabled
+    used_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    balance_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class QuotaTier(Base):
     """登录用户梯度限流状态机：tier 决定日 Token 上限；strikes/clean_days 累计跨日表现；
     notice 暂存升降档提醒，供 /v1/usage 取走。"""
