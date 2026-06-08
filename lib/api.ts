@@ -25,7 +25,11 @@ export interface ApiClient {
 }
 
 /** 调后端翻译一批块；返回可 abort 的 client，结果经 handlers 流式回调。 */
-export function translateViaBackend(blocks: ApiBlock[], handlers: ApiHandlers): ApiClient {
+export function translateViaBackend(
+  blocks: ApiBlock[],
+  pageKey: string,
+  handlers: ApiHandlers
+): ApiClient {
   const controller = new AbortController();
 
   void (async () => {
@@ -41,7 +45,7 @@ export function translateViaBackend(blocks: ApiBlock[], handlers: ApiHandlers): 
       resp = await fetch(`${BACKEND_URL}/v1/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
-        body: JSON.stringify({ blocks, localDate: localDateString() }),
+        body: JSON.stringify({ blocks, localDate: localDateString(), pageKey }),
         signal: controller.signal,
       });
     } catch (e) {
@@ -75,6 +79,10 @@ export function translateViaBackend(blocks: ApiBlock[], handlers: ApiHandlers): 
       } else if (ev.event === 'error') {
         settled = true;
         handlers.onError(parseFailure(ev.data));
+      } else if (ev.event === 'quota') {
+        // 免费额度用尽：非失败，是引导（popup 用柔和样式 + 登录提示）。
+        settled = true;
+        handlers.onError(parseQuota(ev.data));
       }
     });
 
@@ -101,7 +109,7 @@ export function translateViaBackend(blocks: ApiBlock[], handlers: ApiHandlers): 
 function parseFailure(data: string): FailureInfo {
   try {
     const obj = JSON.parse(data) as { kind?: string; message?: string };
-    const kind: FailureKind = (['network', 'api', 'auth', 'unknown'] as const).includes(
+    const kind: FailureKind = (['network', 'api', 'auth', 'unknown', 'quota'] as const).includes(
       obj.kind as FailureKind
     )
       ? (obj.kind as FailureKind)
@@ -109,6 +117,15 @@ function parseFailure(data: string): FailureInfo {
     return { kind, message: obj.message ?? '翻译失败' };
   } catch {
     return { kind: 'unknown', message: '翻译失败' };
+  }
+}
+
+function parseQuota(data: string): FailureInfo {
+  try {
+    const obj = JSON.parse(data) as { message?: string };
+    return { kind: 'quota', message: obj.message ?? '今日免费额度已用完' };
+  } catch {
+    return { kind: 'quota', message: '今日免费额度已用完' };
   }
 }
 

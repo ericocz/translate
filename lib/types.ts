@@ -11,7 +11,7 @@ export interface TransBlock {
 }
 
 /** 失败原因分类，用于错误提示。 */
-export type FailureKind = 'network' | 'api' | 'auth' | 'unknown';
+export type FailureKind = 'network' | 'api' | 'auth' | 'unknown' | 'quota';
 
 export interface FailureInfo {
   kind: FailureKind;

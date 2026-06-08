@@ -5,6 +5,7 @@
 // 不含任何翻译业务逻辑（都在后端 /v1/translate）。
 
 import { translateViaBackend, type ApiClient } from '@/lib/api';
+import { pageKeyFromUrl } from '@/lib/device';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import {
   PORT_NAME,
@@ -84,6 +85,7 @@ export default defineBackground(() => {
       }
       const thisJob: ApiClient = translateViaBackend(
         msg.blocks,
+        pageKeyFromUrl(port.sender?.url),
         {
           onBlock: (id, translated) => send({ kind: 'block', id, translated }),
           onDone: () => {

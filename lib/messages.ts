@@ -30,7 +30,7 @@ export interface DoneMsg {
 /** background -> content：错误。 */
 export interface ErrorMsg {
   kind: 'error';
-  failure: { kind: 'network' | 'api' | 'auth' | 'unknown'; message: string };
+  failure: { kind: 'network' | 'api' | 'auth' | 'unknown' | 'quota'; message: string };
 }
 
 export type BgToContent = BlockDoneMsg | DoneMsg | ErrorMsg;
@@ -55,6 +55,8 @@ export interface StatusReply {
   running: boolean;
   /** 错误（若有）。 */
   error?: string;
+  /** 错误/引导的分类（quota 表示免费额度用尽，popup 用柔和样式而非红色报错）。 */
+  errorKind?: 'network' | 'api' | 'auth' | 'unknown' | 'quota';
   /** 已译完段数（用于 popup 的极轻进度文字；未抽取时不带）。 */
   done?: number;
   /** 总段数。 */
