@@ -6,6 +6,7 @@
 
 import { translateViaBackend, type ApiClient } from '@/lib/api';
 import { pageKeyFromUrl } from '@/lib/device';
+import { track, reportError } from '@/lib/telemetry';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import {
   PORT_NAME,
@@ -83,6 +84,8 @@ export default defineBackground(() => {
         overlay.set(tabId, 'translating');
         void setTabIcon(tabId, 'translating');
       }
+      const startedAt = Date.now();
+      track('translate_start', domain ?? null, { blocks: msg.blocks.length });
       const thisJob: ApiClient = translateViaBackend(
         msg.blocks,
         pageKeyFromUrl(port.sender?.url),
@@ -94,6 +97,10 @@ export default defineBackground(() => {
               overlay.delete(tabId);
               void refreshTabIcon(tabId, domain);
             }
+            track('translate_done', domain ?? null, {
+              blocks: msg.blocks.length,
+              ms: Date.now() - startedAt,
+            });
             send({ kind: 'done' });
           },
           onError: (failure) => {
@@ -102,6 +109,8 @@ export default defineBackground(() => {
               overlay.set(tabId, 'error');
               void setTabIcon(tabId, 'error');
             }
+            track('translate_error', domain ?? null, { kind: failure.kind });
+            reportError(failure.kind, failure.message, { host: domain ?? null });
             send({ kind: 'error', failure });
           },
         }
