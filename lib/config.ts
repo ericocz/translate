@@ -1,8 +1,5 @@
-// DeepSeek API Key 的唯一读取处。
+// 后端 API 基址的唯一读取处。
 //
-// 构建时由 .env 里的 WXT_DEEPSEEK_API_KEY 注入（见 .env.example）。Vite/WXT 会把
-// import.meta.env.WXT_* 静态替换为字面量，因此在 background service worker 里也能直接用。
-// .env 已被 .gitignore 忽略，key 不进 git；产物 JS 里会有这串 key（纯自用可接受）。
-//
-// 铁律：绝不写入日志、绝不在 UI 暴露。
-export const DEEPSEEK_API_KEY = (import.meta.env.WXT_DEEPSEEK_API_KEY ?? '').trim();
+// 构建时由 .env 的 WXT_BACKEND_URL 注入（见 .env.example）；缺省指向本地开发后端。
+// DeepSeek API Key 已移到服务端（server/.env），客户端不再持有任何密钥。
+export const BACKEND_URL = (import.meta.env.WXT_BACKEND_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
