@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from typing import AsyncIterator
 
 import httpx
@@ -7,6 +8,16 @@ from app.core.hashing import MODEL
 from app.core.prompt import SYSTEM_PROMPT
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+
+
+@dataclass
+class Usage:
+    input_tokens: int
+    output_tokens: int
+
+
+# 流里既有内容增量（str），也可能有最后一块的真实用量（Usage）。
+StreamItem = str | Usage
 
 
 class DeepSeekError(Exception):
@@ -24,6 +35,7 @@ def build_request_body(blocks: list[tuple[str, str]]) -> dict:
     return {
         "model": MODEL,
         "stream": True,
+        "stream_options": {"include_usage": True},
         "thinking": {"type": "disabled"},
         "temperature": 0.2,
         "messages": [
@@ -35,7 +47,7 @@ def build_request_body(blocks: list[tuple[str, str]]) -> dict:
 
 async def stream_content_deltas(
     client: httpx.AsyncClient, api_key: str, blocks: list[tuple[str, str]]
-) -> AsyncIterator[str]:
+) -> AsyncIterator[StreamItem]:
     """调 DeepSeek 流式接口，逐个 yield delta.content 文本。错误按 network/api/auth 分类抛出。
 
     失败分类（对齐 lib/deepseek.ts）：
@@ -64,9 +76,18 @@ async def stream_content_deltas(
                     return
                 try:
                     obj = json.loads(data)
-                    delta = obj["choices"][0]["delta"].get("content")
-                except (json.JSONDecodeError, KeyError, IndexError):
+                except json.JSONDecodeError:
                     continue  # 单事件解析失败不致命
+                usage = obj.get("usage")
+                if usage:
+                    yield Usage(
+                        int(usage.get("prompt_tokens", 0)),
+                        int(usage.get("completion_tokens", 0)),
+                    )
+                try:
+                    delta = obj["choices"][0]["delta"].get("content")
+                except (KeyError, IndexError):
+                    delta = None
                 if isinstance(delta, str) and delta:
                     yield delta
     except DeepSeekError:
@@ -77,12 +98,12 @@ async def stream_content_deltas(
 
 async def stream_with_default_client(
     api_key: str, blocks: list[tuple[str, str]]
-) -> AsyncIterator[str]:
+) -> AsyncIterator[StreamItem]:
     """生产用便捷包装：每次开一个 httpx client 调上游。
     签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。
 
     trust_env=False：后端直连 api.deepseek.com（DeepSeek 是中国服务、无需代理），
     避免误用开发机环境里的个人 SOCKS 代理（也省去 socksio 依赖）。"""
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), trust_env=False) as client:
-        async for delta in stream_content_deltas(client, api_key, blocks):
-            yield delta
+        async for item in stream_content_deltas(client, api_key, blocks):
+            yield item
