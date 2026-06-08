@@ -2,10 +2,9 @@
 //  ① 翻译 port（薄适配层）——内容脚本把待译块发来，委托 translateBlocks 编排，逐块回送；
 //  ② 工具栏图标三态——按 tab 维护 未开启/已开启/翻译中/出错，让你在工具栏一眼看出某站点状态；
 //  ③ 工具栏快捷键——翻译 / 取消翻译当前网站。
-// 不含任何翻译业务逻辑（都在 lib/translator.ts）。
+// 不含任何翻译业务逻辑（都在后端 /v1/translate）。
 
-import { translateBlocks, type TranslationJob } from '@/lib/translator';
-import { DEEPSEEK_API_KEY } from '@/lib/config';
+import { translateViaBackend, type ApiClient } from '@/lib/api';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import {
   PORT_NAME,
@@ -56,7 +55,7 @@ export default defineBackground(() => {
     if (port.name !== PORT_NAME) return;
     const tabId = port.sender?.tab?.id;
     const domain = hostOf(port.sender?.url);
-    let job: TranslationJob | null = null;
+    let job: ApiClient | null = null;
 
     const send = (msg: BgToContent) => {
       try {
@@ -83,8 +82,7 @@ export default defineBackground(() => {
         overlay.set(tabId, 'translating');
         void setTabIcon(tabId, 'translating');
       }
-      const thisJob: TranslationJob = translateBlocks(
-        async () => DEEPSEEK_API_KEY,
+      const thisJob: ApiClient = translateViaBackend(
         msg.blocks,
         {
           onBlock: (id, translated) => send({ kind: 'block', id, translated }),

@@ -11,7 +11,8 @@ export default defineConfig({
     version: '0.1.0',
     // webNavigation：监听 SPA 同文档导航（pushState/replaceState），对新路由触发翻译。
     permissions: ['storage', 'commands', 'webNavigation'],
-    host_permissions: ['<all_urls>', 'https://api.deepseek.com/*'],
+    // 客户端不再直连 DeepSeek；后端 fetch 走 <all_urls>（含 http://localhost 开发后端）。
+    host_permissions: ['<all_urls>'],
     // 默认（未开启）图标：素方案的灰色双线。已开启时由 background 运行时
     // 换成 on-*（下线灌桃红）。图标文件在 public/icon/，构建后位于扩展根。
     icons: {
