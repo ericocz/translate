@@ -17,5 +17,6 @@
     "paths": {
       "@/*": ["./*"]
     }
-  }
+  },
+  "exclude": ["admin", "output", "node_modules", ".output"]
 }
