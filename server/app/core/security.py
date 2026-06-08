@@ -39,6 +39,22 @@ def decode_access_token(token: str) -> int | None:
         return None
 
 
+def create_admin_token(admin_id: int, ttl_seconds: int | None = None) -> str:
+    ttl = ttl_seconds if ttl_seconds is not None else settings.access_ttl_min * 60
+    now = int(time.time())
+    payload = {"sub": str(admin_id), "scope": "admin", "iat": now, "exp": now + ttl}
+    return jwt.encode(payload, settings.jwt_secret, algorithm=_ALG)
+
+
+def decode_admin_token(token: str) -> int | None:
+    """合法、未过期且 scope=admin → admin_id；否则 None。"""
+    try:
+        p = jwt.decode(token, settings.jwt_secret, algorithms=[_ALG])
+        return int(p["sub"]) if p.get("scope") == "admin" else None
+    except (jwt.InvalidTokenError, KeyError, ValueError):
+        return None
+
+
 def new_refresh_token() -> str:
     return secrets.token_urlsafe(32)
 
