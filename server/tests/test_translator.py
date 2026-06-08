@@ -1,8 +1,10 @@
 from app.services.cache import CacheHit
+from app.services.deepseek import Usage
 from app.services.translator import (
     BlockEvent,
     DoneEvent,
     SourceBlock,
+    UsageEvent,
     translate,
 )
 
@@ -95,3 +97,28 @@ async def test_invalid_markers_not_cached_but_emitted():
     ))
     assert BlockEvent("b1", "<g0>你好</g0>") in evs
     assert cache.saved == []
+
+
+async def test_usage_event_from_cache_hits():
+    cache = FakeCache({"Hello": CacheHit("你好", 5, 3, 1)})
+
+    async def ds(api_key, blocks):
+        if False:
+            yield ""  # 不会被调用
+
+    evs = await drain(translate([SourceBlock("b1", "Hello")], cache=cache, deepseek_stream=ds, api_key="k"))
+    u = next(e for e in evs if isinstance(e, UsageEvent))
+    assert u.input_tokens == 5 and u.output_tokens == 3  # 命中也记账
+
+
+async def test_usage_event_from_model_real_usage():
+    cache = FakeCache()
+
+    async def ds(api_key, blocks):
+        for bid, _ in blocks:
+            yield f"[[{bid}]] 你好"
+        yield Usage(40, 12)
+
+    evs = await drain(translate([SourceBlock("b1", "Hi")], cache=cache, deepseek_stream=ds, api_key="k"))
+    u = next(e for e in evs if isinstance(e, UsageEvent))
+    assert u.input_tokens == 40 and u.output_tokens == 12  # 未命中用真实 usage

@@ -4,6 +4,7 @@ from typing import AsyncIterator, Callable, Protocol
 
 from app.core.tokens import estimate_tokens
 from app.services.block_splitter import BlockSplitter
+from app.services.deepseek import Usage
 from app.services.markers import (
     allowed_ids_from_source,
     is_verbatim_echo,
@@ -38,7 +39,15 @@ class ErrorEvent:
     message: str
 
 
-Event = BlockEvent | DoneEvent | ErrorEvent
+@dataclass(frozen=True)
+class UsageEvent:
+    """本次请求应计入用户当日用量的 token 合计（命中读缓存 token + 未命中读真实 usage）。"""
+
+    input_tokens: int
+    output_tokens: int
+
+
+Event = BlockEvent | DoneEvent | ErrorEvent | UsageEvent
 
 # deepseek_stream(api_key, blocks) -> 逐个 yield content delta 文本
 DeepSeekStream = Callable[[str, list[tuple[str, str]]], AsyncIterator[str]]
@@ -67,15 +76,20 @@ async def translate(
         return
 
     # 1) 缓存优先：命中立即回送（缓存命中记账留待端点层处理 token）
+    total_in = 0
+    total_out = 0
     hit_map = await cache.get_many([b.source for b in blocks])
     misses: list[SourceBlock] = []
     for b in blocks:
         hit = hit_map.get(b.source)
         if hit is not None:
             yield BlockEvent(b.id, hit.translated)
+            total_in += hit.input_tokens  # 缓存命中也记账
+            total_out += hit.output_tokens
         else:
             misses.append(b)
     if not misses:
+        yield UsageEvent(total_in, total_out)
         yield DoneEvent()
         return
 
@@ -98,19 +112,27 @@ async def translate(
     to_cache: list[dict] = []
     success = 0
     last_error: ErrorEvent | None = None
+    miss_in = 0
+    miss_out = 0
 
     async def run_batch(batch: list[tuple[str, str]]) -> None:
-        nonlocal success, last_error
+        nonlocal success, last_error, miss_in, miss_out
         async with sem:
             collected: list[tuple[str, str]] = []
             splitter = BlockSplitter(lambda i, t: collected.append((i, t)))
+            batch_usage: Usage | None = None
             try:
-                async for delta in deepseek_stream(api_key, batch):
-                    splitter.feed(delta)
+                async for item in deepseek_stream(api_key, batch):
+                    if isinstance(item, Usage):
+                        batch_usage = item  # 最后一块的真实用量
+                    else:
+                        splitter.feed(item)
                 splitter.flush()
             except Exception as e:  # DeepSeekError 等：单批失败不打断其余
                 last_error = ErrorEvent(getattr(e, "kind", "unknown"), getattr(e, "message", str(e)))
                 return
+            est_in = 0
+            est_out = 0
             for rep_id, translated in collected:
                 source = rep_source.get(rep_id)
                 if source is None:
@@ -121,12 +143,23 @@ async def translate(
                 if validate_markers(translated, allowed_ids_from_source(source)).ok:
                     success += 1
                     if not is_verbatim_echo(source, translated):
+                        ti = estimate_tokens(source)
+                        to = estimate_tokens(translated)
                         to_cache.append({
                             "source": source,
                             "translated": translated,
-                            "input_tokens": estimate_tokens(source),
-                            "output_tokens": estimate_tokens(translated),
+                            "input_tokens": ti,
+                            "output_tokens": to,
                         })
+                        est_in += ti
+                        est_out += to
+            # 未命中记账：优先真实 usage；接口没给时回退到本地估算之和。
+            if batch_usage is not None:
+                miss_in += batch_usage.input_tokens
+                miss_out += batch_usage.output_tokens
+            else:
+                miss_in += est_in
+                miss_out += est_out
 
     async def producer() -> None:
         await asyncio.gather(*(run_batch(b) for b in batches))
@@ -141,6 +174,9 @@ async def translate(
     await task
 
     await cache.set_many(to_cache)
+    total_in += miss_in
+    total_out += miss_out
+    yield UsageEvent(total_in, total_out)
     # 全失败才报错；部分成功照常结束（未成功的块留待下次刷新按未命中重试）。
     if success == 0 and last_error is not None:
         yield last_error
