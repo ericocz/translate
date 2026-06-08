@@ -21,6 +21,7 @@ from app.services.translator import (
     translate,
 )
 from app.services.usage_repo import DailyUsageRepo
+from app.services.tier_repo import TierRepo
 
 router = APIRouter()
 
@@ -59,6 +60,11 @@ async def get_daily_usage() -> AsyncIterator[DailyUsageRepo]:
         yield DailyUsageRepo(s)
 
 
+async def get_tier() -> AsyncIterator[TierRepo]:
+    async with async_session() as s:
+        yield TierRepo(s)
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -71,6 +77,7 @@ async def translate_endpoint(
     quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
     daily=Depends(get_daily_usage),
+    tier=Depends(get_tier),
     user_id: int | None = Depends(current_user_optional),
 ):
     device_id = request.headers.get("x-device-id", "")
@@ -85,6 +92,13 @@ async def translate_endpoint(
     if user_id is None and req.pageKey and device_id:
         decision = await quota.check_and_count(device_id, local_date, req.pageKey, ip)
 
+    # 登录用户：梯度限流（固定日 Token 上限分档）。超限即拦截并提醒。
+    tier_block_msg = None
+    if user_id is not None:
+        tev = await tier.evaluate(user_id, local_date)
+        if not tev.allowed:
+            tier_block_msg = tev.notice
+
     async def gen() -> AsyncIterator[str]:
         if decision is not None and not decision.allowed:
             yield _sse("quota", {
@@ -92,6 +106,9 @@ async def translate_endpoint(
                 "used": decision.used,
                 "limit": decision.limit,
             })
+            return
+        if tier_block_msg is not None:
+            yield _sse("quota", {"message": tier_block_msg})
             return
         async for ev in translate(
             blocks,

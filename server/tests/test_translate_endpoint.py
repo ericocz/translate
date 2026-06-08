@@ -11,6 +11,7 @@ from app.routers.translate import (
     get_cache,
     get_daily_usage,
     get_deepseek_stream,
+    get_tier,
 )
 from app.services.quota import QuotaDecision
 
@@ -52,6 +53,21 @@ class FakeDaily:
         return sum(i + o for _, i, o, _ in self.added)
 
 
+class _Tev:
+    def __init__(self, allowed, notice, cap):
+        self.allowed, self.notice, self.cap = allowed, notice, cap
+
+
+class FakeTierAllow:
+    async def evaluate(self, user_id, local_date):
+        return _Tev(True, None, 200_000)
+
+
+class FakeTierBlock:
+    async def evaluate(self, user_id, local_date):
+        return _Tev(False, "今日额度已达上限（疑似异常用量），明日恢复", 10_000)
+
+
 def parse_sse(text: str) -> list[tuple[str, str]]:
     events: list[tuple[str, str]] = []
     cur = None
@@ -69,6 +85,7 @@ def override():
     app.dependency_overrides[get_deepseek_stream] = lambda: fake_stream
     app.dependency_overrides[get_anon_quota] = lambda: FakeQuotaAllow()
     app.dependency_overrides[get_daily_usage] = lambda: FakeDaily()
+    app.dependency_overrides[get_tier] = lambda: FakeTierAllow()
     yield
     app.dependency_overrides.clear()
 
@@ -136,4 +153,23 @@ async def test_logged_in_records_daily_usage(override):
         assert fake_daily.added[0][1] + fake_daily.added[0][2] > 0  # 记了 token
     finally:
         app.dependency_overrides.pop(get_daily_usage, None)
+        app.dependency_overrides.pop(current_user_optional, None)
+
+
+async def test_logged_in_over_cap_blocks(override):
+    # 登录用户超日上限：发 quota 提醒、不翻译
+    app.dependency_overrides[get_tier] = lambda: FakeTierBlock()
+    app.dependency_overrides[current_user_optional] = lambda: 9
+    try:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/v1/translate",
+                json={"blocks": [{"id": "b1", "source": "Hi"}], "pageKey": "p1"},
+                headers={"X-Device-Id": "dev1", "Authorization": "Bearer x"},
+            )
+        kinds = [e for e, _ in parse_sse(resp.text)]
+        assert "quota" in kinds and "block" not in kinds and "done" not in kinds
+    finally:
+        app.dependency_overrides.pop(get_tier, None)
         app.dependency_overrides.pop(current_user_optional, None)
