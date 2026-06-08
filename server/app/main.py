@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 
-from app.routers import translate
+from app.routers import translate, usage
 
 app = FastAPI(title="Immersive Translate Backend")
 app.include_router(translate.router)
+app.include_router(usage.router)
 
 
 @app.get("/health")
