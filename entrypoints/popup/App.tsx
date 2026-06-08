@@ -18,6 +18,8 @@ interface PopupState {
     limit?: number | null;
     remaining?: number | null;
     tokensToday?: number;
+    cap?: number | null;
+    notice?: string | null;
   } | null;
   /** 已登录邮箱；未登录为 null。 */
   email: string | null;
@@ -61,6 +63,8 @@ export function Popup() {
           limit?: number | null;
           remaining?: number | null;
           tokensToday?: number;
+          cap?: number | null;
+          notice?: string | null;
         };
       }
     } catch {
@@ -141,6 +145,13 @@ export function Popup() {
 
       <AccountSection email={s.email} onChanged={() => void refresh()} />
 
+      {s.usage?.notice && (
+        <div className="status">
+          <span className="dot dot--off" />
+          <span>{s.usage.notice}</span>
+        </div>
+      )}
+
       <div className="domain">
         {s.favicon ? (
           <img className="fav" src={s.favicon} alt="" />
@@ -205,7 +216,7 @@ export function Popup() {
         <span className="foot-hint">
           {s.usage
             ? s.usage.loggedIn
-              ? `已登录 · 今日 ${s.usage.tokensToday ?? 0} token`
+              ? `已登录 · 今日 ${s.usage.tokensToday ?? 0}/${s.usage.cap ?? '∞'} token`
               : `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
             : s.enabled
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
