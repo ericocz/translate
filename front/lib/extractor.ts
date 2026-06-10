@@ -11,7 +11,7 @@
 // 副作用：抽取阶段会在每个块的 DOM 根节点写上 data-trans-id；保存 originalHTML
 // 不在这里做（content script 在替换前再 cache，避免抽取期就持有一份大字符串）。
 
-import { pairMarker, selfMarker } from './markers';
+import { pairMarker, selfMarker, stripMarkers } from './markers';
 import type { TransBlock } from './types';
 
 const BLOCK_TAGS = new Set([
@@ -141,7 +141,7 @@ function containsLetter(source: string): boolean {
   // 关键：必须先剥掉占位标记再判断——否则标记里的 g/x 字母会被误当成正文字母，
   // 把纯图片单元格（source 仅 "<x0/>"）、纯数字（"<g0>1.</g0>"）等无文字块也抽进来，
   // 白白多发请求、拉低翻译占比（HN 的排名格 / 投票箭头格就是这么混进来的）。
-  const text = source.replace(/<\/?[gx]\d+\/?>/g, '');
+  const text = stripMarkers(source);
   return /[A-Za-z]/.test(text);
 }
 

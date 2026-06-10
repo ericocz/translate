@@ -7,7 +7,7 @@
 // - failedIds: 翻译失败 / 校验失败的块 id
 
 import { extractBlocks } from '@/lib/extractor';
-import { validateMarkers, restoreSoleWrapper } from '@/lib/markers';
+import { validateMarkers, restoreSoleWrapper, stripMarkers } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
 import { isDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import type { FailureKind } from '@/lib/types';
@@ -429,7 +429,7 @@ function replaceRaw(target: HTMLElement, html: string) {
 function syncAriaHiddenShadows(frag: DocumentFragment, source: string): void {
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
   // 原文可见文字 = source 去掉占位标记（aria-hidden 已是 <xN/>，不含其文字）。
-  const visibleText = norm(source.replace(/<\/?[gx]\d+\/?>/g, ''));
+  const visibleText = norm(stripMarkers(source));
   if (!visibleText) return;
 
   const top = Array.from(frag.childNodes);

@@ -101,6 +101,11 @@ export function selfMarker(n: number): string {
   return `<x${n}/>`;
 }
 
+/** 去掉所有占位标记 <gN>/<xN/>，得到纯文字（判断块里有没有可翻译字母、反推可见原文时用）。 */
+export function stripMarkers(s: string): string {
+  return s.replace(/<\/?[gx]\d+\/?>/g, '');
+}
+
 /**
  * 从块的 source 反推出现过的标记编号集合。
  * background 端没有 styleMap，但 source 里的标记编号与 content 端 styleMap.keys()
