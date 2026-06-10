@@ -25,6 +25,7 @@
 ## 跨子项目约定
 
 - **职责边界**：客户端只做 DOM；密钥、提示词、缓存、模型调用、记账、限流全部在 `server`。`styleMap`（占位编号→原始内联元素）只存客户端，发后端的是带 `<gN>` 标记的文本。
+- **本地起开发环境**：仓库根 `./dev.sh`（tmux 三窗格起 server:8000 / admin:3001 / front WXT；`./dev.sh server admin` 起子集；需先 `brew install tmux`；server 仍依赖 `server/.env` + Postgres 已起）。
 - **密钥**：DeepSeek Key 只在 `server/.env`（gitignore），**绝不进扩展产物、绝不入日志 / 事件**。
 - **网络（作者在国内，pypi / npm 直连受限）**：`server` 的 uv 用清华镜像（`server/pyproject.toml` 的 `[[tool.uv.index]]`）、`admin` 的 pnpm 用 npmmirror（`admin/.npmrc`）；装依赖遇代理报错时，命令前清 `*PROXY*` 环境变量（`env -u ALL_PROXY -u HTTP_PROXY -u HTTPS_PROXY …`）。DeepSeek 直连可达，后端 httpx 用 `trust_env=False` 绕开个人 SOCKS 代理。
 - **提交前各自验证**：`front` 跑 `pnpm compile`、`server` 跑 `uv run pytest`、`admin` 跑 `pnpm build`。
