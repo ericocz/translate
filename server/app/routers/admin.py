@@ -85,12 +85,27 @@ async def stats(session: AsyncSession = Depends(get_session), _: int = Depends(a
 async def users(session: AsyncSession = Depends(get_session), _: int = Depends(admin_required)):
     today = date.today().isoformat()
     rows = (await session.execute(select(User).order_by(User.id.desc()).limit(200))).scalars().all()
+    ids = [u.id for u in rows]
+    # 批量取当日用量与档位（按 user_id 归集），避免逐用户 N+1 查询。
+    usage_by_user: dict[int, DailyUsage] = {}
+    tier_by_user: dict[int, QuotaTier] = {}
+    if ids:
+        usage_rows = (
+            await session.execute(
+                select(DailyUsage).where(
+                    DailyUsage.user_id.in_(ids), DailyUsage.local_date == today
+                )
+            )
+        ).scalars()
+        usage_by_user = {du.user_id: du for du in usage_rows}
+        tier_rows = (
+            await session.execute(select(QuotaTier).where(QuotaTier.user_id.in_(ids)))
+        ).scalars()
+        tier_by_user = {qt.user_id: qt for qt in tier_rows}
     out = []
     for u in rows:
-        du = await session.scalar(
-            select(DailyUsage).where(DailyUsage.user_id == u.id, DailyUsage.local_date == today)
-        )
-        qt = await session.get(QuotaTier, u.id)
+        du = usage_by_user.get(u.id)
+        qt = tier_by_user.get(u.id)
         out.append({
             "id": u.id,
             "email": u.email,

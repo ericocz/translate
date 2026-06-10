@@ -5,22 +5,24 @@ import { getDeviceId, localDateString } from '@/lib/device';
 import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 
+/** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
+interface UsageInfo {
+  loggedIn: boolean;
+  used?: number;
+  limit?: number | null;
+  remaining?: number | null;
+  tokensToday?: number;
+  cap?: number | null;
+  notice?: string | null;
+}
+
 interface PopupState {
   domain: string;
   favicon: string;
   enabled: boolean;
   status: StatusReply | null;
   loading: boolean;
-  /** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
-  usage: {
-    loggedIn: boolean;
-    used?: number;
-    limit?: number | null;
-    remaining?: number | null;
-    tokensToday?: number;
-    cap?: number | null;
-    notice?: string | null;
-  } | null;
+  usage: UsageInfo | null;
   /** 已登录邮箱；未登录为 null。 */
   email: string | null;
 }
@@ -57,15 +59,7 @@ export function Popup() {
         },
       });
       if (r.ok) {
-        return (await r.json()) as {
-          loggedIn: boolean;
-          used?: number;
-          limit?: number | null;
-          remaining?: number | null;
-          tokensToday?: number;
-          cap?: number | null;
-          notice?: string | null;
-        };
+        return (await r.json()) as UsageInfo;
       }
     } catch {
       // 后端不可达时不显示用量，不报错。
