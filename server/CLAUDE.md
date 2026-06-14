@@ -21,13 +21,14 @@
 6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计 Token、接口缺失时 `estimate_tokens` 兜底；**只对服务端实际翻译的块记账**（命中本地缓存的块由客户端拦下、根本不发服务端，D-11）。
 7. **API Key 只在服务端 env**（`app/core/config.py`，绝不下发客户端、绝不入日志 / 事件）。
 8. **DeepSeek 直连**：httpx `trust_env=False`（DeepSeek 是中国服务，无需代理；绕开开发机个人 SOCKS 代理，省 socksio 依赖）。
+9. **应用层加密（D-13）**：见 `X-Eph-Pub` 头则 ECDH(P-256)+HKDF 派生会话密钥（`app/core/crypto.py`，私钥 `session_private_key` 在 env），解密 `ct` 原文 / 加密 `ct` 译文；**只加密叶子字段**（source/translated），SSE 信封与标记校验仍在明文上做；**非 E2E**（解密后才发模型）。无头＝明文路径（dev / 现有测试）。
 
 ## 模块
 
 ```
 app/
   core/    config.py(Settings/env) · prompt.py(SYSTEM_PROMPT) · hashing.py(版本键+内容寻址键 sha256)
-           tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希)
+           tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希) · crypto.py(D-13 ECDH+HKDF+AES-GCM 会话加密)
   db/      base.py(engine/async_session/Base) · models.py(全部表)
   services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
            translator.py(编排→事件流: Block/Done/Error/UsageEvent)
@@ -45,7 +46,7 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## API 表面
 
-- `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage）
+- `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；**带 `X-Eph-Pub` 头则收发 `ct` 密文**，D-13）
 - `GET /v1/usage`（匿名返页配额；登录返 tokensToday/cap/notice）
 - `POST /v1/auth/{register,login,refresh,logout}`
 - `POST /v1/events`、`POST /v1/errors`

@@ -31,7 +31,7 @@
 
 1. **触发**：内容脚本判断当前域名是否在白名单，在则自动运行。SPA 同文档路由跳转由后端 service worker 的 `webNavigation.onHistoryStateUpdated` 监听后通知 content（`content.ts handleSpaNavigation`，epoch 防串扰、seq 保证带前缀 id 唯一）。
 2. **抽取**：`extractor.ts` 用 `TreeWalker` 抽块级元素、生成 `<gN>/<xN>` 标记 + styleMap、存原文 HTML。
-3. **本地缓存优先 + 请求**：`background.ts`（service worker）先经 `lib/translate-cached.ts` 查本地 IndexedDB（`lib/local-cache.ts`）：命中块直接回填、**不发服务端**（天然不扣额度）；未命中块才经 `lib/api.ts` `translateViaBackend` POST `${BACKEND_URL}/v1/translate`（SSE），带 `X-Device-Id`、`pageKey`（`pageKeyFromUrl` 规范化 URL 哈希，URL 不出本机）、`localDate`，登录则带 `Authorization`；服务端回的、标记校验通过的块写回本地。**网络调用在 SW 发**：host_permissions 授权下不受页面 CSP / CORS 限制。
+3. **本地缓存优先 + 请求**：`background.ts`（service worker）先经 `lib/translate-cached.ts` 查本地 IndexedDB（`lib/local-cache.ts`）：命中块直接回填、**不发服务端**（天然不扣额度）；未命中块才经 `lib/api.ts` `translateViaBackend` POST `${BACKEND_URL}/v1/translate`（SSE），带 `X-Device-Id`、`pageKey`（`pageKeyFromUrl` 规范化 URL 哈希，URL 不出本机）、`localDate`，登录则带 `Authorization`；服务端回的、标记校验通过的块写回本地。**加密开启时**（构建注入 `SERVER_PUBKEY`）source 经 `crypto.ts` 加密为 `ct`、带 `X-Eph-Pub` 头，SSE 译文为 `ct`、解密后再校验/重建（D-13；缓存与重建仍在明文域，加密对其透明）。**网络调用在 SW 发**：host_permissions 授权下不受页面 CSP / CORS 限制。
 4. **流式回填**：后端发结构化 SSE 事件（`event: block` `{id,translated}` / `done` / `error` / `quota`）；`lib/sse.ts createSseParser` 跨 chunk 累积解析；content 收 `block` → `restoreSoleWrapper` → 校验 → `rebuilder` 重建 → 淡入替换对应节点。
 5. **失败 / 配额**：`error` / `quota` 经 port 回 content，`errorKind` 透到 popup——`quota`（匿名超 3 页 / 登录超日上限）用**柔和样式 + 登录引导**，不显示红色报错。
 6. **账号 / 匿名 / 打点**：`lib/auth.ts`（注册 / 登录 / 登出 / access 静默刷新，token 存 storage）；`lib/device.ts`（匿名 `deviceId` + `localDateString` + `pageKeyFromUrl`）；`lib/telemetry.ts`（`track` / `reportError`，fire-and-forget、只带 host + 计数）。
@@ -52,12 +52,13 @@ lib/
   device.ts     # 匿名 deviceId + 本地日期 + pageKeyFromUrl（cyrb53）
   telemetry.ts  # 打点 / 错误上报（fire-and-forget，只带 host）
   sse.ts        # 纯 SSE 事件解析 createSseParser（跨 chunk 缓冲重扫）
+  crypto.ts     # 应用层加密（D-13）：ECDH(P-256)+HKDF+AES-GCM，钉死服务端公钥/会话级临时密钥；api.ts 用它加密 source/解密 translated
   extractor.ts  # TreeWalker 抽块 + 生成 <gN>/<xN> 标记 + styleMap
   markers.ts    # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts  # 依 styleMap + tokenize 把带标记译文重建为 DOM
   storage.ts    # 白名单 / 设置（含本地缓存开关 cacheEnabled）
   icon.ts       # 工具栏图标三态（off/on/翻译中/出错）
-  config.ts     # BACKEND_URL 唯一读取处（构建期由 .env 的 WXT_BACKEND_URL 注入；缺省 http://localhost:8000）
+  config.ts     # BACKEND_URL + SERVER_PUBKEY（D-13 加密公钥，空＝明文 dev）唯一读取处（构建期由 .env 的 WXT_* 注入）
   messages.ts   # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
   types.ts      # 共享类型（FailureKind 含 'quota'）
 ```
