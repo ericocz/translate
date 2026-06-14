@@ -11,7 +11,7 @@ DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # DeepSeek V4 Flash 输出上限：显式设定使「超长被截断」行为确定，并与 translator.OUTPUT_TOKEN_BUDGET
 # 配合（后者 < 此值、留安全余量）。⚠️ 上线前以 DeepSeek 官方 max_tokens 实际上限校准本值。
-MAX_OUTPUT_TOKENS = 8192
+MAX_OUTPUT_TOKENS = 384000
 
 
 @dataclass

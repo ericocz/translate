@@ -235,7 +235,7 @@ Expected: FAIL —— `ImportError: cannot import name 'MAX_OUTPUT_TOKENS'`。
 ```python
 # DeepSeek V4 Flash 输出上限：显式设定使「超长被截断」行为确定，并与 translator.OUTPUT_TOKEN_BUDGET
 # 配合（后者 < 此值、留安全余量）。⚠️ 上线前以 DeepSeek 官方 max_tokens 实际上限校准本值。
-MAX_OUTPUT_TOKENS = 8192
+MAX_OUTPUT_TOKENS = 384000
 ```
 
 在 `build_request_body` 返回的 dict 里，`"temperature": 0.2,` 那行之后加一行：
@@ -301,6 +301,6 @@ git commit -m "docs(server): 铁律 #3 改为 token 预算装箱（D-12）"
 
 **2. Placeholder scan：** 无 TBD/TODO；每个改码步骤都给了完整代码与确切命令。
 
-**3. Type consistency：** 全程用同一签名 `batch_by_token_budget(list[tuple[str,str]], int) -> list[list[tuple[str,str]]]`；常量名 `OUTPUT_TOKEN_BUDGET`（translator）/`MAX_OUTPUT_TOKENS`（deepseek）前后一致；`OUTPUT_TOKEN_BUDGET=6500 < MAX_OUTPUT_TOKENS=8192` 满足 Task 3 断言。
+**3. Type consistency：** 全程用同一签名 `batch_by_token_budget(list[tuple[str,str]], int) -> list[list[tuple[str,str]]]`；常量名 `OUTPUT_TOKEN_BUDGET`（translator）/`MAX_OUTPUT_TOKENS`（deepseek）前后一致；`OUTPUT_TOKEN_BUDGET=6500 < MAX_OUTPUT_TOKENS=384000` 满足 Task 3 断言。
 
 **遗留（不属本计划，下一份 D-11 处理）：** 客户端本地 IndexedDB 缓存、取消服务端缓存、命中本地不扣费。

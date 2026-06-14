@@ -4,12 +4,12 @@ from typing import AsyncIterator, Callable
 
 from app.core.tokens import estimate_tokens
 from app.services.block_splitter import BlockSplitter
-from app.services.deepseek import Usage
+from app.services.deepseek import MAX_OUTPUT_TOKENS, Usage
 from app.services.markers import allowed_ids_from_source, validate_markers
 
-# 单请求「估算输出 token」预算：装箱上限，低于 deepseek.MAX_OUTPUT_TOKENS 留安全余量，
-# 避免一次发太多块、输出超模型 max_tokens 被截断丢尾。正常文章整篇估算 < 此值 → 一次请求（D-12）。
-OUTPUT_TOKEN_BUDGET = 6500
+# 单请求「估算输出 token」预算：装箱上限。校准为 = deepseek.MAX_OUTPUT_TOKENS（384000，V4 Flash 输出上限），
+# 即对任何现实网页都装一箱、全文单次请求（D-12）；仅当整页估算输出超模型上限才分片（≈25 万词，网页不可达）。
+OUTPUT_TOKEN_BUDGET = MAX_OUTPUT_TOKENS
 CONCURRENCY = 4
 
 
