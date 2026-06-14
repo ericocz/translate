@@ -9,6 +9,10 @@ from app.core.prompt import SYSTEM_PROMPT
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
+# DeepSeek V4 Flash 输出上限：显式设定使「超长被截断」行为确定，并与 translator.OUTPUT_TOKEN_BUDGET
+# 配合（后者 < 此值、留安全余量）。⚠️ 上线前以 DeepSeek 官方 max_tokens 实际上限校准本值。
+MAX_OUTPUT_TOKENS = 8192
+
 
 @dataclass
 class Usage:
@@ -38,6 +42,7 @@ def build_request_body(blocks: list[tuple[str, str]]) -> dict:
         "stream_options": {"include_usage": True},
         "thinking": {"type": "disabled"},
         "temperature": 0.2,
+        "max_tokens": MAX_OUTPUT_TOKENS,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},

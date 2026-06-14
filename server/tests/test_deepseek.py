@@ -3,6 +3,7 @@ import pytest
 
 from app.core.prompt import SYSTEM_PROMPT
 from app.services.deepseek import (
+    MAX_OUTPUT_TOKENS,
     DeepSeekError,
     Usage,
     build_request_body,
@@ -19,6 +20,13 @@ def test_request_body_locks_in_invariants():
     assert body["messages"][0]["role"] == "system"
     assert body["messages"][0]["content"] == SYSTEM_PROMPT   # 稳定前缀逐字节
     assert body["messages"][1]["content"] == "[[b1]] Hello <g0>x</g0>"
+
+
+def test_request_body_sets_explicit_max_tokens():
+    body = build_request_body([("b1", "hi")])
+    # 显式设 max_tokens，令「超长被截断」行为确定；须 ≥ translator 的 OUTPUT_TOKEN_BUDGET(6500)
+    assert body["max_tokens"] == MAX_OUTPUT_TOKENS
+    assert MAX_OUTPUT_TOKENS >= 6500
 
 
 def _sse(*contents: str) -> bytes:
