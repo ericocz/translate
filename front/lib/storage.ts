@@ -4,6 +4,7 @@
 // API Key 不再走 storage（改由 .env 注入，见 lib/config.ts）；这里只管白名单与设置。
 const KEYS = {
   whitelist: 'whitelist_domains',
+  cacheEnabled: 'cache_enabled',
 } as const;
 
 export async function getWhitelist(): Promise<string[]> {
@@ -35,6 +36,16 @@ export async function setDomainEnabled(domain: string, enabled: boolean): Promis
   if (enabled) set.add(lower);
   else set.delete(lower);
   await setWhitelist(Array.from(set));
+}
+
+/** 本地译文缓存开关，默认开启：仅显式存 false 才算关闭。 */
+export async function getCacheEnabled(): Promise<boolean> {
+  const raw = await chrome.storage.local.get(KEYS.cacheEnabled);
+  return raw[KEYS.cacheEnabled] !== false;
+}
+
+export async function setCacheEnabled(enabled: boolean): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.cacheEnabled]: enabled });
 }
 
 export function onSettingsChanged(cb: (changes: chrome.storage.StorageChange) => void): () => void {
