@@ -148,3 +148,19 @@ def test_batch_single_oversized_block_alone():
     big = "a" * 400  # ceil(400/4)=100 token
     blocks = [("b1", "aaaa"), ("b2", big), ("b3", "aaaa")]  # 1,100,1 token；budget=10
     assert _ids(batch_by_token_budget(blocks, 10)) == [["b1"], ["b2"], ["b3"]]
+
+
+async def test_normal_page_is_single_request():
+    cache = FakeCache()
+    sent_batches: list[list[str]] = []
+
+    async def deepseek(api_key, blocks):
+        sent_batches.append([bid for bid, _ in blocks])
+        for bid, _ in blocks:
+            yield f"[[{bid}]] 译"
+
+    # 30 个普通短块（远小于 OUTPUT_TOKEN_BUDGET）→ 必须只装一箱、只发一次
+    blocks = [SourceBlock(f"b{i}", f"hello world {i}") for i in range(30)]
+    await drain(translate(blocks, cache=cache, deepseek_stream=deepseek, api_key="k"))
+    assert len(sent_batches) == 1
+    assert len(sent_batches[0]) == 30

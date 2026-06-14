@@ -131,8 +131,8 @@ async def translate(
         rep_source[b.id] = b.source
         model_blocks.append((b.id, b.source))
 
-    # 3) 分批 + 有限并发，结果经 queue 合流回送
-    batches = [model_blocks[i:i + BATCH_SIZE] for i in range(0, len(model_blocks), BATCH_SIZE)]
+    # 3) 按 token 预算装箱 + 有限并发，结果经 queue 合流回送
+    batches = batch_by_token_budget(model_blocks, OUTPUT_TOKEN_BUDGET)
     queue: asyncio.Queue = asyncio.Queue()
     sem = asyncio.Semaphore(CONCURRENCY)
     to_cache: list[dict] = []
