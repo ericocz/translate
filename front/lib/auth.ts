@@ -1,5 +1,6 @@
 // 账号态：token 持久化（chrome.storage.local）+ 注册/登录/登出 + access 静默刷新。
 import { BACKEND_URL } from './config';
+import { encryptionEnabled, ephemeralPublicKey, encryptField } from './crypto';
 
 const KEY = 'auth';
 const ACCESS_TTL_MS = 30 * 60 * 1000; // 与后端 access_ttl_min 一致（本地估算用）
@@ -31,11 +32,16 @@ export async function login(email: string, password: string): Promise<string> {
 }
 
 async function doAuth(path: string, email: string, password: string): Promise<string> {
-  const r = await fetch(`${BACKEND_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+  // D-13：加密开启时把邮箱/密码打包成一个 ct（AAD="auth"），带临时公钥头；否则明文。
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  let body: string;
+  if (encryptionEnabled()) {
+    headers['X-Eph-Pub'] = await ephemeralPublicKey();
+    body = JSON.stringify({ ct: await encryptField(JSON.stringify({ email, password }), 'auth') });
+  } else {
+    body = JSON.stringify({ email, password });
+  }
+  const r = await fetch(`${BACKEND_URL}${path}`, { method: 'POST', headers, body });
   if (!r.ok) {
     const d = (await r.json().catch(() => ({}))) as { detail?: string };
     throw new Error(d.detail ?? '操作失败');
