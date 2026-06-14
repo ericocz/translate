@@ -15,7 +15,7 @@
 
 1. **系统提示词逐字节稳定**（`app/core/prompt.py` 唯一来源，禁止动态拼接）——命中 DeepSeek 前缀缓存；改它会令翻译缓存版本键（含 prompt 哈希）全失效。
 2. **显式关思考**：请求体顶层 `thinking: {type:'disabled'}`（`deepseek-v4-flash` 默认开思考）。
-3. **分批 ~40 块 + 有限并发**（避免输出超 `max_tokens` 截断）；**按 source 去重**。
+3. **按 token 预算装箱 + 有限并发**（`batch_by_token_budget`：累计 `estimate_tokens(src)` ≤ `OUTPUT_TOKEN_BUDGET`，正常文章一次请求、超长才分片，配合 `deepseek.MAX_OUTPUT_TOKENS` 防截断）；**按 source 去重**。
 4. **`[[id]]` 流式切块**：模型逐 token 返回、标记常被拆散——在**完整缓冲**上重扫（`block_splitter.py`）；正则字符类**必须含 `.`**（沉降补抽 / SPA 用 `r{batch}.b{n}`）。
 5. **标记平衡校验**（`markers.py`，与客户端等价）——通过才入缓存；**原样回显不入缓存**（防缓存污染、自愈）。
 6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计未命中 Token（命中读缓存里记的 token，**命中也记账**）。
