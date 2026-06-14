@@ -4,7 +4,8 @@
 //  ③ 工具栏快捷键——翻译 / 取消翻译当前网站。
 // 不含任何翻译业务逻辑（都在后端 /v1/translate）。
 
-import { translateViaBackend, type ApiClient } from '@/lib/api';
+import { type ApiClient } from '@/lib/api';
+import { translateWithCache } from '@/lib/translate-cached';
 import { pageKeyFromUrl } from '@/lib/device';
 import { track, reportError } from '@/lib/telemetry';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
@@ -86,7 +87,7 @@ export default defineBackground(() => {
       }
       const startedAt = Date.now();
       track('translate_start', domain ?? null, { blocks: msg.blocks.length });
-      const thisJob: ApiClient = translateViaBackend(
+      const thisJob: ApiClient = translateWithCache(
         msg.blocks,
         pageKeyFromUrl(port.sender?.url),
         {
