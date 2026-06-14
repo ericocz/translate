@@ -8,23 +8,11 @@ from app.main import app
 from app.routers.deps import current_user_optional
 from app.routers.translate import (
     get_anon_quota,
-    get_cache,
     get_daily_usage,
     get_deepseek_stream,
     get_tier,
 )
 from app.services.quota import QuotaDecision
-
-
-class FakeCache:
-    def __init__(self):
-        self.store, self.saved = {}, []
-
-    async def get_many(self, sources):
-        return {s: self.store[s] for s in sources if s in self.store}
-
-    async def set_many(self, entries):
-        self.saved.extend(entries)
 
 
 async def fake_stream(api_key, blocks):
@@ -81,7 +69,6 @@ def parse_sse(text: str) -> list[tuple[str, str]]:
 
 @pytest.fixture
 def override():
-    app.dependency_overrides[get_cache] = lambda: FakeCache()
     app.dependency_overrides[get_deepseek_stream] = lambda: fake_stream
     app.dependency_overrides[get_anon_quota] = lambda: FakeQuotaAllow()
     app.dependency_overrides[get_daily_usage] = lambda: FakeDaily()

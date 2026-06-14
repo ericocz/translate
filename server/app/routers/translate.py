@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.db.base import async_session
 from app.services import deepseek
-from app.services.cache import TranslationCacheRepo
 from app.services.quota import AnonQuotaRepo
 from app.routers.deps import current_user_optional
 from app.services.translator import (
@@ -43,12 +42,6 @@ def get_deepseek_stream():
     return deepseek.stream_with_default_client
 
 
-async def get_cache() -> AsyncIterator[TranslationCacheRepo]:
-    """每请求开一个 DB session，返回缓存仓库。yield 依赖在流式响应发完后才清理。"""
-    async with async_session() as s:
-        yield TranslationCacheRepo(s)
-
-
 async def get_anon_quota() -> AsyncIterator[AnonQuotaRepo]:
     """每请求开一个 DB session，返回匿名配额仓库。"""
     async with async_session() as s:
@@ -73,7 +66,6 @@ def _sse(event: str, data: dict) -> str:
 async def translate_endpoint(
     req: TranslateRequest,
     request: Request,
-    cache=Depends(get_cache),
     quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
     daily=Depends(get_daily_usage),
@@ -112,14 +104,13 @@ async def translate_endpoint(
             return
         async for ev in translate(
             blocks,
-            cache=cache,
             deepseek_stream=deepseek_stream,
             api_key=settings.deepseek_api_key,
         ):
             if isinstance(ev, BlockEvent):
                 yield _sse("block", {"id": ev.id, "translated": ev.translated})
             elif isinstance(ev, UsageEvent):
-                # 登录用户记当日 token（含缓存命中归因）；匿名不记 daily_usage（走页配额）。
+                # 登录用户记当日 token（只计服务端实际翻译的用量）；匿名不记 daily_usage（走页配额）。
                 if user_id is not None:
                     await daily.add(user_id, local_date, ev.input_tokens, ev.output_tokens, pages=1)
             elif isinstance(ev, DoneEvent):
