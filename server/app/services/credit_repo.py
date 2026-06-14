@@ -17,6 +17,10 @@ class CreditRepo:
         row = await self._s.scalar(select(CreditAccount).where(CreditAccount.user_id == user_id))
         return int(row.balance_micro if row else 0)
 
+    async def get_account(self, user_id: int) -> CreditAccount | None:
+        """返回账户行（无则 None）——区分「免费用户（无账户）」与「付费用户余额耗尽（有账户、余额 0）」。"""
+        return await self._s.scalar(select(CreditAccount).where(CreditAccount.user_id == user_id))
+
     async def grant(
         self, user_id: int, amount_micro: int, kind: str = "grant", idempotency_key: str | None = None
     ) -> int:

@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 
 from app.db.base import async_session
-from app.db.models import CreditTxn
+from app.db.models import CreditAccount, CreditTxn
 from app.services.credit_repo import CreditRepo
 
 
@@ -32,6 +32,16 @@ async def test_deduct_reduces(db_session):
         await repo.grant(3, 2_000_000, "gift")
         assert await repo.deduct(3, 500_000) == 1_500_000
         assert await repo.get_balance(3) == 1_500_000
+
+
+async def test_get_account_none_then_present(db_session):
+    async with async_session() as s:
+        repo = CreditRepo(s)
+        assert await repo.get_account(9) is None  # 免费用户：无账户
+        await repo.grant(9, 1_000_000, "grant")
+    async with async_session() as s:
+        acct = await CreditRepo(s).get_account(9)
+        assert acct is not None and acct.balance_micro == 1_000_000
 
 
 async def test_txn_log_has_balance_after(db_session):
