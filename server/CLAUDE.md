@@ -32,7 +32,7 @@ app/
   db/      base.py(engine/async_session/Base) · models.py(全部表)
   services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
            translator.py(编排→事件流: Block/Done/Error/UsageEvent)
-           quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py
+           quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py · credit_repo.py(credits 账本: 幂等发放/扣减/余额)
   routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py
   main.py  挂载全部 router + /health
 alembic/   迁移；scripts/create_admin.py 建管理员
@@ -40,7 +40,7 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## 数据模型（Postgres）
 
-`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）。
+`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；尚未接入翻译流）。
 
 > D-11：原 `translation_cache` 跨用户共享缓存已下线——隐私上不在服务端留存用户译文；缓存改为客户端 IndexedDB 本地层（见 front），命中本地的块根本不发服务端、不计费。
 

@@ -25,7 +25,8 @@ async def db_session():
         await conn.execute(
             text(
                 "TRUNCATE anon_usage, users, sessions, daily_usage, "
-                "quota_tier, events, error_logs, admins, upstream_keys CASCADE"
+                "quota_tier, events, error_logs, admins, upstream_keys, "
+                "credit_accounts, credit_txns CASCADE"
             )
         )
     # pytest-asyncio 每个测试用新事件循环；asyncpg 连接绑定在创建它的 loop 上。
