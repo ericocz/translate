@@ -8,6 +8,7 @@ import { BACKEND_URL } from './config';
 import { getDeviceId, localDateString } from './device';
 import { getAccessToken } from './auth';
 import { createSseParser } from './sse';
+import { encryptionEnabled, ephemeralPublicKey, encryptField, decryptField } from './crypto';
 import type { FailureInfo, FailureKind } from './types';
 
 export interface ApiBlock {
@@ -43,6 +44,17 @@ export function translateViaBackend(
 
     const accessToken = await getAccessToken();
 
+    // D-13：加密开启时把每块 source 换成密文 ct，并带客户端临时公钥头（服务端据此派生会话密钥）。
+    const useEnc = encryptionEnabled();
+    let bodyBlocks: unknown[] = blocks;
+    const extraHeaders: Record<string, string> = {};
+    if (useEnc) {
+      extraHeaders['X-Eph-Pub'] = await ephemeralPublicKey();
+      bodyBlocks = await Promise.all(
+        blocks.map(async (b) => ({ id: b.id, ct: await encryptField(b.source, `src:${b.id}`) }))
+      );
+    }
+
     let resp: Response;
     try {
       resp = await fetch(`${BACKEND_URL}/v1/translate`, {
@@ -50,9 +62,10 @@ export function translateViaBackend(
         headers: {
           'Content-Type': 'application/json',
           'X-Device-Id': deviceId,
+          ...extraHeaders,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ blocks, localDate: localDateString(), pageKey }),
+        body: JSON.stringify({ blocks: bodyBlocks, localDate: localDateString(), pageKey }),
         signal: controller.signal,
       });
     } catch (e) {
@@ -72,17 +85,32 @@ export function translateViaBackend(
     }
 
     let settled = false;
+    // 密文块异步解密：收集 pending，确保 onDone 在全部解密回填之后才发（否则 done 抢在最后一块前）。
+    const pending: Promise<void>[] = [];
     const parser = createSseParser((ev) => {
       if (ev.event === 'block') {
         try {
-          const { id, translated } = JSON.parse(ev.data) as { id: string; translated: string };
-          handlers.onBlock(id, translated);
+          const obj = JSON.parse(ev.data) as { id: string; translated?: string; ct?: string };
+          if (obj.ct !== undefined) {
+            // 密文路径：异步解密后回填。块间无序无碍——各块按 id 独立定位。
+            pending.push(
+              (async () => {
+                try {
+                  handlers.onBlock(obj.id, await decryptField(obj.ct!, `dst:${obj.id}`));
+                } catch {
+                  // 解密失败：丢弃该块，对应节点保持英文原样。
+                }
+              })()
+            );
+          } else if (obj.translated !== undefined) {
+            handlers.onBlock(obj.id, obj.translated);
+          }
         } catch {
           // 单事件坏 JSON 不致命，跳过。
         }
       } else if (ev.event === 'done') {
         settled = true;
-        handlers.onDone();
+        void Promise.all(pending).then(() => handlers.onDone());
       } else if (ev.event === 'error') {
         settled = true;
         handlers.onError(parseFailure(ev.data));
@@ -102,8 +130,11 @@ export function translateViaBackend(
         parser.feed(decoder.decode(value, { stream: true }));
       }
       parser.flush();
-      // 流自然结束但没收到 done/error：按完成处理（对齐旧 deepseek client 的收尾语义）。
-      if (!settled) handlers.onDone();
+      // 流自然结束但没收到 done/error：等未决解密回填后按完成处理（对齐旧 deepseek client 的收尾语义）。
+      if (!settled) {
+        await Promise.all(pending);
+        handlers.onDone();
+      }
     } catch (e) {
       if (controller.signal.aborted) return;
       handlers.onError(classifyNetwork(e));
