@@ -139,3 +139,32 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class CreditAccount(Base):
+    """用户预付额度余额。整数 micro-¥（1e-6 元）记账，不用浮点。"""
+
+    __tablename__ = "credit_accounts"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    balance_micro: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class CreditTxn(Base):
+    """额度流水：发放(grant/gift) / 扣减(deduct) / 退款(refund)。
+    idempotency_key 唯一 → webhook 重投/并发只入账一次（DB 约束兜底）。"""
+
+    __tablename__ = "credit_txns"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    delta_micro: Mapped[int] = mapped_column(BigInteger, nullable=False)  # +发放 / -扣减
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # grant|gift|deduct|refund
+    balance_after: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
