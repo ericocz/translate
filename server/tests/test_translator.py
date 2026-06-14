@@ -5,6 +5,7 @@ from app.services.translator import (
     DoneEvent,
     SourceBlock,
     UsageEvent,
+    batch_by_token_budget,
     translate,
 )
 
@@ -122,3 +123,28 @@ async def test_usage_event_from_model_real_usage():
     evs = await drain(translate([SourceBlock("b1", "Hi")], cache=cache, deepseek_stream=ds, api_key="k"))
     u = next(e for e in evs if isinstance(e, UsageEvent))
     assert u.input_tokens == 40 and u.output_tokens == 12  # 未命中用真实 usage
+
+
+def _ids(batches):
+    return [[bid for bid, _ in batch] for batch in batches]
+
+
+def test_batch_empty():
+    assert batch_by_token_budget([], 100) == []
+
+
+def test_batch_all_under_budget_single_batch():
+    blocks = [("b1", "hello"), ("b2", "world")]
+    assert batch_by_token_budget(blocks, 1000) == [blocks]  # 全装一箱 → 一次请求
+
+
+def test_batch_accumulates_until_budget():
+    # 每块 "aaaaaaaa"(8 ASCII)=2 token；budget=5 → 每箱最多 2 块（2+2=4≤5，再+2=6>5）
+    blocks = [(f"b{i}", "aaaaaaaa") for i in range(1, 6)]
+    assert _ids(batch_by_token_budget(blocks, 5)) == [["b1", "b2"], ["b3", "b4"], ["b5"]]
+
+
+def test_batch_single_oversized_block_alone():
+    big = "a" * 400  # ceil(400/4)=100 token
+    blocks = [("b1", "aaaa"), ("b2", big), ("b3", "aaaa")]  # 1,100,1 token；budget=10
+    assert _ids(batch_by_token_budget(blocks, 10)) == [["b1"], ["b2"], ["b3"]]

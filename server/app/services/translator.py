@@ -11,9 +11,35 @@ from app.services.markers import (
     validate_markers,
 )
 
-# 单请求块数上限：过多会超出模型输出 max_tokens 被截断，尾部块永远译不出。
-BATCH_SIZE = 40
+# 单请求「估算输出 token」预算：装箱上限，低于 deepseek.MAX_OUTPUT_TOKENS 留安全余量，
+# 避免一次发太多块、输出超模型 max_tokens 被截断丢尾。正常文章整篇估算 < 此值 → 一次请求（D-12）。
+OUTPUT_TOKEN_BUDGET = 6500
 CONCURRENCY = 4
+
+
+def batch_by_token_budget(
+    blocks: list[tuple[str, str]], budget: int
+) -> list[list[tuple[str, str]]]:
+    """按估算输出 token 把 (id, source) 块顺序装箱，每箱累计 estimate_tokens(source) ≤ budget。
+
+    - 译文与原文 token 量级相当，故用 estimate_tokens(source) 代理输出量；budget 已留安全余量。
+    - 单块自身超 budget：独占一箱（块是原子的，拆块会破坏 <gN> 标记）。
+    - 空输入 → []。
+    """
+    batches: list[list[tuple[str, str]]] = []
+    current: list[tuple[str, str]] = []
+    current_tokens = 0
+    for bid, src in blocks:
+        t = estimate_tokens(src)
+        if current and current_tokens + t > budget:
+            batches.append(current)
+            current = []
+            current_tokens = 0
+        current.append((bid, src))
+        current_tokens += t
+    if current:
+        batches.append(current)
+    return batches
 
 
 @dataclass(frozen=True)
