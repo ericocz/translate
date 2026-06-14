@@ -33,14 +33,15 @@ app/
   services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
            translator.py(编排→事件流: Block/Done/Error/UsageEvent)
            quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py · credit_repo.py(credits 账本: 幂等发放/扣减/余额)
-  routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py
+           creem.py(D-18 Creem webhook HMAC 验签 + checkout.completed 解析) · redeem_repo.py(买断注册码幂等签发) · email.py(EmailSender 接口 + LogEmailSender 占位)
+  routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py · billing.py(Creem webhook 收单)
   main.py  挂载全部 router + /health
 alembic/   迁移；scripts/create_admin.py 建管理员
 ```
 
 ## 数据模型（Postgres）
 
-`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；付费模式按实耗扣费、余额≤0 软拦截，无人充值前无账户＝休眠）。
+`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；付费模式按实耗扣费、余额≤0 软拦截，无人充值前无账户＝休眠）· `redeem_codes`（买断注册码：`source_ref`=支付订单 id 唯一防重投只签一张；买断＝BYOK 终身 + ≤`max_devices` 台，D-18 海外 Creem 收单）。
 
 > D-11：原 `translation_cache` 跨用户共享缓存已下线——隐私上不在服务端留存用户译文；缓存改为客户端 IndexedDB 本地层（见 front），命中本地的块根本不发服务端、不计费。
 
@@ -49,6 +50,7 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 - `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；付费用户余额≤0 发 quota、实耗扣 credits；**带 `X-Eph-Pub` 头则收发 `ct` 密文**，D-13）
 - `GET /v1/usage`（匿名返页配额；登录返 tokensToday/cap/notice）
 - `POST /v1/auth/{register,login,refresh,logout}`（register/login 带 `X-Eph-Pub` 头则邮箱/密码走 `ct`，D-13）
+- `POST /v1/billing/creem/webhook`（D-18 海外买断收单：`creem-signature` HMAC-SHA256 验签 → `checkout.completed` 解析 → 按订单 id 幂等签发注册码 → 发邮件；非买断完成事件回 200 忽略、验签失败回 400）
 - `POST /v1/events`、`POST /v1/errors`
 - `/admin/{login,stats,users,errors,events,keys}`（管理员 JWT `scope:admin`；keys 响应脱敏，绝不回完整 Key）
 
