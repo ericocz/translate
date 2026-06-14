@@ -24,7 +24,7 @@ async def db_session():
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE translation_cache, anon_usage, users, sessions, daily_usage, "
+                "TRUNCATE anon_usage, users, sessions, daily_usage, "
                 "quota_tier, events, error_logs, admins, upstream_keys CASCADE"
             )
         )
