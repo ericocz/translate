@@ -13,12 +13,12 @@
 
 ## 铁律（服务端侧，逐条对应客户端旧约束）
 
-1. **系统提示词逐字节稳定**（`app/core/prompt.py` 唯一来源，禁止动态拼接）——命中 DeepSeek 前缀缓存；改它会令翻译缓存版本键（含 prompt 哈希）全失效。
+1. **系统提示词逐字节稳定**（`app/core/prompt.py` 唯一来源，禁止动态拼接）——命中 DeepSeek 前缀缓存（hit 价 ¥0.02 的来源）。
 2. **显式关思考**：请求体顶层 `thinking: {type:'disabled'}`（`deepseek-v4-flash` 默认开思考）。
 3. **按 token 预算装箱 + 有限并发**（`batch_by_token_budget`：累计 `estimate_tokens(src)` ≤ `OUTPUT_TOKEN_BUDGET`，正常文章一次请求、超长才分片，配合 `deepseek.MAX_OUTPUT_TOKENS` 防截断）；**按 source 去重**。
 4. **`[[id]]` 流式切块**：模型逐 token 返回、标记常被拆散——在**完整缓冲**上重扫（`block_splitter.py`）；正则字符类**必须含 `.`**（沉降补抽 / SPA 用 `r{batch}.b{n}`）。
-5. **标记平衡校验**（`markers.py`，与客户端等价）——通过才入缓存；**原样回显不入缓存**（防缓存污染、自愈）。
-6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计未命中 Token（命中读缓存里记的 token，**命中也记账**）。
+5. **标记平衡校验**（`markers.py`，与客户端等价）——决定 `success` 计数与「全失败才报错」；服务端不再写缓存（D-11；原样回显 / 校验不过仍回送、由客户端再校验）。
+6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计 Token、接口缺失时 `estimate_tokens` 兜底；**只对服务端实际翻译的块记账**（命中本地缓存的块由客户端拦下、根本不发服务端，D-11）。
 7. **API Key 只在服务端 env**（`app/core/config.py`，绝不下发客户端、绝不入日志 / 事件）。
 8. **DeepSeek 直连**：httpx `trust_env=False`（DeepSeek 是中国服务，无需代理；绕开开发机个人 SOCKS 代理，省 socksio 依赖）。
 
@@ -30,7 +30,7 @@ app/
            tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希)
   db/      base.py(engine/async_session/Base) · models.py(全部表)
   services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
-           cache.py(内容寻址缓存仓库) · translator.py(编排→事件流: Block/Done/Error/UsageEvent)
+           translator.py(编排→事件流: Block/Done/Error/UsageEvent)
            quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py
   routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py
   main.py  挂载全部 router + /health
@@ -39,7 +39,9 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## 数据模型（Postgres）
 
-`translation_cache`（内容寻址 + token 列 + LRU）· `anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）。
+`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）。
+
+> D-11：原 `translation_cache` 跨用户共享缓存已下线——隐私上不在服务端留存用户译文；缓存改为客户端 IndexedDB 本地层（见 front），命中本地的块根本不发服务端、不计费。
 
 ## API 表面
 
