@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沉浸式翻译 · 产品蓝图 V2 —— 商业化重构</title>
+<style>
+/* ============ 主题系统（需求八的自演示：6 主题 + 跟随系统） ============ */
+:root{
+  --radius:10px; --radius-s:6px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"PingFang SC",monospace;
+}
+/* 1 素·桃红（默认 · 浅） */
+[data-theme="su"]{
+  --bg:#faf9f7; --panel:#ffffff; --panel2:#f4f2ee; --ink:#2b2a28; --ink2:#6b6862; --ink3:#a09c94;
+  --line:#e8e5df; --acc:#e35d77; --acc-soft:#fdeef1; --ok:#3a8f5f; --ok-soft:#e8f4ed;
+  --warn:#b07c1f; --warn-soft:#faf3e0; --risk:#c0392b; --risk-soft:#fbeae7;
+  --code-bg:#f4f2ee; --shadow:0 1px 3px rgba(0,0,0,.05);
+}
+/* 2 墨（深色） */
+[data-theme="mo"]{
+  --bg:#16181d; --panel:#1e2128; --panel2:#262a33; --ink:#e8e6e1; --ink2:#a8a49c; --ink3:#6e6a63;
+  --line:#32363f; --acc:#e87690; --acc-soft:#3a2730; --ok:#5fb585; --ok-soft:#24332b;
+  --warn:#d2a449; --warn-soft:#36302040; --risk:#e06352; --risk-soft:#3a2724;
+  --code-bg:#262a33; --shadow:0 1px 3px rgba(0,0,0,.3);
+}
+/* 3 青瓷（浅） */
+[data-theme="qc"]{
+  --bg:#f4f8f7; --panel:#ffffff; --panel2:#eaf1ef; --ink:#243433; --ink2:#5d7370; --ink3:#93a7a4;
+  --line:#dde8e6; --acc:#2e8b7a; --acc-soft:#e3f1ee; --ok:#3a8f5f; --ok-soft:#e8f4ed;
+  --warn:#b07c1f; --warn-soft:#faf3e0; --risk:#c0392b; --risk-soft:#fbeae7;
+  --code-bg:#eaf1ef; --shadow:0 1px 3px rgba(0,0,0,.05);
+}
+/* 4 暖纸（浅） */
+[data-theme="wz"]{
+  --bg:#f9f4ea; --panel:#fffdf7; --panel2:#f2ead9; --ink:#3a3226; --ink2:#7a6e5a; --ink3:#aa9d85;
+  --line:#e9dfc9; --acc:#b5651d; --acc-soft:#f8e9da; --ok:#5e7e3a; --ok-soft:#edf2e2;
+  --warn:#a3681c; --warn-soft:#f6ecd6; --risk:#b03a2e; --risk-soft:#f7e6e3;
+  --code-bg:#f2ead9; --shadow:0 1px 3px rgba(0,0,0,.04);
+}
+/* 5 海盐（浅 · 冷蓝） */
+[data-theme="hy"]{
+  --bg:#f3f6fa; --panel:#ffffff; --panel2:#e9eef6; --ink:#28313e; --ink2:#5f6b7d; --ink3:#97a1b1;
+  --line:#dce3ee; --acc:#3b6fd4; --acc-soft:#e7eefb; --ok:#3a8f5f; --ok-soft:#e8f4ed;
+  --warn:#b07c1f; --warn-soft:#faf3e0; --risk:#c0392b; --risk-soft:#fbeae7;
+  --code-bg:#e9eef6; --shadow:0 1px 3px rgba(0,0,0,.05);
+}
+/* 6 黛蓝（浅 · 蓝灰纸感） */
+[data-theme="dl"]{
+  --bg:#eef0f4; --panel:#f8f9fb; --panel2:#e3e6ec; --ink:#2f3440; --ink2:#646b7a; --ink3:#9aa1af;
+  --line:#d8dce4; --acc:#7058c0; --acc-soft:#ece8f8; --ok:#3a8f5f; --ok-soft:#e8f4ed;
+  --warn:#b07c1f; --warn-soft:#faf3e0; --risk:#c0392b; --risk-soft:#fbeae7;
+  --code-bg:#e3e6ec; --shadow:0 1px 3px rgba(0,0,0,.05);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.75;transition:background .25s,color .25s}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+code,.mono{font-family:var(--mono);font-size:.92em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+h1,h2,h3,h4{line-height:1.35;font-weight:650}
+small{color:var(--ink2)}
+::selection{background:var(--acc);color:#fff}
+
+/* ============ 布局 ============ */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;padding:10px 20px;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .brand{font-weight:700;font-size:14.5px;white-space:nowrap}
+.topbar .brand .v{color:var(--acc)}
+.theme-zone{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
+.tchip{border:1px solid var(--line);background:var(--panel);color:var(--ink2);font-size:12px;padding:3px 10px;border-radius:99px;cursor:pointer;font-family:var(--font)}
+.tchip.on{border-color:var(--acc);color:var(--acc);background:var(--acc-soft);font-weight:600}
+.tauto{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);cursor:pointer;user-select:none}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:12.5px;padding:4px 12px;border-radius:var(--radius-s);cursor:pointer;font-family:var(--font)}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+
+.layout{display:grid;grid-template-columns:248px minmax(0,1fr);max-width:1280px;margin:0 auto;gap:28px;padding:0 20px}
+nav.toc{position:sticky;top:56px;align-self:start;height:calc(100vh - 70px);overflow-y:auto;padding:18px 0 40px;font-size:13px}
+nav.toc .g{margin:14px 0 4px;color:var(--ink3);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+nav.toc a{display:block;color:var(--ink2);padding:3.5px 10px;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+nav.toc a:hover{color:var(--acc);text-decoration:none;background:var(--acc-soft)}
+nav.toc a.here{color:var(--acc);border-left-color:var(--acc);font-weight:600}
+main{padding:24px 0 120px;min-width:0}
+section{margin-bottom:64px;scroll-margin-top:70px}
+.shead{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--line);padding-bottom:10px;margin-bottom:18px}
+.shead .no{font-family:var(--mono);color:var(--acc);font-weight:700;font-size:15px}
+.shead h2{margin:0;font-size:21px}
+.shead .sub{color:var(--ink3);font-size:12.5px;margin-left:auto}
+h3{font-size:16.5px;margin:26px 0 10px}
+h3 .h-tag{font-size:11px;vertical-align:2px}
+
+/* ============ 组件 ============ */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+th{background:var(--panel2);text-align:left;font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 9px;border-radius:99px;white-space:nowrap}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.risk{background:var(--risk-soft);color:var(--risk)}
+.tag.acc{background:var(--acc-soft);color:var(--acc)}
+.tag.dim{background:var(--panel2);color:var(--ink2)}
+.callout{border-left:3px solid var(--acc);background:var(--acc-soft);padding:10px 14px;border-radius:0 var(--radius-s) var(--radius-s) 0;margin:12px 0;font-size:14px}
+.callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+.callout.risk{border-color:var(--risk);background:var(--risk-soft)}
+.callout.ok{border-color:var(--ok);background:var(--ok-soft)}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.kpi .n{font-size:24px;font-weight:750;color:var(--acc);font-family:var(--mono)}
+.kpi .l{font-size:12px;color:var(--ink2);margin-top:2px}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:14px 0}
+.flow .node{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-s);padding:8px 13px;font-size:13px;text-align:center;min-width:96px}
+.flow .node b{display:block;font-size:13.5px}
+.flow .node small{font-size:11px;color:var(--ink2);display:block;line-height:1.4}
+.flow .ar{display:flex;flex-direction:column;justify-content:center;padding:0 8px;color:var(--ink3);font-family:var(--mono);font-size:12px;text-align:center}
+.flow .ar em{font-style:normal;font-size:10.5px;color:var(--ink3);display:block}
+ul{padding-left:22px;margin:8px 0}
+li{margin:4px 0}
+li::marker{color:var(--acc)}
+.q{background:var(--panel);border:1px dashed var(--acc);border-radius:var(--radius);padding:14px 16px;margin:14px 0}
+.q .qh{display:flex;align-items:center;gap:8px;font-weight:650;font-size:14px;margin-bottom:6px}
+.q .qid{font-family:var(--mono);font-size:11px;color:var(--acc);background:var(--acc-soft);padding:1px 8px;border-radius:99px}
+.q .sug{font-size:13.5px;color:var(--ink2);margin:6px 0}
+.q .sug b{color:var(--ink)}
+.q .vote{display:flex;gap:14px;margin:8px 0 6px;font-size:13px;flex-wrap:wrap}
+.q .vote label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink2)}
+.q textarea{width:100%;min-height:38px;border:1px solid var(--line);border-radius:var(--radius-s);background:var(--panel2);color:var(--ink);font-family:var(--font);font-size:13px;padding:7px 10px;resize:vertical}
+.q textarea:focus{outline:2px solid var(--acc);outline-offset:1px;border-color:transparent}
+.hero{padding:46px 0 8px}
+.hero .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--acc);text-transform:uppercase}
+.hero h1{font-size:31px;margin:8px 0 10px}
+.hero p.lead{font-size:16px;color:var(--ink2);max-width:760px;margin:0 0 18px}
+.decision-src{font-size:11.5px;color:var(--ink3);font-family:var(--mono)}
+.statebox{background:var(--panel2);border-radius:var(--radius-s);padding:10px 14px;font-size:13px}
+footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding:18px 0 60px;font-family:var(--mono)}
+@media(max-width:920px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{grid-template-columns:1fr}section{break-inside:avoid-page}}
+</style>
+</head>
+<body data-theme="su">
+
+<header class="topbar">
+  <div class="brand">沉浸式翻译 <span class="v">产品蓝图 V2</span> <small>· 商业化重构 · 2026-06-12（06-14 第二轮定案）</small></div>
+  <div class="theme-zone" id="themeZone">
+    <span style="font-size:11px;color:var(--ink3);margin-right:2px">换肤(需求八演示)</span>
+    <button class="tchip" data-t="su">素·桃红</button>
+    <button class="tchip" data-t="mo">墨·深色</button>
+    <button class="tchip" data-t="qc">青瓷</button>
+    <button class="tchip" data-t="wz">暖纸</button>
+    <button class="tchip" data-t="hy">海盐</button>
+    <button class="tchip" data-t="dl">黛蓝</button>
+    <label class="tauto"><input type="checkbox" id="themeAuto">跟随系统</label>
+    <button class="btn primary" id="exportBtn" title="导出全部批注与拍板结果">导出批注</button>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc" id="toc">
+  <div class="g">总纲</div>
+  <a href="#s0">0 · 北极星与三原则</a>
+  <a href="#s1">1 · 第一性原理算账</a>
+  <a href="#s2">2 · 已拍板决策记录</a>
+  <div class="g">产品</div>
+  <a href="#s3">3 · 用户身份与旅程</a>
+  <a href="#s4">4 · 19 项需求全景</a>
+  <a href="#s5">5 · 商业化设计</a>
+  <a href="#s6">6 · 成本计算器</a>
+  <div class="g">工程</div>
+  <a href="#s7">7 · 架构 V2 增量</a>
+  <a href="#s8">8 · 邮箱验证码方案</a>
+  <a href="#s9">9 · DeepSeek 供应商</a>
+  <a href="#s10">10 · GDPR 合规审计</a>
+  <a href="#s11">11 · 监控与告警</a>
+  <a href="#s12">12 · 运营打点体系</a>
+  <a href="#s13">13 · 体验军规</a>
+  <a href="#s14">14 · 语言支持探测器</a>
+  <div class="g">发射</div>
+  <a href="#s15">15 · 上线 Gate 清单</a>
+  <a href="#s16">16 · 里程碑</a>
+  <a href="#s17">17 · 开放问题（待你拍板）</a>
+  <a href="#s18">18 · 附录与来源</a>
+</nav>
+
+<main>
+
+<!-- ================= S0 北极星 ================= -->
+<section id="s0">
+  <div class="hero">
+    <div class="eyebrow">North Star</div>
+    <h1>让任何人，无门槛读懂任何语言的网页。<br>用透明换信任，用信任换长久。</h1>
+    <p class="lead">这不是又一个翻译插件克隆。这是一门<b>账算得过来、敢把账摆在桌面上</b>的小生意：高质量（保真翻译、宣称即兑现）、透明（价格与消耗口径全公开）、长久（成本结构决定烧不死）。通用翻译做底座，科研论文精读做尖刀。</p>
+  </div>
+  <div class="grid4">
+    <div class="kpi"><div class="n">¥0.0085</div><div class="l">单页翻译成本（典型页 · 见 §6）</div></div>
+    <div class="kpi"><div class="n">5,000</div><div class="l">首批赠送名额（敞口封顶 ≤ ¥1.8 万）</div></div>
+    <div class="kpi"><div class="n">¥49.9 / $9.99</div><div class="l">买断价（BYOK · 边际成本 = 0）</div></div>
+    <div class="kpi"><div class="n">1 次</div><div class="l">发射次数：全部功能验收后一次上线</div></div>
+  </div>
+
+  <h3>三条经营原则（于东来式，写进产品而不是挂在嘴上）</h3>
+  <div class="grid3">
+    <div class="card"><b>① 高质量、不吹牛</b><br><small>宣称的功能维度与实际严格一致（需求十九）。上线 Gate（§15）里每一条都有验收标准，没过就不上、不提前宣传。</small></div>
+    <div class="card"><b>② 定价透明、口径透明</b><br><small>已拍板：透明做到「定价层」——价格表、每次翻译扣多少额度怎么算、充值手续费占比，全部在产品内可查。不公示经营账目（D-08）。</small></div>
+    <div class="card"><b>③ 永远让用户有退路</b><br><small>缓存可关、额度可查、注册码邮箱可自助重查、数据可删。盈利后追加释放免费名额（需求四 c）——承诺写进产品页。</small></div>
+  </div>
+</section>
+
+<!-- ================= S1 第一性原理 ================= -->
+<section id="s1">
+  <div class="shead"><span class="no">01</span><h2>第一性原理：把这门生意拆到物理底层</h2><span class="sub">为什么这个模式烧不死</span></div>
+
+  <p>翻译产品的本质是一道恒等式：<b>经营成本 = Token 单价 × 消耗量 + 固定开销</b>。通用翻译市场价格地板是 0（巨头免费、开源自部署），正面拼「更便宜」没有出路。V2 的解法是把成本结构<b>按用户类型拆开，逐类封顶</b>：</p>
+
+  <table>
+    <tr><th>用户类型</th><th>谁出 Token 钱</th><th>我们的边际成本</th><th>敞口上限</th><th>角色</th></tr>
+    <tr><td><b>买断用户</b>（¥39.9/$7）</td><td>用户自己的 API Key（BYOK）</td><td><span class="tag ok">≈ 0</span> 翻译流量不过我们服务器</td><td>无敞口</td><td>利润 + 口碑主力</td></tr>
+    <tr><td><b>充值用户</b>（¥1–100/$1–20）</td><td>预付额度，按量扣减</td><td><span class="tag ok">负成本</span> 定价 ≥ 成本 × 安全系数</td><td>预付封顶，永不垫资</td><td>现金流</td></tr>
+    <tr><td><b>免费领取者</b>（¥2/$0.5）</td><td>我们（获客投资）</td><td><span class="tag warn">有限</span> 单人封顶 ¥2/$0.5</td><td>5000 名额 ≈ <b>¥1.0–1.8 万</b>总敞口</td><td>获客漏斗顶部</td></tr>
+    <tr><td><b>未领取的游客</b></td><td>—</td><td><span class="tag ok">0</span>（D-04：不保留每日免费）</td><td>无敞口</td><td>只能看，引导领取/付费</td></tr>
+  </table>
+
+  <div class="callout">
+    <b>第一性结论：</b>这个模式下不存在「用户越多亏越多」的死亡螺旋。最坏情况 = 5000 名额全领全用完 + 没人付费，总损失约一万多元人民币——这是<b>一次性、封顶的获客预算</b>，不是无底洞。而任何一个买断/充值用户都是正贡献。个人开发者最稀缺的是「不死」，这个结构保证不死。
+  </div>
+
+  <h3>为什么敢透明？</h3>
+  <p>DeepSeek 的刊例价是公开的（§9），瞒也瞒不住。我们卖的从来不是「转售 Token 的差价」，而是<b>工程价值</b>：标记保真（<code>&lt;gN&gt;</code> 体系）、全局缓存命中省下的钱、字幕/聊天站/输入框这些场景化能力、视角稳定不跳动的体验。把成本口径摊开说，反而把竞争对手拖进「他们为什么不敢说」的尴尬里——透明本身就是武器。</p>
+
+  <h3>与「论文精读」的关系（D-01）</h3>
+  <p>2026-06-11 的判断依然成立：通用翻译获客难、分发贵。所以：<b>通用翻译是底座（本蓝图全部内容），科研论文精读是尖刀（后续付费深水区）</b>。先用本蓝图完成可收费的通用产品，再在 arXiv/学术场景上做公式保真、术语统一、AI 速读的差异化付费能力——获客落点仍然打学术人群。两者共用同一套额度/账号/收款地基，不是两个产品。</p>
+</section>
+
+<!-- ================= S2 决策记录 ================= -->
+<section id="s2">
+  <div class="shead"><span class="no">02</span><h2>已拍板决策记录</h2><span class="sub">2026-06-12 两轮问答 · 后续修改请在 §17 批注</span></div>
+  <table>
+    <tr><th style="width:64px">编号</th><th style="width:170px">决策点</th><th>结论</th><th style="width:240px">直接影响</th></tr>
+    <tr><td class="mono">D-01</td><td>产品定位</td><td><b>通用翻译为底座 + 论文精读做尖刀</b>。本蓝图先把通用底座做成可收费产品；论文精读为后续付费深水区与获客落点。</td><td>§1 §16；学术获客策略保留</td></tr>
+    <tr><td class="mono">D-02</td><td>收款通道</td><td><b>采纳既有方案：Stripe HK（护照个人户）+ Payoneer 中转</b>收海外美元；<b>Creem（MoR）</b>收大陆人民币（支付宝/微信），兼做 Stripe 风控兜底。两线汇入统一 credits 账本。<a href="#s18">原方案存档 ↗</a></td><td>§5 收款链路、webhook 双线设计</td></tr>
+    <tr><td class="mono">D-03</td><td>充值与注册</td><td><b>充值必须邮箱注册</b>（钱要能找回）；免费 ¥2/$0.5 额度可匿名领取（三件套识别防重领，不当钱包）。</td><td>§3 身份状态机、§5 钱包归属</td></tr>
+    <tr><td class="mono">D-04</td><td>免费体验通道</td><td><b>不保留每日免费</b>。现行「匿名 3 页/天、登录畅用」全面退场，额度即一切。</td><td>§7 旧配额模块退场、§3 游客态收窄</td></tr>
+    <tr><td class="mono">D-05</td><td>上线节奏</td><td><b>全部功能做完再一次性上线</b>：需求六全量（含 Netflix）+ Discord 实时翻译 + 体验军规全部过 Gate 才发布。开发内部分期（§16），发射只有一次。</td><td>§15 Gate 即发布闸门；无 V1.1 借口</td></tr>
+    <tr><td class="mono">D-06</td><td>注册码找回</td><td><b>允许购买邮箱自助重查</b>原注册码（限频、不生成新码）。「不补发」收敛为「不认人、只认邮箱」。</td><td>§5 注册码流程含 /recover</td></tr>
+    <tr><td class="mono">D-07</td><td>浏览器范围</td><td><b>首发 Chrome + Edge</b>（同一 MV3 包）。Firefox/Safari 看收入后再扩。「浏览器账号」识别仅用 chrome.identity（Chrome/Edge 可用）。</td><td>§3 识别三件套的真实覆盖面、§10</td></tr>
+    <tr><td class="mono">D-08</td><td>透明程度</td><td><b>仅定价透明</b>：价格、额度消耗口径、手续费占比全公开；不公示经营账目。</td><td>§0 原则②、§5 充值页设计</td></tr>
+    <tr><td class="mono">D-09</td><td>免费额度形态</td><td>领取制（点按钮才生效，仪式感）+ 5000 名额封顶 + 盈利后追加释放（写进产品承诺）。<span class="decision-src">来源：需求三/四原文</span></td><td>§3 领取流程 = GDPR 同意时刻（§10）</td></tr>
+  </table>
+  <div class="callout warn"><b>需求原文 vs 蓝图的两处显性偏差（按对话确认结果执行）：</b>① 需求五说「充值通过 Stripe」——实际方案为 Stripe HK + Creem 双线（D-02），大陆人民币走 Creem 以避免双重换汇；② 需求二的三件套识别在 Safari/Firefox 拿不到浏览器账号——D-07 首发不含这两个平台，识别矩阵见 §3。</div>
+
+  <h3 style="margin-top:30px">2026-06-14 第二轮定案 <span class="tag acc" style="font-size:11px;vertical-align:2px">覆盖上表与正文相应处</span></h3>
+  <p style="font-size:13.5px;color:var(--ink2)">§17 的 O-01~O-17 已全部拍板，并追加 13 项调整。以下 D-10~D-17 是其结论，<b>与 06-12 正文冲突处一律以本块为准</b>。</p>
+  <table>
+    <tr><th style="width:64px">编号</th><th style="width:150px">决策点</th><th>结论（覆盖 06-12 旧值）</th></tr>
+    <tr><td class="mono">D-10</td><td>收款重构</td><td><b>去掉 Creem</b>。海外＝Stripe HK 买断 <b>$9.99</b>（仅买断、不做海外充值）；大陆＝微信/支付宝经 <b>YunGouOS</b>（个人聚合，无固定费）收买断 <b>¥49.9</b> + 充值 <b>1/5/10/20/100 元</b>。买断价由 ¥39.9/$7 上调为 ¥49.9/$9.99。详见收款手册 <a href="stripe-payoneer-and-yungouos.html">stripe-payoneer-and-yungouos.html ↗</a>。<span class="tag dim">覆盖 D-02、§5、§6</span></td></tr>
+    <tr><td class="mono">D-11</td><td>缓存改纯本地</td><td><b>取消服务端跨用户共享缓存</b>（隐私：不在我方留存用户内容），仅每用户<b>本地 IndexedDB</b>；命中本地<b>不扣额度</b>（请求根本不到服务端）。<span class="tag dim">覆盖 §7「L2 共享缓存」全部表述</span></td></tr>
+    <tr><td class="mono">D-12</td><td>全文翻译</td><td><b>取消固定 40 块分批</b>，改「单次整篇请求 + 按模型输出 token 预算自动分片」——正常文章一次请求，仅会超输出上限/尾部漏译时才透明分片（保「无论多大全文翻译」）。<span class="tag dim">覆盖 §7 铁律「~40 块分批」</span></td></tr>
+    <tr><td class="mono">D-13</td><td>加密传输</td><td>原文/译文 + 邮箱凭证<b>应用层加密叠加 TLS</b>，目标＝防传输劫持 / TLS 终止代理 / CDN 日志泄漏；<b>非对我方端到端</b>（服务端须解密才能发模型）。实现须<b>会话级密钥</b>（非客户端硬编码）且不破坏 SSE 流式 / 标记校验。</td></tr>
+    <tr><td class="mono">D-14</td><td>防滥用与找回</td><td><b>去掉 chrome.identity / 浏览器账号防重领</b>。防重领＝<b>设备指纹</b>；找回＝指纹 + 本地缓存<b>唯一码</b>（不展示用户）互为冗余（清缓存→指纹找回、指纹漂移→码找回）。付费余额一律绑<b>邮箱账号</b>兜底、不靠指纹/码。<span class="tag dim">覆盖 D-03、D-07、§3 三件套</span></td></tr>
+    <tr><td class="mono">D-15</td><td>供应商收敛</td><td>DeepSeek <b>官方 + 字节火山</b>两路 failover；<b>取消「多 Key 池按供应商分组轮换」</b>。<span class="tag dim">覆盖 §9</span></td></tr>
+    <tr><td class="mono">D-16</td><td>部署与语言</td><td>服务器<b>仅香港</b>（腾讯云大陆优化线路）。插件默认<b>显示语言 + 目标语言跟随浏览器设置</b>、可改。<span class="tag dim">确定 O-02</span></td></tr>
+    <tr><td class="mono">D-17</td><td>术语与判区</td><td>全局<b>「免费」→「赠送额度」</b>（赠送 ¥2 优先于付费余额消费）。判区：<b>IP 仅软默认</b> + 支付通道 KYC 兜闸，<b>不建 VPN 检测</b>。</td></tr>
+  </table>
+  <div class="callout ok"><b>本块为准：</b>正文 §0–§16 中凡与上表冲突的旧值（Creem、L2 共享缓存、~40 块分批、¥39.9/$7、chrome.identity 三件套、「免费」字样）一律以「06-14 第二轮」为准；§17 开放问题 O-01~O-17 已全部拍板。<b>本阶段进入编码</b>（解除原「不动代码」约束）。</div>
+</section>
+<!-- ================= S3 用户身份与旅程 ================= -->
+<section id="s3">
+  <div class="shead"><span class="no">03</span><h2>用户身份与旅程</h2><span class="sub">需求二 · 三 · 七 · 十(5,6)</span></div>
+
+  <h3>四种身份状态（钱包视角）</h3>
+  <div class="flow">
+    <div class="node"><b>游客</b><small>未领未付<br>只能浏览/设置<br>翻译被引导页拦截</small></div>
+    <div class="ar">点「领取」按钮<em>仪式感 + 同意时刻</em></div>
+    <div class="node"><b>领取者</b><small>匿名钱包 ¥2/$0.5<br>三件套防重领<br>额度耗尽回到引导</small></div>
+    <div class="ar">邮箱注册 + 充值<em>D-03：钱必须挂账号</em></div>
+    <div class="node"><b>充值用户</b><small>账号钱包<br>余额可查可找回<br>领取余额并入</small></div>
+    <div class="ar">或直接买断<em>互不互斥，可并存</em></div>
+    <div class="node"><b>买断用户</b><small>注册码 + BYOK<br>不必注册账号<br>翻译直连自己的 Key</small></div>
+  </div>
+  <div class="callout"><b>关键设计：领取者的匿名钱包「认设备组，不认人」。</b>指纹/浏览器账号漂移导致的余额丢失是可接受损失（封顶 ¥2），引导文案明示「注册邮箱可保住余额」。充值的那一刻起，钱包必须迁移到邮箱账号下（D-03），匿名钱包余额一并并入。</div>
+
+  <h3>同一用户识别（需求二）—— 真实覆盖矩阵 <span class="tag acc" style="font-size:11px;vertical-align:2px">D-14 改：去 chrome.identity，仅指纹+唯一码</span></h3>
+  <table>
+    <tr><th>信号</th><th>实现</th><th>Chrome/Edge 覆盖</th><th>稳定性</th><th>用途边界</th></tr>
+    <tr><td><b>① 注册账号</b></td><td>邮箱 + 验证码注册（§8）</td><td><span class="tag ok">100%（注册后）</span></td><td>最稳</td><td>钱包归属唯一锚点</td></tr>
+    <tr><td><b>② 浏览器账号</b></td><td><code>chrome.identity.getProfileUserInfo</code>（需 <code>identity.email</code> 权限）拿浏览器登录账号邮箱的<b>哈希</b></td><td><span class="tag warn">部分</span> 仅用户开了浏览器同步且授权；Edge 兼容待实测（O-03）</td><td>较稳</td><td>仅防重复领取</td></tr>
+    <tr><td><b>③ 浏览器指纹</b></td><td>开源指纹库（O-04 选型：FingerprintJS v3 MIT / ThumbmarkJS），取<b>哈希</b>落库</td><td><span class="tag ok">~100% 可采</span></td><td>会漂移（浏览器升级/换设备）</td><td>仅防重复领取</td></tr>
+  </table>
+  <p>判定规则（需求三 c）：领取时三个信号<b>任一命中</b>「已领取」记录 → 拒绝再领，文案友好（「这台设备/这个账号已经领过一份啦」）。②③ 都只存哈希、只在用户点击「领取」并同意后采集——这是 GDPR 的同意时刻设计（§10）。</p>
+
+  <h3>首装引导（需求七，交互参考沉浸式翻译 onboarding）</h3>
+  <div class="flow">
+    <div class="node"><b>1 欢迎页</b><small>安装即自动打开<br>选目标语言<br>（默认=浏览器语言）</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>2 现场演示</b><small>内置示例页对照翻译<br>展示双语/单译文切换</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>3 坦白局</b><small>本地缓存告知+可关链接(需求一)<br>打点说明+开关(§10)</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>4 领取仪式</b><small>「领取 ¥2 体验金」大按钮<br>同意书就在按钮上方<br>不点=放弃，可稍后在 popup 领</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>5 上手</b><small>固定到工具栏指引<br>快捷键说明<br>（无悬浮球，需求十二）</small></div>
+  </div>
+  <p><b>买断用户旁路</b>：引导页第 1 步底部常驻入口「我有注册码」→ 输码激活 → 跳过 3/4 直达 BYOK 配置（§5）。设置全部存本地、不上服务器、不跨设备同步（需求十.6）。</p>
+</section>
+
+<!-- ================= S4 需求全景 ================= -->
+<section id="s4">
+  <div class="shead"><span class="no">04</span><h2>19 项需求全景表</h2><span class="sub">原文逐条对账 · 深度方案见对应章节</span></div>
+  <table>
+    <tr><th style="width:46px">#</th><th style="width:150px">需求</th><th>V2 方案一句话</th><th style="width:70px">风险</th><th style="width:88px">详见</th></tr>
+    <tr><td class="mono">一</td><td>本地翻译缓存</td><td>IndexedDB L1 缓存默认开；首装「坦白局」告知；popup/设置双入口 + <code>options.html#cache</code> 直达链接可关。与服务端 L2 共享缓存分层并存（BYOK 用户仅 L1）。</td><td><span class="tag ok">低</span></td><td><a href="#s7">§7</a></td></tr>
+    <tr><td class="mono">二</td><td>身份识别三件套</td><td>账号 / chrome.identity 哈希 / 指纹哈希，任一命中即同一用户；仅用于防重领，同意后采集。</td><td><span class="tag warn">中</span> GDPR</td><td><a href="#s3">§3</a> <a href="#s10">§10</a></td></tr>
+    <tr><td class="mono">三</td><td>新用户 ¥2/$0.5</td><td>领取制（按钮仪式感）；点了才生效；三件套防重领；大陆/海外按 IP 判区（O-06）。</td><td><span class="tag ok">低</span></td><td><a href="#s5">§5</a></td></tr>
+    <tr><td class="mono">四</td><td>5000 名额</td><td>原子计数器（DB 行锁）到 5000 即停领；「盈利后追加释放」写进领取页承诺。</td><td><span class="tag ok">低</span></td><td><a href="#s5">§5</a></td></tr>
+    <tr><td class="mono">五</td><td>买断 + 充值</td><td>买断 ¥39.9/$7（BYOK+注册码×5 机+邮箱发码+自助重查）；充值两币种多档（小额档手续费红灯见 §5）；Stripe HK + Creem 双线。</td><td><span class="tag warn">中</span> 灰色开户</td><td><a href="#s5">§5</a></td></tr>
+    <tr><td class="mono">六</td><td>上线必备功能</td><td>双语/单译文/选词 + YouTube/B 站/Netflix 字幕 + Top100 优化 + 输入框三空格 + 目标语言可选（默认浏览器语言、首触弹窗三选、可回看原文）。全量过 Gate 才发（D-05）。</td><td><span class="tag risk">高</span> 工作量</td><td><a href="#s15">§15</a></td></tr>
+    <tr><td class="mono">七</td><td>首装引导</td><td>五步 onboarding：语言 → 演示 → 坦白局 → 领取仪式 → 上手；注册码旁路。</td><td><span class="tag ok">低</span></td><td><a href="#s3">§3</a></td></tr>
+    <tr><td class="mono">八</td><td>六主题换肤</td><td>6 主题（1 深色）+ 跟随系统开关，CSS variables 实现；本页顶栏即原型演示。作用域默认=扩展自有 UI + 页面译文装饰色（O-07）。</td><td><span class="tag ok">低</span></td><td>顶栏演示</td></tr>
+    <tr><td class="mono">九</td><td>BYOK 体验</td><td>预设供应商（自动填 base_url）+ Anthropic/OpenAI 双格式 + 全自定义 + 多模型管理与翻译时切换 + 测试按钮分级错误提示。</td><td><span class="tag warn">中</span></td><td><a href="#s5">§5</a></td></tr>
+    <tr><td class="mono">十</td><td>邮箱验证码注册</td><td>双通道发信（海外 Resend / 国内阿里云 DirectMail）+ SPF/DKIM/DMARC + 6 位码 10 分钟限频；密码中等强度（O-09 规则）；买断用户免注册；设置全本地。</td><td><span class="tag ok">低</span></td><td><a href="#s8">§8</a></td></tr>
+    <tr><td class="mono">十一</td><td>GDPR 合规</td><td>逐数据点审计：指纹/浏览器账号改为「领取时同意后采集」（原需求默认采集<b>会违规</b>，已修正）；打点可关；删除权自助。</td><td><span class="tag warn">中</span></td><td><a href="#s10">§10</a></td></tr>
+    <tr><td class="mono">十二</td><td>仅工具栏入口</td><td>无悬浮球、无页面注入 UI 常驻件；全部交互走 toolbar popup + 右键菜单 + 快捷键。</td><td><span class="tag ok">低</span></td><td>—</td></tr>
+    <tr><td class="mono">十三</td><td>多供应商 DeepSeek</td><td>官方主力（缓存命中 ¥0.02 碾压）+ 火山方舟 failover（已上 V4 Flash）；腾讯云暂无 V4 仅观望；接入后实测基准定权重。</td><td><span class="tag ok">低</span></td><td><a href="#s9">§9</a></td></tr>
+    <tr><td class="mono">十四</td><td>稳定性监控</td><td>自建轻量：events/error_logs（已有）→ 聚合 worker → 阈值熔断/告警 → 邮件提醒；翻译速度（TTFT/TPS）按供应商打点。</td><td><span class="tag ok">低</span></td><td><a href="#s11">§11</a></td></tr>
+    <tr><td class="mono">十五</td><td>运营打点</td><td>自建（不用商业方案）：事件字典 + 漏斗 + 北极星指标，admin 加看板页。</td><td><span class="tag ok">低</span></td><td><a href="#s12">§12</a></td></tr>
+    <tr><td class="mono">十六</td><td>前端内存控制</td><td>内存预算表 + IndexedDB LRU 上限 + observer 生命周期管理 + 大页分段释放。</td><td><span class="tag warn">中</span></td><td><a href="#s13">§13</a></td></tr>
+    <tr><td class="mono">十七</td><td>语言支持探测</td><td>离线评测脚本生成「支持矩阵 JSON」；服务端/客户端共用；BYOK 不支持语言时友好提示。</td><td><span class="tag ok">低</span></td><td><a href="#s14">§14</a></td></tr>
+    <tr><td class="mono">十八</td><td>聊天站实时翻译</td><td>Discord 等：MutationObserver 增量监听 + 节流合批 + 已译去重 + 滚动锚定。</td><td><span class="tag warn">中</span></td><td><a href="#s13">§13</a></td></tr>
+    <tr><td class="mono">十九</td><td>翻译体验军规</td><td>视角稳定（scroll anchor）；日文划词误判中文、TTS 念拼音两连修；ComfyUI 三空格兼容。</td><td><span class="tag warn">中</span></td><td><a href="#s13">§13</a></td></tr>
+  </table>
+</section>
+
+<!-- ================= S5 商业化设计 ================= -->
+<section id="s5">
+  <div class="shead"><span class="no">05</span><h2>商业化设计</h2><span class="sub">需求三 · 四 · 五 · 九 · D-02/03/06/08</span></div>
+
+  <h3>定价总表（对用户公开展示的就是这张表，D-08 定价透明）<span class="tag acc" style="font-size:11px;vertical-align:2px">06-14 更新</span></h3>
+  <table>
+    <tr><th>商品</th><th>大陆（YunGouOS · 支付宝/微信 · ¥）</th><th>海外（Stripe HK · $）</th><th>说明</th></tr>
+    <tr><td><b>新人赠送额度</b></td><td>¥2（赠送领取）</td><td>$0.5（赠送领取）</td><td>限 5000 名额；点按钮领取；每用户一次（设备指纹判定）；优先于付费余额消费</td></tr>
+    <tr><td><b>充值额度</b></td><td>¥1 / 5 / 10 / 20 / 100</td><td><span class="tag dim">海外不做充值</span></td><td>预付 credits，按 Token 实耗扣减（<b>命中本地缓存不计费</b>）；<b>须注册</b>。海外按量需求走 BYOK</td></tr>
+    <tr><td><b>一次性买断</b></td><td>¥49.9</td><td>$9.99</td><td>BYOK 终身用全部功能；注册码 ×5 台；购买填邮箱收码、可自助重查；不必建账号（D-06）</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <b>小额档手续费红灯已解（O-05 定案）：</b>充值全部走 <b>YunGouOS（综合 ~2.6%，无每笔固定费）</b>——原 Creem/$ 固定费导致的「¥1 收 1 亏 2、¥5 损耗 62%」倒挂随之消失，¥1 档手续费仅约 <b>¥0.03</b>。<b>Stripe 只用于海外 $9.99 买断</b>（一次大额，固定费占比可忽略），<b>不做小额充值</b>。所以五档充值 1/5/10/20/100 元全部健康保留，充值页仍按 D-08 公开每档手续费占比（§6 计算器已按 YunGouOS 口径）。
+  </div>
+
+  <h3>收款链路（D-02→D-10 · 详见 <a href="stripe-payoneer-and-yungouos.html">收款手册 ↗</a>）</h3>
+  <div class="grid2">
+    <div class="card">
+      <b>海外线 · USD</b>
+      <div class="flow" style="margin-top:10px">
+        <div class="node"><b>用户</b><small>信用卡/钱包</small></div>
+        <div class="ar">~3.9%+HK$2.35<em>+2% 换汇</em></div>
+        <div class="node"><b>Stripe HK</b><small>护照个人户<br>手动提现</small></div>
+        <div class="ar">~1.2%<em>同名</em></div>
+        <div class="node"><b>Payoneer</b><small>港币户</small></div>
+        <div class="ar">结汇</div>
+        <div class="node"><b>国内卡</b><small>$100 到手 ≈ $94-95</small></div>
+      </div>
+    </div>
+    <div class="card">
+      <b>大陆线 · CNY（YunGouOS 个人聚合）</b>
+      <div class="flow" style="margin-top:10px">
+        <div class="node"><b>用户</b><small>支付宝/微信</small></div>
+        <div class="ar">~2.6%<em>无固定费</em></div>
+        <div class="node"><b>YunGouOS</b><small>个人签约<br>官方直连</small></div>
+        <div class="ar">T+1</div>
+        <div class="node"><b>本人银行卡</b><small>官方直连结算<br>平台不碰钱</small></div>
+      </div>
+    </div>
+  </div>
+  <ul>
+    <li><b>统一 credits 账本</b>：两条线各自 webhook（Stripe <code>checkout.session.completed</code> / YunGouOS 异步通知）→ <b>同一个发放函数</b>（档位 → credits + 幂等键去重 + 验签）。档位调整两线同步改，永不算错。</li>
+    <li><b>红线（来自你的手册，原样保留）</b>：Stripe 全链路同名、手动提现不囤大额、控退款争议率、HK 个人户属灰色地带要有预期；YunGouOS 别把唯一通道押一家、个人进件有限额风控；金额起来后提前规划税务申报。</li>
+    <li><b>买断商品</b>同样走双线 one-time price；支付成功 webhook → 生成注册码 → 发邮件（§8 通道）。</li>
+  </ul>
+
+  <h3>注册码体系（需求五.1 + D-06）</h3>
+  <table>
+    <tr><th>环节</th><th>设计</th></tr>
+    <tr><td>购买</td><td>结账页只要求填一个<b>接收邮箱</b>（不建账号）；支付成功后注册码发往该邮箱。文案明示：「邮箱即凭证，请填常用邮箱」。</td></tr>
+    <tr><td>码格式</td><td><code>IMT-XXXX-XXXX-XXXX-XXXX</code>（Crockford Base32 去易混字符），服务端存哈希 + 盐，明文只出现在邮件里。</td></tr>
+    <tr><td>激活</td><td>扩展内输码 → 服务端校验 → 返回签名激活凭证存本地；<b>5 台设备</b>上限（设备指纹哈希计数，第 6 台提示并列出已激活设备的脱敏信息，可自助下线旧设备）。</td></tr>
+    <tr><td>离线宽限</td><td>激活凭证带 30 天滚动签名，期间离线可用；联网时静默续签。服务器死了也不影响已激活用户 30 天内使用——「终身可用」承诺的工程兜底（O-10：宽限期时长待拍板）。</td></tr>
+    <tr><td>找回</td><td>D-06：官网「找回注册码」页输入购买邮箱 → 原码重发该邮箱（限 3 次/天）；不生成新码、不支持改绑邮箱（防转卖）。换邮箱诉求一律视为新购。</td></tr>
+  </table>
+
+  <h3>BYOK 配置体验（需求九）</h3>
+  <div class="grid2">
+    <div class="card">
+      <b>预设供应商（首发清单，O-11 可增删）</b>
+      <table style="margin-top:8px">
+        <tr><th>预设</th><th>格式</th><th>自动填充</th></tr>
+        <tr><td>DeepSeek 官方</td><td>OpenAI</td><td><code>api.deepseek.com</code> + 推荐 model 列表</td></tr>
+        <tr><td>火山方舟</td><td>OpenAI</td><td><code>ark.cn-beijing.volces.com</code> + 接入点提示</td></tr>
+        <tr><td>硅基流动</td><td>OpenAI</td><td><code>api.siliconflow.cn</code></td></tr>
+        <tr><td>OpenRouter</td><td>OpenAI</td><td><code>openrouter.ai/api</code></td></tr>
+        <tr><td>智谱 GLM <span class="tag acc" style="font-size:10px">O-11 新增</span></td><td>OpenAI</td><td><code>open.bigmodel.cn/api/paas/v4</code></td></tr>
+        <tr><td>Kimi 月之暗面</td><td>OpenAI</td><td><code>api.moonshot.cn/v1</code></td></tr>
+        <tr><td>MiniMax</td><td>OpenAI</td><td><code>api.minimaxi.com/v1</code></td></tr>
+        <tr><td>MiniMax EN</td><td>OpenAI</td><td><code>api.minimax.io/v1</code>（海外站）</td></tr>
+        <tr><td>Anthropic</td><td>Anthropic</td><td><code>api.anthropic.com</code> + 版本头</td></tr>
+        <tr><td>OpenAI</td><td>OpenAI</td><td><code>api.openai.com</code></td></tr>
+        <tr><td>自定义</td><td>双格式切换</td><td>全手填：base_url + model + key</td></tr>
+      </table>
+      <small>同时支持双格式的供应商显示「Anthropic ⇄ OpenAI」切换器（需求九.2）。</small>
+    </div>
+    <div class="card">
+      <b>多模型管理 + 测试 + 错误分级（需求九.4/9.5）</b>
+      <ul>
+        <li>可保存<b>多个模型配置</b>（供应商 × model × key 的组合），popup 翻译时下拉切换；每配置独立「测试」按钮。</li>
+        <li>测试 = 发一条最小翻译请求，<b>分级报错</b>：<span class="tag risk">401/403</span> Key 无效或无权限 · <span class="tag warn">404</span> model 名不存在（列出供应商可用模型的文档链接）· <span class="tag warn">429</span> 限流/余额不足 · <span class="tag dim">网络</span> base_url 不通（区分 DNS/超时/CORS）· <span class="tag ok">成功</span> 显示往返耗时与试译结果。</li>
+        <li>Key 仅存 <code>chrome.storage.local</code>，绝不上传服务器（与「设置全本地」需求十.6 一致；BYOK 请求由扩展直连供应商，host_permissions 申请见 O-12）。</li>
+        <li>翻译中遇「语言不支持」→ §14 矩阵给友好提示（需求十七后半）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= S6 成本计算器 ================= -->
+<section id="s6">
+  <div class="shead"><span class="no">06</span><h2>成本与额度计算器</h2><span class="sub">可拖动调参 · 价格为 2026-06 实查刊例，上线前以平台后台为准</span></div>
+
+  <div class="grid2">
+    <div class="card">
+      <b>单页成本模型</b>
+      <div style="font-size:13px;margin-top:10px">
+        <label>页均输入 tokens（正文+标记+提示词）：<b id="vIn" class="mono">4000</b><br><input type="range" id="pIn" min="1000" max="12000" step="500" value="4000" style="width:100%"></label>
+        <label>页均输出 tokens：<b id="vOut" class="mono">3000</b><br><input type="range" id="pOut" min="800" max="10000" step="200" value="3000" style="width:100%"></label>
+        <label>DeepSeek 前缀缓存命中率（hit 价 ¥0.02；D-11 后无服务端共享缓存）：<b id="vHit" class="mono">40%</b><br><input type="range" id="pHit" min="0" max="90" step="5" value="40" style="width:100%"></label>
+        <label>供应商：
+          <select id="pProv" style="font-family:var(--font);font-size:13px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 8px">
+            <option value="ds" selected>DeepSeek 官方（in ¥1.0 / hit ¥0.02 / out ¥2.0）</option>
+            <option value="ark">火山方舟（in ¥1.0 / hit ¥0.20 / out ¥2.0）</option>
+          </select></label>
+      </div>
+      <div class="grid3" style="margin-top:14px">
+        <div class="kpi"><div class="n" id="rPage">—</div><div class="l">单页成本</div></div>
+        <div class="kpi"><div class="n" id="rFree">—</div><div class="l">¥2 体验金 ≈ 可翻页数</div></div>
+        <div class="kpi"><div class="n" id="rExposure">—</div><div class="l">5000 名额最大敞口*</div></div>
+      </div>
+      <small>* 敞口按大陆/海外名额 7:3 估算（¥2×3500 + $0.5×1500×7.2 汇率）≈ 领取金额上限；实际成本只在用户真消耗时发生，且共享缓存会进一步压低。</small>
+    </div>
+    <div class="card">
+      <b>充值档手续费透明表（D-08 要在充值页公开同款数据）</b>
+      <table style="margin-top:8px" id="feeTable">
+        <tr><th>档位</th><th>手续费</th><th>到手</th><th>损耗</th><th>判定</th></tr>
+      </table>
+      <small>口径：充值档走 YunGouOS（综合 ~2.6%、无每笔固定费，D-10）；海外不做小额充值（仅 $9.99 买断）。不含提现环节。</small>
+    </div>
+  </div>
+  <div class="callout ok"><b>账算下来的底气：</b>典型页成本不到 1 分钱。¥2 体验金够翻两百多页——对正常读者是两三周的慷慨礼物，对我们是封顶两块钱的获客成本。买断 ¥39.9 约等于 4700 页的服务成本，但 BYOK 让它边际为零——这就是「终身可用」敢承诺的物理基础。</div>
+</section>
+
+<!-- ================= S7 架构 V2 增量 ================= -->
+<section id="s7">
+  <div class="shead"><span class="no">07</span><h2>技术架构：V2 增量（不推倒重来）</h2><span class="sub">在 P0–P8 已交付的三端之上演进</span></div>
+
+  <h3>总览：保留什么 / 新增什么 / 退场什么</h3>
+  <div class="grid3">
+    <div class="card" style="border-top:3px solid var(--ok)"><b>保留（地基稳）</b>
+      <ul style="font-size:13.5px">
+        <li>SSE 翻译管道铁律：稳定前缀、thinking:disabled、source 去重、<code>[[id]]</code> 切块、标记平衡校验（<b>分批改造见 D-12</b>）</li>
+        <li>JWT 邮箱账号骨架（加验证码注册）</li>
+        <li>Token 记账口径 → 复用为<b>额度扣减</b>（D-11 后：<b>仅未命中本地缓存的块计费</b>）</li>
+        <li>梯度限流、events/error_logs、admin 管理台</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--acc)"><b>新增（V2 主体）</b>
+      <ul style="font-size:13.5px">
+        <li><b>钱包/账本服务</b>：credits 余额 + 双线支付 webhook + 幂等发放 + 消耗流水</li>
+        <li><b>领取服务</b>：三件套识别、5000 原子计数、地区判定</li>
+        <li><b>注册码服务</b>：生成/激活/设备数/重查</li>
+        <li><b>验证码邮件</b>：双通道发信抽象（§8）</li>
+        <li><b>供应商路由</b>：官方⇄火山 failover + 健康度（§9）</li>
+        <li><b>多语言化</b>：提示词参数化 + 缓存键加 <code>src→dst</code> + 语言矩阵（§14）</li>
+        <li><b>客户端</b>：IndexedDB L1 缓存、BYOK 直连引擎、字幕引擎、输入框翻译、聊天站观察器、六主题、onboarding</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--risk)"><b>退场（含 D-11~D-15）</b>
+      <ul style="font-size:13.5px">
+        <li>匿名「每页一次/3 页/天」配额（D-04）→ <code>anon_usage</code> 表与闸门逻辑下线</li>
+        <li><b>服务端全局共享缓存（D-11）</b>→ <code>translation_cache</code> 跨用户层下线，缓存只剩客户端本地</li>
+        <li><b>固定 40 块分批（D-12）</b>→ 单次整篇 + token 预算分片；<b>多 Key 池轮换（D-15）</b>→ 官方/火山两路 failover</li>
+        <li>「登录免页数限制」→「登录=钱包可找回」，额度才是唯一闸门；quota 事件从「页数超限」变「余额不足」引导</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>缓存：仅客户端本地（D-11 · 取消服务端共享层）</h3>
+  <div class="callout"><b>D-11 改造：</b>原「L1 客户端 + L2 服务端共享」双层 → <b>只保留客户端 IndexedDB 一层</b>，所有用户（领取/充值/买断 BYOK）一视同仁。理由：服务端共享缓存会在我方<b>留存用户翻译内容</b>（哪怕内容寻址不挂账号），与「不留存你的内容」的隐私定位冲突。代价＝失去跨用户去重（发布期用户少、跨用户命中≈0，划算），换隐私与合规减负；规模化后可再评估「匿名化/选择性」共享层。</div>
+  <table>
+    <tr><th></th><th>L1 · 客户端 IndexedDB（唯一缓存层）</th></tr>
+    <tr><td>谁在用</td><td>所有用户（领取 / 充值 / 买断 BYOK 一视同仁）</td></tr>
+    <tr><td>键</td><td><code>hash(src→dst : source)</code> 含语言对</td></tr>
+    <tr><td>价值</td><td>同页重访零延迟；<b>命中即不发服务端、天然不扣额度</b>；离线可读旧译文</td></tr>
+    <tr><td>用户控制</td><td>默认开；首装告知；<b>设置页可关可清空</b>，popup 留直达链接（需求一 c）</td></tr>
+    <tr><td>上限</td><td>LRU，默认 ≤200MB 或 90 天（O-13），防内存/磁盘失控（需求十六）</td></tr>
+    <tr><td>扣费口径</td><td>客户端先查本地，<b>仅未命中的块发服务端并计费</b>（命中不计）；服务端不再持有缓存</td></tr>
+  </table>
+
+  <h3>BYOK 直连 vs 服务端代理（两条翻译通道并存）</h3>
+  <div class="flow">
+    <div class="node"><b>领取/充值用户</b><small>SW → 后端 /v1/translate<br>SSE · 本地缓存优先 · 额度扣减<br>加密传输(D-13) · 供应商路由(§9)</small></div>
+    <div class="ar">同一套<br>DOM 管线</div>
+    <div class="node"><b>买断用户</b><small>SW 直连用户自己的供应商<br>OpenAI/Anthropic 双格式适配器<br>仅 L1 缓存 · 不经我们服务器</small></div>
+    <div class="ar">共用</div>
+    <div class="node"><b>客户端铁律不变</b><small>抽取/&lt;gN&gt;标记/styleMap<br>重建/校验/淡入<br>视角稳定（§13）</small></div>
+  </div>
+  <p>BYOK 适配器把「分批、去重、切块、校验」在<b>客户端</b>复刻一份精简版（Python 版逻辑反向移植回 TS）；提示词用开源基础版（服务端增强版提示词不随包分发，保留服务差异化）。错误与语言不支持提示见 §5/§14。</p>
+</section>
+
+<!-- ================= S8 邮箱验证码 ================= -->
+<section id="s8">
+  <div class="shead"><span class="no">08</span><h2>邮箱验证码：调研结论与方案</h2><span class="sub">需求十 · 九.6 · 个人开发者友好优先</span></div>
+
+  <h3>结论先行</h3>
+  <div class="callout"><b>双通道：海外 Resend（免费 3000 封/月够用）+ 国内阿里云邮件推送（对 QQ/163 送达更稳）</b>，按收件域名后缀分流。一个 <code>EmailSender</code> 抽象接口 + 两个驱动，注册验证码、注册码发送、告警邮件（§11）三类邮件共用这套通道。</div>
+
+  <table>
+    <tr><th>方案</th><th>免费额度</th><th>对国内邮箱送达</th><th>个人友好度</th><th>判定</th></tr>
+    <tr><td><b>Resend</b></td><td>3000 封/月（100/天），Pro $20/月</td><td>一般（海外 IP 易被 QQ 邮箱缓收/拒收）</td><td>极好：API 简洁、域名验证引导清晰</td><td><span class="tag ok">海外主通道</span></td></tr>
+    <tr><td><b>阿里云邮件推送</b></td><td>每日 200 封免费层级，超出按量（极便宜）</td><td>好（国内 IP 池，对 QQ/163/126 友好）</td><td>好：实名 + 域名备案不强制，控制台中文</td><td><span class="tag ok">国内主通道</span></td></tr>
+    <tr><td>腾讯云 SES</td><td>免费层级有限，按量便宜</td><td>好</td><td>好</td><td><span class="tag dim">国内备选</span></td></tr>
+    <tr><td>Amazon SES</td><td>$0.10/千封，最便宜</td><td>一般</td><td>差：要申请出沙箱、自管信誉</td><td><span class="tag dim">量大再迁</span></td></tr>
+    <tr><td>Postmark</td><td>100 封/月免费，$15/月起</td><td>一般</td><td>好：送达率口碑最佳</td><td><span class="tag dim">Resend 出问题再换</span></td></tr>
+  </table>
+
+  <h3>防垃圾箱清单（需求十.3，照做能解决 90%）</h3>
+  <ul>
+    <li><b>自有域名发信</b>（如 <code>mail.你的域名</code>），配齐 <b>SPF + DKIM + DMARC</b>（p=quarantine 起步）——这是进垃圾箱与否的第一要素。</li>
+    <li>事务邮件专用子域（<code>tx.域名</code>），将来营销邮件用另一子域，信誉隔离。</li>
+    <li>验证码邮件做到：纯事务内容、无营销话术、带纯文本 fallback、固定 From 显示名；标题直给「【沉浸式翻译】验证码 384926」。</li>
+    <li>国内通道对 QQ/163 做<b>送达回执监控</b>（打点 §12），失败自动换通道重发一次。</li>
+    <li>新域名先小流量预热几天再放量（注册高峰前完成）。</li>
+  </ul>
+
+  <h3>验证码与密码策略（需求十.4）</h3>
+  <table>
+    <tr><th>项</th><th>设计</th></tr>
+    <tr><td>验证码</td><td>6 位数字；10 分钟有效；同邮箱 60s 冷却、每日 ≤10 次；5 次错验作废；服务端存哈希。</td></tr>
+    <tr><td>密码中等强度</td><td>建议规则（O-09）：长度 ≥8 且 ≤64；至少含字母+数字；拒绝 Top10k 弱密码表；<b>不强制特殊字符</b>（中等强度的本意：拦住 123456，别逼用户贴便利贴）。前端强度条实时反馈。</td></tr>
+    <tr><td>注册流程</td><td>邮箱 → 发码 → 验码 → 设密码 → 完成（额度领取状态如有则自动并入钱包）。买断用户全程不需要这套（需求十.5）。</td></tr>
+  </table>
+</section>
+
+<!-- ================= S9 供应商对比 ================= -->
+<section id="s9">
+  <div class="shead"><span class="no">09</span><h2>DeepSeek 多供应商：实查对比与路由策略</h2><span class="sub">需求十三 · 价格 2026-06-12 实查刊例</span></div>
+
+  <h3>三家价格对比（V4 Flash，元/百万 token）</h3>
+  <table>
+    <tr><th>供应商</th><th>输入(miss)</th><th>缓存命中</th><th>输出</th><th>V4 Flash 状态</th><th>备注</th></tr>
+    <tr><td><b>DeepSeek 官方</b></td><td class="mono">¥1.0（$0.14）</td><td class="mono" style="color:var(--ok)"><b>¥0.02（$0.0028）</b></td><td class="mono">¥2.0（$0.28）</td><td><span class="tag ok">已上 · 主力</span></td><td>1M 上下文；我们的「稳定前缀」策略下命中价是杀手锏（98% 折扣）</td></tr>
+    <tr><td><b>字节 · 火山方舟</b></td><td class="mono">¥1.00</td><td class="mono">¥0.20</td><td class="mono">¥2.00</td><td><span class="tag ok">已上（5/18）· failover</span></td><td>裸价与官方对齐，命中价贵 10 倍；大厂 SLA、TPM 高、另有批量推理半价（in ¥0.5/out ¥1.0，离线场景可用）</td></tr>
+    <tr><td><b>腾讯云 lkeap</b></td><td colspan="3" style="color:var(--ink3)">仅 V3.2 及更早（V3-0324/R1/V3.1-Terminus/V3.2）；00:30–08:30 优惠时段半价</td><td><span class="tag risk">无 V4 系列</span></td><td>等上架 V4 再评；当前接入只能降级 V3.2，翻译质量差一代，<b>不采用</b></td></tr>
+  </table>
+  <div class="callout"><b>你点名的「腾讯 vs 字节」结论：字节（火山方舟）胜出</b>——已上架 V4 Flash 且裸价与官方持平；腾讯云目前根本没有 V4 可用。但官方仍是主力：缓存命中 ¥0.02 是火山的 1/10，在高命中率的翻译场景里这是数量级的成本差。</div>
+
+  <h3>路由与降级策略</h3>
+  <ul>
+    <li><b>常态</b>：100% 官方。<b>异常</b>：官方错误率/超时在滑动窗口内越阈（§11 熔断器）→ 自动切火山接入点，恢复探测通过后切回。</li>
+    <li>提示词/参数（关思考、稳定前缀）两家保持完全一致；切换对用户无感，但 SSE 事件里带 <code>provider</code> 标记供打点对账。</li>
+    <li><b>速度与稳定性没有可信的公开数据——自己测</b>：接入后用 §11 的 TTFT/TPS/错误率按 <code>provider</code> 维度打点，跑两周真实流量出对比报告，再定权重与是否引入第三家（硅基流动候补）。这同时兑现需求十三「重点比较价格、速度、稳定性」的后两项。</li>
+    <li><s>多 Key 池按供应商分组轮换</s> → <b>D-15 取消</b>：每供应商单 Key、仅官方⇄火山两路 failover（<code>upstream_keys</code> 表保留，不做轮换）。</li>
+  </ul>
+</section>
+
+<!-- ================= S10 GDPR ================= -->
+<section id="s10">
+  <div class="shead"><span class="no">10</span><h2>GDPR 合规审计</h2><span class="sub">需求十一 · 逐数据点过堂 · 含对原需求的两处违规修正</span></div>
+
+  <div class="callout risk"><b>原需求有两处按原文实现会违规，已在蓝图中修正：</b><br>
+  ① <b>需求二「通过浏览器指纹识别用户」若默认无感采集</b>——指纹属个人数据，且读取终端信息受 ePrivacy 约束，纯防薅理由主张「严格必要」很勉强。<b>修正：只在用户点击「领取」按钮的同意流程后采集</b>（按钮上方明示用途与存储形式），不领取就永不采集。仪式感按钮恰好就是合规的同意时刻——产品设计与法务要求在这里天然合一。<br>
+  ② <b>浏览器账号邮箱读取</b>（chrome.identity）——同理，且涉及 Chrome 商店权限审查。<b>修正：作为 optional permission 在领取时请求</b>，拒绝则仅用指纹+账号两件套（防重领强度略降，可接受）。</div>
+
+  <table>
+    <tr><th>数据点</th><th>法律基础</th><th>同意/告知时机</th><th>存储与最小化</th><th>状态</th></tr>
+    <tr><td>邮箱 + 密码（注册）</td><td>合同履行</td><td>注册页隐私政策链接</td><td>密码 argon2；邮箱明文（登录必需）</td><td><span class="tag ok">合规</span></td></tr>
+    <tr><td>指纹哈希（防重领）</td><td>同意</td><td><b>领取按钮即同意时刻</b></td><td>仅存盐化哈希；不领不采；领满 5000 停采</td><td><span class="tag ok">修正后合规</span></td></tr>
+    <tr><td>浏览器账号邮箱哈希</td><td>同意</td><td>领取时 optional permission</td><td>仅哈希；拒绝授权可降级领取</td><td><span class="tag ok">修正后合规</span></td></tr>
+    <tr><td>本地 IndexedDB 译文缓存</td><td>—（不出设备）</td><td>首装坦白局告知 + 可关闭直达链接</td><td>全在用户设备；LRU 上限；可一键清空</td><td><span class="tag ok">合规</span>（需求一 b/c 本身就是合规设计）</td></tr>
+    <tr><td>翻译文本（服务端处理）</td><td>合同履行</td><td>隐私政策（既有条款）</td><td>L2 缓存为内容寻址公开片段；不存完整 URL</td><td><span class="tag ok">沿用</span></td></tr>
+    <tr><td>运营打点</td><td>合法利益 + 可拒绝</td><td>坦白局展示 + 设置页<b>可关</b>（opt-out）</td><td>只记 host 与指标；匿名 device id；无正文</td><td><span class="tag warn">补 opt-out 开关</span></td></tr>
+    <tr><td>错误上报</td><td>合法利益</td><td>同上，同一开关</td><td>上报前脱敏（去 URL 参数/正文片段）</td><td><span class="tag warn">补脱敏审查</span></td></tr>
+    <tr><td>IP → 地区判定（¥/$ 区）</td><td>合法利益</td><td>隐私政策披露</td><td>只存判定结果（CN/非 CN），不存 IP 原文</td><td><span class="tag ok">设计如此</span></td></tr>
+    <tr><td>支付信息</td><td>合同履行</td><td>结账页</td><td>全在 Stripe/Creem（MoR 代持卡数据），我们只收 webhook 结果</td><td><span class="tag ok">合规</span></td></tr>
+  </table>
+
+  <h3>用户权利兑现</h3>
+  <ul>
+    <li><b>删除权</b>：设置页「删除账号」自助入口（删账号、钱包、用量、打点关联），注册码体系独立不受影响；本地数据「一键清空」。</li>
+    <li><b>可携权</b>：账号页可导出自己的用量/流水 JSON（实现成本低，顺手做）。</li>
+    <li><b>数据出境</b>：建议服务器部署在<b>海外单区</b>（O-02：香港/新加坡首选——欧盟用户数据不落大陆境内、大陆用户访问免备案且延迟可接受）。隐私政策写明处理地。</li>
+    <li>隐私政策在 P8 版本上补：指纹/浏览器账号哈希条款、打点 opt-out 说明、英文版。</li>
+  </ul>
+</section>
+
+<!-- ================= S11 监控与告警 ================= -->
+<section id="s11">
+  <div class="shead"><span class="no">11</span><h2>稳定性监控与告警（自建轻量）</h2><span class="sub">需求十四 · 在既有 events/error_logs 上加聚合与告警</span></div>
+
+  <div class="flow">
+    <div class="node"><b>客户端 SDK</b><small>批量上报 · fire-and-forget<br>失败即丢弃，永不阻塞翻译</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>events / error_logs</b><small>既有表 · 按月分区<br>异步批量写入</small></div>
+    <div class="ar">→</div>
+    <div class="node"><b>聚合 worker</b><small>每分钟滚动窗口<br>错误率 × kind × provider</small></div>
+    <div class="ar">越阈</div>
+    <div class="node"><b>告警 + 熔断</b><small>邮件提醒你（复用 §8 通道）<br>供应商自动切换（§9）</small></div>
+  </div>
+
+  <h3>告警规则（默认值，O-16 可调）</h3>
+  <table>
+    <tr><th>规则</th><th>条件</th><th>动作</th><th>等级</th></tr>
+    <tr><td>大规模翻译失败</td><td>5 分钟窗口错误率 &gt;20% 且样本 ≥20 次</td><td>邮件（含错误分布摘要）+ 同规则 30 分钟冷却防邮件风暴</td><td><span class="tag risk">P0</span></td></tr>
+    <tr><td>供应商异常</td><td>单 provider 错误率/超时越阈</td><td>熔断切换 + 邮件通知切换事件</td><td><span class="tag warn">P1</span></td></tr>
+    <tr><td>支付 webhook 失败</td><td>任何一次验签失败/发放异常</td><td><b>立即邮件</b>（资损级，零容忍）</td><td><span class="tag risk">P0</span></td></tr>
+    <tr><td>速度劣化</td><td>TTFT p95 连续 15 分钟 &gt; 基线 ×2</td><td>邮件（附 provider 对比）</td><td><span class="tag warn">P1</span></td></tr>
+    <tr><td>额度系统异常</td><td>钱包扣减与 token 记账对不上（日对账任务）</td><td>邮件 + admin 标红</td><td><span class="tag risk">P0</span></td></tr>
+  </table>
+
+  <h3>速度打点（需求十四后半）与性能纪律（“不要爆了”）</h3>
+  <ul>
+    <li>指标：<b>TTFT</b>（首块延迟）、<b>TPS</b>（输出吞吐）、整页耗时、批次大小、L2 命中率——全部带 <code>provider</code> 维度，p50/p95 双口径。</li>
+    <li>性能纪律：打点异步批量写（永不在请求路径上同步写库）；events 表按月分区 + 90 天归档；admin 看板全部查<b>预聚合表</b>（小时粒度物化），绝不实时扫明细表；采样——高频事件（如逐块时延）按 10% 采样，低频关键事件（支付/激活）100% 全量。</li>
+    <li>自建 vs 开源：起步自建（表都有了，加一个 worker 而已）。若错误聚合/去重需求长大，再上 <b>GlitchTip</b>（Sentry 协议兼容、单容器可跑，个人 VPS 扛得住）——不上 Sentry 自部署（Kafka+ClickHouse 全家桶，个人维护是灾难）。</li>
+  </ul>
+</section>
+
+<!-- ================= S12 运营打点 ================= -->
+<section id="s12">
+  <div class="shead"><span class="no">12</span><h2>运营打点体系（自建，不用商业方案）</h2><span class="sub">需求十五 · 事件少而精，每个事件回答一个问题</span></div>
+
+  <h3>事件字典（首发版）</h3>
+  <table>
+    <tr><th>事件</th><th>关键属性</th><th>回答什么问题</th></tr>
+    <tr><td class="mono">install / onboarding_step</td><td>step(1-5), completed</td><td>引导哪一步流失最多？</td></tr>
+    <tr><td class="mono">claim_shown / claim_clicked</td><td>region(CN/INTL)</td><td>领取按钮的转化率？仪式感设计是否有效？</td></tr>
+    <tr><td class="mono">first_translate</td><td>距安装时长</td><td>aha moment 多快到达？</td></tr>
+    <tr><td class="mono">translate_page</td><td>host, blocks, l1_hit, l2_hit_rate, provider, duration, mode(双语/单译/选词/字幕/输入框/聊天)</td><td>北极星原料；各模式使用占比；缓存效益</td></tr>
+    <tr><td class="mono">quota_empty_shown</td><td>balance_was(claim/topup)</td><td>额度耗尽后多少人见到付费引导？</td></tr>
+    <tr><td class="mono">topup_started / topup_paid</td><td>tier, channel(stripe/creem)</td><td>充值漏斗与档位分布（验证 O-05）</td></tr>
+    <tr><td class="mono">buyout_paid / code_activated</td><td>device_seq(第几台)</td><td>买断转化；多设备使用真实度</td></tr>
+    <tr><td class="mono">settings_cache_off / telemetry_off / theme_changed</td><td>—</td><td>用户对缓存/隐私/皮肤的真实态度</td></tr>
+    <tr><td class="mono">error_shown</td><td>kind, surface</td><td>用户可感知错误的暴露面</td></tr>
+  </table>
+
+  <h3>指标体系</h3>
+  <div class="grid3">
+    <div class="card"><b>北极星</b><br><small><b>周翻译页数</b>——不是 WAU。页数=实际交付的阅读价值，直接关联额度消耗与收入。</small></div>
+    <div class="card"><b>核心漏斗</b><br><small>安装 → 引导完成 → 领取 → 首翻 → 额度耗尽 → 充值/买断。每环节给出转化率与中位耗时，admin 漏斗页固定展示。</small></div>
+    <div class="card"><b>留存与代理流失</b><br><small>D1/D7/D30 翻译留存曲线；卸载打不到点，用「14 天无任何翻译」做 churn 代理指标。</small></div>
+  </div>
+  <p>admin 新增「运营」页：漏斗、北极星趋势、留存、Top 域名、模式占比、（§11 共用）供应商性能对比。全部读预聚合表。打点 opt-out（§10）后该设备只计 install——尊重选择，统计口径文档里写明偏差。</p>
+</section>
+
+<!-- ================= S13 体验军规 ================= -->
+<section id="s13">
+  <div class="shead"><span class="no">13</span><h2>体验军规</h2><span class="sub">需求十六 · 十八 · 十九 · 宣称即兑现</span></div>
+
+  <h3>军规一：翻译过程视角零移动（需求十九）</h3>
+  <ul>
+    <li>替换前记录<b>视口锚点</b>（视口内第一个可见块 + 相对偏移），整批替换在 <code>requestAnimationFrame</code> 内合帧完成后按锚点校正 <code>scrollTop</code>。</li>
+    <li>利用浏览器原生 scroll anchoring（<code>overflow-anchor</code>），并保证我们不触发它的失效条件（不在视口上方做无占位的高度突变）。</li>
+    <li>双语对照插入译文导致的高度增长：视口上方的块<b>先占位后填充</b>（min-height 预留），淡入只动透明度不动布局。</li>
+    <li>验收标准（进 §15 Gate）：长文页翻译全程，视口内文字位移 ≤ 1 行高。</li>
+  </ul>
+
+  <h3>军规二：日文专项（日本网友的三连击，逐条还击）</h3>
+  <table>
+    <tr><th>问题</th><th>根因</th><th>修法</th></tr>
+    <tr><td>① 汉字形似词被当成中文直译</td><td>划词只看单词本身，孤词语言检测对 CJK 汉字词必然失准</td><td>划词请求强制携带<b>页面声明语言 + 前后 ~50 字上下文</b>；判定优先级：页面 <code>lang</code> 属性 &gt; 上下文统计 &gt; 词形。在 <code>lang=ja</code> 页面上，汉字词一律按日文词处理。</td></tr>
+    <tr><td>② 已识别为日文、标了假名，朗读仍念汉语拼音</td><td>TTS 没按语言选 voice，拿了系统默认中文语音</td><td><code>speechSynthesis</code> 选 voice 必须 <code>lang</code> 前缀匹配 <code>ja-*</code>，且 <code>utterance.lang='ja-JP'</code>；<b>找不到日语语音就禁用朗读按钮并提示安装语音包——绝不静默 fallback 到中文</b>。其他语言同规则（通用修复，不止日文）。</td></tr>
+    <tr><td>③ 形近词整体体验</td><td>—</td><td>划词卡片明示检测到的源语言（可点击切换重译），用户一眼可纠错。日文用例进回归集（《测试网站清单》补日文站）。</td></tr>
+  </table>
+
+  <h3>军规三：输入框三空格（需求六.4 + ComfyUI 修复）</h3>
+  <ul>
+    <li>监听改为 <b><code>document</code> 捕获阶段 + <code>composedPath()</code></b>，穿透 shadow DOM 与动态创建的输入元素——ComfyUI 的画布弹出 textarea、CodeMirror、contenteditable 一并覆盖（这正是 ComfyUI 失灵的根因：旧实现只扫初始 DOM）。</li>
+    <li>首次触发：弹窗三选「开启 / 关闭 / 下次再说」（需求六原文）；「下次再说」= 本次会话不再提示，下次触发再问。</li>
+    <li>翻译后原文压入本地栈，<b>再按一次快捷键 / 点击输入框图标可回看与还原原文</b>（需求六「返回输入框查看之前的原文」）。</li>
+    <li>验收：ComfyUI 文本框三空格触发成功率 100%（进 Gate）。</li>
+  </ul>
+
+  <h3>军规四：聊天站实时翻译（需求十八）</h3>
+  <ul>
+    <li>站点适配器声明「消息容器」选择器（Discord 首发，Telegram Web/Slack 次批）；<code>MutationObserver</code> 只挂容器，不挂全文档。</li>
+    <li>新消息节点入队，<b>500ms 合批</b>翻译（省请求省额度）；<code>WeakSet</code> 标记已译节点防重；翻译插入用占位策略维持滚动位置（军规一同款，聊天流场景加「贴底跟随」豁免：用户本就贴底时允许自然下滑）。</li>
+    <li><b>速率保险丝</b>：单页每分钟翻译块数上限（默认 120 块/分，O-17 可调），刷屏频道不至于静默吃光额度；触顶时图标提示「已暂停自动翻译，点击恢复」。</li>
+  </ul>
+
+  <h3>军规五：内存预算（需求十六）</h3>
+  <table>
+    <tr><th>对象</th><th>预算/策略</th></tr>
+    <tr><td>content script 常驻堆</td><td>典型页 &lt; 30MB；超大页（&gt;5000 块）分段处理、段间释放缓冲</td></tr>
+    <tr><td>styleMap / 原文备份</td><td><code>WeakMap</code> 挂节点，节点回收即释放；Ctrl+点击还原缓冲只保留当前页</td></tr>
+    <tr><td>L1 IndexedDB</td><td>上限 200MB 或 90 天 LRU（O-13）；写入按事务批量；启动时异步清理过期</td></tr>
+    <tr><td>观察器</td><td>tab 不可见暂停 MutationObserver；SPA 软导航时旧观察器必 disconnect（泄漏高发点）</td></tr>
+    <tr><td>service worker</td><td>顺应 MV3 30s 空闲卸载，不养常驻状态；翻译会话状态可从 storage 恢复</td></tr>
+    <tr><td>验收工具</td><td>chrome-devtools 堆快照进回归流程：Top10 站连续翻译 30 分钟无单调增长（进 Gate）</td></tr>
+  </table>
+</section>
+
+<!-- ================= S14 语言支持探测器 ================= -->
+<section id="s14">
+  <div class="shead"><span class="no">14</span><h2>DeepSeek V4 Flash 语言支持探测器</h2><span class="sub">需求十七 · 用评测代替没有的官方文档</span></div>
+  <div class="flow">
+    <div class="node"><b>样本库</b><small>~30 候选语言 ×<br>新闻/对话/技术 3 体裁<br>每语 ≥20 段</small></div>
+    <div class="ar">离线脚本<br>批量跑</div>
+    <div class="node"><b>V4 Flash 翻译</b><small>双向：X→目标语言集<br>含 &lt;gN&gt; 标记样本</small></div>
+    <div class="ar">三重判定</div>
+    <div class="node"><b>自动评分</b><small>输出语言检测(fastText)<br>标记保真率<br>回译一致性抽样</small></div>
+    <div class="ar">人工抽查<br>边界语言</div>
+    <div class="node"><b>language-matrix.json</b><small>A 可靠 / B 可用 / C 不支持<br>版本化 · 模型升级重跑</small></div>
+  </div>
+  <ul>
+    <li><b>矩阵的三个消费方</b>：① 服务端——请求语言对不在矩阵 → SSE <code>notice</code> 友好提示并建议换语言；② 客户端语言选择器——C 级语言直接不出现在下拉里（宁可少而真，呼应「宣称即兑现」）；③ <b>BYOK 用户（需求十七后半）</b>——DeepSeek 系模型用内置矩阵副本预检；自定义模型走宽松模式，失败响应触发友好提示「你配置的模型可能不支持 日语→西班牙语，试试英语中转或换模型」。</li>
+    <li>评测脚本放 <code>server/scripts/lang_probe/</code>，结果表自动生成进 admin「质量」页；这套探测器以后也能评测新供应商/新模型（§9 复用）。</li>
+  </ul>
+</section>
+
+<!-- ================= S15 上线 Gate ================= -->
+<section id="s15">
+  <div class="shead"><span class="no">15</span><h2>上线 Gate 清单（D-05：全部通过，一次发射）</h2><span class="sub">每条都有可验收的标准 · 没过不发布不宣传</span></div>
+  <table>
+    <tr><th style="width:130px">组</th><th>Gate 条目与验收标准</th></tr>
+    <tr><td><b>翻译三件套</b></td><td>双语对照 / 单译文 / 选词翻译三模式全可用；目标语言选择器（默认=浏览器语言）；150 站回归清单通过率 ≥98%；视角零移动验收（§13 军规一）。</td></tr>
+    <tr><td><b>字幕</b></td><td>YouTube、Bilibili、Netflix 三平台：双语字幕渲染、实时跟手、原字幕样式不破坏；各 10 视频 × 3 语言抽验全过。其他流媒体以「通用 text-track 适配器」尽力支持但<b>不写进宣传</b>（宣称即兑现）。</td></tr>
+    <tr><td><b>动态场景</b></td><td>输入框三空格（含 ComfyUI 100%）；Discord 新消息实时翻译（军规四验收）；速率保险丝生效。</td></tr>
+    <tr><td><b>Top 100</b></td><td>O-14 口径：按清单逐站人工过一遍 + 问题站进《翻译问题记录》闭环；通过率 100%（有 workaround 也算过，记录在案）。</td></tr>
+    <tr><td><b>商业化闭环</b></td><td>领取→耗尽→充值→到账（双线真实小额实测）；买断→收码→激活→5 台上限→邮箱重查全流程实测；webhook 验签+幂等灰盒测试；¥/$ 两区价格展示正确。</td></tr>
+    <tr><td><b>账号与邮件</b></td><td>注册验证码双通道送达实测（QQ/163/Gmail/Outlook 四家收件箱不进垃圾）；删除账号自助流程可用。</td></tr>
+    <tr><td><b>合规</b></td><td>§10 审计表全绿/黄整改完成；隐私政策 V2（中英）上线可访问 URL；商店权限说明与实际权限一致。</td></tr>
+    <tr><td><b>稳定性</b></td><td>§11 告警链路实弹演习（人为制造错误率→收到邮件）；供应商熔断切换演练通过；内存 30 分钟回归（军规五）。</td></tr>
+    <tr><td><b>体验底线</b></td><td>日文三连击修复验收（日语母语者或日文站实测）；六主题+跟随系统正常；onboarding 全流程无死角；卸载→重装→数据状态正确。</td></tr>
+  </table>
+</section>
+
+<!-- ================= S16 里程碑 ================= -->
+<section id="s16">
+  <div class="shead"><span class="no">16</span><h2>里程碑：开发分期，发射一次</h2><span class="sub">每期产物可独立验证 · 顺序按依赖与风险前置排列</span></div>
+  <table>
+    <tr><th style="width:90px">里程碑</th><th>交付物</th><th>为什么排这里</th></tr>
+    <tr><td><b>M1 钱地基</b></td><td>钱包/credits 账本、领取服务（<b>指纹+唯一码</b>防重领/找回 + 5000 计数）、验证码注册改造、<b>Stripe 买断 + YunGouOS 充值/买断</b>双线 webhook、注册码服务；收款账号按手册搭好并小额实测</td><td>商业化是这次重构的「why」，最大不确定性（开户/到账）必须最先消除</td></tr>
+    <tr><td><b>M2 多语言核</b></td><td>提示词参数化、缓存键加语言对、语言矩阵探测器跑出首版、日文军规二修复、L1 缓存上线</td><td>多语言动翻译管道根基，越晚动越贵；日文 bug 同根同修</td></tr>
+    <tr><td><b>M3 BYOK 通道</b></td><td>双格式适配器、预设供应商、多模型管理、测试按钮、激活态打通买断全流程</td><td>依赖 M1 注册码 + M2 矩阵；完成后买断商品可内测</td></tr>
+    <tr><td><b>M4 场景引擎</b></td><td>字幕引擎（YouTube→B 站→Netflix 递进）、输入框三空格（含 ComfyUI）、Discord 观察器、视角稳定改造</td><td>工作量最大、风险最分散的一期，放在地基稳定之后全力攻坚</td></tr>
+    <tr><td><b>M5 可观测</b></td><td>速度/错误打点全维度、聚合 worker、邮件告警、熔断路由、运营事件字典落地、admin 运营/质量页</td><td>需要前面所有功能产生真实数据来标定阈值</td></tr>
+    <tr><td><b>M6 发射准备</b></td><td>六主题+onboarding 终稿、GDPR 整改收尾、隐私政策 V2、商店材料、§15 全 Gate 逐条过、150 站+Top100 总回归</td><td>Gate 即发射倒计时清单</td></tr>
+  </table>
+  <div class="callout"><b>节奏纪律：</b>每个里程碑结束跑一次「演示给自己看」——能完整演示才算完成；M1 起就保持 main 分支随时可部署。不设日历日期（个人项目投入波动大），但<b>顺序不可变、Gate 不可妥协</b>。</div>
+</section>
+
+<!-- ================= S17 开放问题 ================= -->
+<section id="s17">
+  <div class="shead"><span class="no">17</span><h2>开放问题（待你拍板）</h2><span class="sub">每条已给建议默认值 · 选择会保存在本地 · 右上角可导出</span></div>
+  <p style="font-size:13.5px;color:var(--ink2)">用法：每条点一个态度 + 想改的写批注。看完点右上角「导出批注」发给 Claude，蓝图按此修订。</p>
+  <div class="callout ok"><b>2026-06-14 已全部拍板。</b>O-01~O-17 + 13 项调整的结论见 §2「第二轮定案」<b>D-10~D-17</b>。下方各条保留原始建议与批注控件作为存档，<b>结论以 §2 为准</b>。</div>
+
+  <div class="q" data-qid="O-01"><div class="qh"><span class="qid">O-01</span>5000 名额的区域配比</div><div class="sug">建议：<b>不预分配，先到先得</b>，仅在计算器里按 7:3 估敞口；若海外占比异常（&gt;50%）再人工介入。备选：两区各划固定池。</div></div>
+  <div class="q" data-qid="O-02"><div class="qh"><span class="qid">O-02</span>服务器部署地域</div><div class="sug">建议：<b>海外单区起步，香港或新加坡</b>——大陆可达免备案、欧盟数据不落境内、直连 DeepSeek/火山均可。美西备选（更便宜但大陆延迟高）。</div></div>
+  <div class="q" data-qid="O-03"><div class="qh"><span class="qid">O-03</span>Edge 上 chrome.identity 兼容性</div><div class="sug">建议：M1 期间实测 Edge 的 <code>getProfileUserInfo</code> 行为（Microsoft 账号/不支持），结果决定 Edge 上二件套还是三件套。这是实测项不是决策项，列此备忘。</div></div>
+  <div class="q" data-qid="O-04"><div class="qid-hide"></div><div class="qh"><span class="qid">O-04</span>指纹库选型</div><div class="sug">建议：<b>ThumbmarkJS（MIT）</b>或 FingerprintJS <b>v3</b>（MIT）。注意 FingerprintJS v4 改 BSL 商用受限，<b>不可用 v4</b>。防 ¥2 羊毛的强度要求不高，轻量优先。</div></div>
+  <div class="q" data-qid="O-05"><div class="qh"><span class="qid">O-05</span>小额充值档去留（¥1/¥5/$1 手续费红灯）</div><div class="sug">建议：<b>方案 B——保留所有档位，充值页透明标注每档手续费占比并默认高亮 ¥20/$5 起的健康档</b>。透明本身是产品特色；数据（topup_paid 分布）三个月后复盘再砍。</div></div>
+  <div class="q" data-qid="O-06"><div class="qh"><span class="qid">O-06</span>大陆/海外判定规则</div><div class="sug">建议：<b>领取额度按 IP 判区；付费按支付渠道自然分流</b>（支付宝/微信=¥ 价，国际卡=$ 价），不做严格防套利（¥39.9≈$5.5 vs $7 价差小，套利无利可图）。</div></div>
+  <div class="q" data-qid="O-07"><div class="qh"><span class="qid">O-07</span>皮肤作用域 + 跟随系统行为</div><div class="sug">建议：六主题作用于<b>扩展自有 UI（popup/options/引导页）+ 页面译文装饰色（下划线/虚线色）</b>，不动页面正文样式；「跟随系统」=在默认浅色与「墨」之间自动切换（本页顶栏即此行为）。</div></div>
+  <div class="q" data-qid="O-08"><div class="qh"><span class="qid">O-08</span>打点默认开关</div><div class="sug">建议：<b>默认开 + 坦白局明示 + 设置一键关（opt-out）</b>。依据合法利益 + 透明告知；若你想更激进的隐私姿态可改 opt-in，代价是数据残缺。</div></div>
+  <div class="q" data-qid="O-09"><div class="qh"><span class="qid">O-09</span>密码中等强度规则</div><div class="sug">建议：≥8 位、≤64 位、至少字母+数字、查 Top10k 弱密码表、<b>不强制特殊字符</b>。</div></div>
+  <div class="q" data-qid="O-10"><div class="qh"><span class="qid">O-10</span>注册码离线宽限期</div><div class="sug">建议：<b>30 天滚动签名</b>。更长（90 天）更宽厚但被破解传播的窗口也更长。</div></div>
+  <div class="q" data-qid="O-11"><div class="qh"><span class="qid">O-11</span>BYOK 预设供应商首发清单</div><div class="sug">建议：DeepSeek 官方 / 火山方舟 / 硅基流动 / OpenRouter / Anthropic / OpenAI + 自定义（§5 表）。增删随时可改，预设只是「少打几个字」。</div></div>
+  <div class="q" data-qid="O-12"><div class="qh"><span class="qid">O-12</span>BYOK 直连的 host 权限方式</div><div class="sug">建议：<b>optional host permissions 按需申请</b>（选了哪家供应商才请求哪个域），安装时权限最小、商店审核最友好；代价是切换供应商多一次授权点击。</div></div>
+  <div class="q" data-qid="O-13"><div class="qh"><span class="qid">O-13</span>L1 本地缓存上限</div><div class="sug">建议：<b>200MB 或 90 天 LRU</b>，设置页可调（关闭/500MB/不限三档进阶选项）。</div></div>
+  <div class="q" data-qid="O-14"><div class="qh"><span class="qid">O-14</span>「Top 100 网站」的清单口径</div><div class="sug">建议：以 <b>Cloudflare Radar Top 域名 ∩ 内容型站点</b>为基（剔除纯 API/CDN 域），叠加既有《测试网站清单》150 站，去重后形成「发射回归清单」；上线后按用户 host 打点的真实 Top 滚动维护。</div></div>
+  <div class="q" data-qid="O-15"><div class="qh"><span class="qid">O-15</span>Netflix 字幕的实现边界</div><div class="sug">建议：<b>只读字幕轨 + 叠加渲染层</b>（不碰 DRM 视频流、不注入播放器内核），与各翻译扩展同类做法；ToS 上属灰色但行业惯例，风险备忘进《上架材料》。做不到稳定就触发 D-05 整体延期——提前到 M4 早期验证。</div></div>
+  <div class="q" data-qid="O-16"><div class="qh"><span class="qid">O-16</span>告警阈值默认值</div><div class="sug">建议：按 §11 表（20%/20 样本/5 分钟窗/30 分钟冷却）起步，M5 用真实流量标定后固化。</div></div>
+  <div class="q" data-qid="O-17"><div class="qh"><span class="qid">O-17</span>聊天站速率保险丝</div><div class="sug">建议：120 块/分钟/页，触顶暂停 + 手动恢复；按额度余量动态收紧（余额 &lt; ¥0.5 时减半）。</div></div>
+</section>
+
+<!-- ================= S18 附录 ================= -->
+<section id="s18">
+  <div class="shead"><span class="no">18</span><h2>附录：来源与存档</h2><span class="sub">所有外部数字的出处 · 价格以平台后台实时为准</span></div>
+  <ul>
+    <li><b>收款方案原稿（D-02 依据）</b>：<a href="docs/收款方案-StripeHK-Payoneer-存档.html">本仓库存档 ↗</a> · <a href="https://claude.ai/public/artifacts/6468ca89-731e-4819-8162-5da2072e76eb">claude.ai 原链 ↗</a></li>
+    <li>DeepSeek 官方价格：<a href="https://api-docs.deepseek.com/quick_start/pricing">api-docs.deepseek.com/quick_start/pricing</a>（V4 Flash：in $0.14 / hit $0.0028 / out $0.28 per 1M）</li>
+    <li>火山方舟模型价格：<a href="https://www.volcengine.com/docs/82379/1544106?lang=zh">volcengine.com 模型价格页</a>（deepseek-v4-flash：in ¥1.00 / hit ¥0.20 / out ¥2.00；批量推理 in ¥0.50 / out ¥1.00）</li>
+    <li>腾讯云知识引擎原子能力（lkeap）：<a href="https://cloud.tencent.com/document/product/1772/115963">DeepSeek API 文档</a>（截至 2026-06-12 模型列表无 V4 系列；优惠时段 00:30–08:30 半价）</li>
+    <li>Resend 定价：<a href="https://resend.com/pricing">resend.com/pricing</a>（免费 3000 封/月、100 封/天；Pro $20/月起）</li>
+    <li>Creem 费率：<a href="https://www.creem.io/pricing">creem.io/pricing</a>（3.9% + $0.40/笔；国际提现 $7 或 1% 取高）</li>
+    <li>项目内关联文档：<a href="产品设计-服务端化与账号体系.md">产品设计 V1（P0–P8 已交付）</a> · <a href="翻译问题记录.md">翻译问题经验库</a> · <a href="测试网站清单.md">150 站回归清单</a> · <a href="隐私政策.md">隐私政策（待 V2 修订）</a></li>
+  </ul>
+  <div class="statebox">本蓝图状态：<b>v2 · 2026-06-14</b> · 基于需求原文（19 项）+ 两轮问答（D-01…D-08）+ <b>06-14 第二轮定案（D-10…D-17）</b> + 收款手册 + 当日实查价格。<br>O-01~O-17 已全部拍板。<b>已进入编码阶段</b>，按 §16 里程碑（M1 起）走 superpowers 的 spec → plan → 实现流程。</div>
+</section>
+
+</main>
+</div>
+
+<footer><div style="max-width:1280px;margin:0 auto;padding:0 20px">沉浸式翻译 · 产品蓝图 V2 · 生成于 2026-06-12 · 单文件零依赖，可直接双击打开 · 批注存于浏览器 localStorage（换浏览器不带走，导出为准）</div></footer>
+
+<script>
+/* ---------- 主题（需求八自演示：6 主题 + 跟随系统） ---------- */
+(function(){
+  const KEY='bpv2:theme', AUTO='bpv2:auto';
+  const chips=[...document.querySelectorAll('.tchip')];
+  const auto=document.getElementById('themeAuto');
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');
+  function apply(t){document.body.dataset.theme=t;chips.forEach(c=>c.classList.toggle('on',c.dataset.t===t));}
+  function applyAuto(){apply(mq.matches?'mo':'su');}
+  function refresh(){ if(auto.checked){applyAuto();} else {apply(localStorage.getItem(KEY)||'su');} }
+  chips.forEach(c=>c.addEventListener('click',()=>{auto.checked=false;localStorage.setItem(AUTO,'0');localStorage.setItem(KEY,c.dataset.t);refresh();}));
+  auto.addEventListener('change',()=>{localStorage.setItem(AUTO,auto.checked?'1':'0');refresh();});
+  mq.addEventListener('change',()=>{if(auto.checked)applyAuto();});
+  auto.checked=localStorage.getItem(AUTO)==='1';
+  refresh();
+})();
+
+/* ---------- 成本计算器（§6） ---------- */
+(function(){
+  const P={ds:{in:1.0,hit:0.02,out:2.0},ark:{in:1.0,hit:0.20,out:2.0}};
+  const $=id=>document.getElementById(id);
+  function calc(){
+    const tin=+$('pIn').value, tout=+$('pOut').value, hit=+$('pHit').value/100, p=P[$('pProv').value];
+    $('vIn').textContent=tin; $('vOut').textContent=tout; $('vHit').textContent=Math.round(hit*100)+'%';
+    const cost=(tin*(1-hit)*p.in + tin*hit*p.hit + tout*p.out)/1e6;
+    $('rPage').textContent='¥'+cost.toFixed(4);
+    $('rFree').textContent='≈'+Math.floor(2/cost)+' 页';
+    $('rExposure').textContent='¥12,400';
+  }
+  ['pIn','pOut','pHit','pProv'].forEach(id=>$(id).addEventListener('input',calc));
+  calc();
+  /* 手续费表 */
+  const rows=[];
+  [1,5,10,20,100].forEach(v=>{
+    const fee=v*0.026, net=v-fee, loss=fee/v;   // YunGouOS ~2.6%、无每笔固定费（D-10）；海外仅 $9.99 买断、不做充值
+    rows.push({label:'¥'+v,fee:'¥'+fee.toFixed(2),net:'¥'+net.toFixed(2),loss,ch:'YunGouOS'});
+  });
+  const tb=document.getElementById('feeTable');
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    const tag=r.loss>=1?'<span class="tag risk">倒挂</span>':r.loss>0.3?'<span class="tag risk">'+Math.round(r.loss*100)+'%</span>':r.loss>0.12?'<span class="tag warn">'+Math.round(r.loss*100)+'%</span>':'<span class="tag ok">'+Math.round(r.loss*100)+'%</span>';
+    tr.innerHTML='<td class="mono">'+r.label+' <small>('+r.ch+')</small></td><td class="mono">'+r.fee+'</td><td class="mono">'+r.net+'</td><td>'+tag+'</td><td>'+(r.loss>=1?'<span class="tag risk">收 1 亏 '+(r.loss-1).toFixed(1)+'</span>':r.loss>0.3?'<span class="tag risk">不建议</span>':r.loss>0.12?'<span class="tag warn">可接受</span>':'<span class="tag ok">健康</span>')+'</td>';
+    tb.appendChild(tr);
+  });
+})();
+
+/* ---------- 开放问题批注（localStorage 持久化 + 导出） ---------- */
+(function(){
+  const qs=[...document.querySelectorAll('.q[data-qid]')];
+  qs.forEach(q=>{
+    const id=q.dataset.qid, key='bpv2:q:'+id;
+    const saved=JSON.parse(localStorage.getItem(key)||'{}');
+    const vote=document.createElement('div'); vote.className='vote';
+    [['adopt','✓ 按建议'],['revise','✎ 要改（写批注）'],['hold','… 再议']].forEach(([v,label])=>{
+      const l=document.createElement('label');
+      l.innerHTML='<input type="radio" name="v-'+id+'" value="'+v+'"'+(saved.vote===v?' checked':'')+'>'+label;
+      vote.appendChild(l);
+    });
+    const ta=document.createElement('textarea'); ta.placeholder='批注（可空）…'; ta.value=saved.note||'';
+    q.appendChild(vote); q.appendChild(ta);
+    function save(){
+      const v=(q.querySelector('input[name="v-'+id+'"]:checked')||{}).value||'';
+      localStorage.setItem(key,JSON.stringify({vote:v,note:ta.value}));
+    }
+    vote.addEventListener('change',save);
+    let t; ta.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(save,300);});
+  });
+  document.getElementById('exportBtn').addEventListener('click',()=>{
+    const lines=['# 产品蓝图 V2 · 批注导出 ('+new Date().toISOString().slice(0,10)+')',''];
+    const M={adopt:'按建议',revise:'要改',hold:'再议','':'（未表态）'};
+    qs.forEach(q=>{
+      const id=q.dataset.qid, s=JSON.parse(localStorage.getItem('bpv2:q:'+id)||'{}');
+      const title=q.querySelector('.qh').textContent.trim();
+      lines.push('## '+title,'- 态度：'+M[s.vote||''] ,(s.note?'- 批注：'+s.note:'- 批注：（无）'),'');
+    });
+    const md=lines.join('\n');
+    navigator.clipboard.writeText(md).catch(()=>{});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));
+    a.download='蓝图V2批注-'+new Date().toISOString().slice(0,10)+'.md';
+    a.click(); URL.revokeObjectURL(a.href);
+    alert('批注已复制到剪贴板，并下载为 Markdown 文件。直接发给 Claude 即可修订蓝图。');
+  });
+})();
+
+/* ---------- 目录高亮 ---------- */
+(function(){
+  const links=[...document.querySelectorAll('nav.toc a')];
+  const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const io=new IntersectionObserver(es=>{
+    es.forEach(e=>{ if(e.isIntersecting){ links.forEach(l=>l.classList.remove('here')); const a=map.get(e.target.id); if(a)a.classList.add('here'); }});
+  },{rootMargin:'-15% 0px -75% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>io.observe(s));
+})();
+</script>
+</body>
+</html>

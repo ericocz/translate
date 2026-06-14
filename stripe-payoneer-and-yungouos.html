@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大陆个人开发者收款方案 · Stripe + YunGouOS 双通道</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EBEEF1;
+    --surface:#FFFFFF;
+    --ink:#15161C;
+    --ink-2:#565C68;
+    --ink-3:#8A909C;
+    --line:#DCE0E6;
+    --money:#0F7A5F;     /* emerald — 资金/优势 */
+    --money-soft:#E4F2ED;
+    --risk:#B7410E;       /* burnt orange — 风险红线 */
+    --risk-soft:#F8E8DF;
+    --cn:#2563A8;         /* blue — 国内/人民币线 */
+    --cn-soft:#E4EDF8;
+    --accent:#2A2C39;     /* ink panel */
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 80px;
+  }
+  .wrap{max-width:840px;margin:0 auto;padding:0 20px}
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .disp{font-family:"Space Grotesk",sans-serif}
+  .link{color:var(--money);text-decoration:none;border-bottom:1px solid rgba(15,122,95,.4);word-break:break-all}
+  .link:hover{border-bottom-color:var(--money)}
+  .link:focus-visible{outline:2px solid var(--money);outline-offset:2px;border-radius:2px}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    background:var(--accent);
+    color:#fff;
+    padding:46px 0 40px;
+    border-bottom:3px solid var(--money);
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:#9BE6CE;margin-bottom:14px;
+  }
+  .hero h1{
+    font-family:"Space Grotesk",sans-serif;
+    font-weight:700;font-size:clamp(26px,5.4vw,40px);
+    line-height:1.12;letter-spacing:-.01em;margin-bottom:10px;
+  }
+  .hero .sub{color:#C3C7D2;font-size:15px;max-width:560px}
+
+  /* pipeline diagram — signature */
+  .pipe{
+    margin-top:30px;
+    background:#22242F;
+    border:1px solid #34374A;
+    border-radius:var(--radius);
+    padding:20px 18px;
+    overflow-x:auto;
+  }
+  .pipe-row{display:flex;align-items:stretch;gap:0;min-width:560px}
+  .node{
+    flex:1;background:#2E3142;border:1px solid #3D4156;border-radius:10px;
+    padding:12px 12px;text-align:center;display:flex;flex-direction:column;justify-content:center;
+  }
+  .node .nlabel{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#9BE6CE;letter-spacing:.05em}
+  .node .nname{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:14px;margin-top:3px;color:#fff}
+  .arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px;min-width:84px}
+  .arrow .fee{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:#E6B89C;margin-bottom:2px;text-align:center;line-height:1.3}
+  .arrow .line{color:#5A5E72;font-size:18px;line-height:1}
+  .pipe-note{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#7C808F;margin-top:14px}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:38px 0 6px}
+  .shead{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .snum{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--money);font-weight:600}
+  .shead h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:22px;letter-spacing:-.01em}
+  .sdesc{color:var(--ink-2);font-size:14.5px;margin-bottom:20px;max-width:640px}
+
+  /* decision summary chips */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .chip{
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  }
+  .chip .k{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+  .chip .v{font-weight:600;font-size:15px;color:var(--ink)}
+  .chip .v small{display:block;font-weight:400;font-size:12.5px;color:var(--ink-2);margin-top:2px}
+
+  /* steps */
+  .step{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 20px 18px;margin-bottom:14px;position:relative;
+  }
+  .step-top{display:flex;align-items:center;gap:13px;margin-bottom:12px}
+  .badge{
+    flex-shrink:0;width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;
+    font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .step-top h3{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:17px}
+  .step ul{list-style:none;padding-left:0}
+  .step li{position:relative;padding-left:20px;margin-bottom:7px;font-size:14.5px;color:#2C2E38}
+  .step li::before{content:"";position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--money)}
+  .step li code,.inline-code{
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;background:#EEF1F4;border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;color:#1A4A3C;
+  }
+  .flag{
+    margin-top:12px;background:var(--risk-soft);border-left:3px solid var(--risk);
+    border-radius:0 8px 8px 0;padding:10px 13px;font-size:13.5px;color:#5C2308;
+  }
+  .flag b{color:var(--risk)}
+  .tip{
+    margin-top:12px;background:var(--money-soft);border-left:3px solid var(--money);
+    border-radius:0 8px 8px 0;padding:10px 13px;font-size:13.5px;color:#0A4A39;
+  }
+
+  /* cost table */
+  .layer{
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin-bottom:12px;
+  }
+  .layer-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:5px}
+  .layer-h .lname{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15.5px}
+  .layer-h .lrate{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:15px;color:var(--money)}
+  .layer p{font-size:13.5px;color:var(--ink-2)}
+
+  .calc{
+    background:var(--accent);color:#fff;border-radius:var(--radius);padding:20px 20px;margin-top:6px;
+  }
+  .calc h4{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15px;margin-bottom:14px;color:#9BE6CE}
+  .calc-row{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:13.5px;padding:7px 0;border-bottom:1px dashed #3D4156}
+  .calc-row span:last-child{color:#fff}
+  .calc-row .neg{color:#E6B89C}
+  .calc-row.total{border-bottom:none;margin-top:6px;font-weight:600;font-size:15px}
+  .calc-row.total span:last-child{color:#7BE0BD}
+
+  /* routing lanes */
+  .lanes{display:flex;flex-direction:column;gap:12px}
+  .lane{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 16px;border-left-width:4px}
+  .lane.cn{border-left-color:var(--cn)}
+  .lane.intl{border-left-color:var(--money)}
+  .lane-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .lane-tag{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13px;padding:4px 11px;border-radius:7px}
+  .lane.cn .lane-tag{background:var(--cn-soft);color:var(--cn)}
+  .lane.intl .lane-tag{background:var(--money-soft);color:var(--money)}
+  .lane-cur{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);letter-spacing:.04em}
+  .lane-flow{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:7px;flex-wrap:wrap;line-height:1.9}
+  .lane-flow b{color:var(--ink);font-weight:600}
+  .lane-flow .ar{color:var(--ink-3);font-weight:600}
+  .converge{margin-top:14px;background:var(--accent);color:#fff;border-radius:12px;padding:16px 18px}
+  .converge h4{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:14.5px;color:#9BE6CE;margin-bottom:8px}
+  .converge p{font-size:13.5px;color:#C8CCD6}
+  .converge code{font-family:"IBM Plex Mono",monospace;font-size:12px;background:#363949;border-radius:5px;padding:1px 6px;color:#9BE6CE}
+
+
+  .redlines{background:#FFF;border:1px solid var(--risk);border-radius:var(--radius);overflow:hidden}
+  .redlines .rl-head{background:var(--risk);color:#fff;padding:13px 18px;font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15px}
+  .redlines ol{list-style:none;counter-reset:rl;padding:6px 18px 16px}
+  .redlines li{counter-increment:rl;position:relative;padding:13px 0 13px 34px;border-bottom:1px solid var(--line);font-size:14.5px;color:#2C2E38}
+  .redlines li:last-child{border-bottom:none}
+  .redlines li::before{content:counter(rl);position:absolute;left:0;top:13px;width:22px;height:22px;border-radius:6px;background:var(--risk-soft);color:var(--risk);font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .redlines li b{color:var(--risk)}
+
+  /* checklist */
+  .check{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px 18px}
+  .check label{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:14.5px}
+  .check label:last-child{border-bottom:none}
+  .check input{appearance:none;flex-shrink:0;width:20px;height:20px;border:2px solid var(--ink-3);border-radius:6px;margin-top:1px;cursor:pointer;transition:.15s;position:relative}
+  .check input:checked{background:var(--money);border-color:var(--money)}
+  .check input:checked::after{content:"✓";position:absolute;inset:0;color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .check input:checked + span{color:var(--ink-3);text-decoration:line-through}
+  .check input:focus-visible{outline:2px solid var(--money);outline-offset:2px}
+
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px;font-family:"IBM Plex Mono",monospace}
+
+  @media (max-width:560px){
+    .hero{padding:34px 0 30px}
+    .arrow{min-width:72px}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .step,.chip,.layer{animation:rise .5s ease both}
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  }
+  .pipe-label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;color:#9BE6CE;margin:0 0 8px 2px;text-transform:uppercase}
+  .pipe-row + .pipe-label{margin-top:18px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">大陆个人开发者 · 收款方案</div>
+    <h1>Stripe + YunGouOS 双通道收款手册</h1>
+    <p class="sub">两种付款方式同时提供、用户自由选择：信用卡走 Stripe，支付宝 / 微信走 YunGouOS。个人身份即可开通，无需海外公司、无需营业执照。</p>
+
+    <div class="pipe">
+      <div class="pipe-label">通道一 · 信用卡 / 海外</div>
+      <div class="pipe-row">
+        <div class="node"><div class="nlabel">SOURCE</div><div class="nname">用户<br>信用卡</div></div>
+        <div class="arrow"><div class="fee">~3.9%<br>+ HK$2.35</div><div class="line">──▶</div></div>
+        <div class="node"><div class="nlabel">收单</div><div class="nname">Stripe<br>香港</div></div>
+        <div class="arrow"><div class="fee">手动提现<br>同名</div><div class="line">──▶</div></div>
+        <div class="node"><div class="nlabel">中转</div><div class="nname">Payoneer<br>收款户</div></div>
+        <div class="arrow"><div class="fee">~1.2%<br>结汇</div><div class="line">──▶</div></div>
+        <div class="node"><div class="nlabel">DEST</div><div class="nname">国内<br>银行卡</div></div>
+      </div>
+      <div class="pipe-label">通道二 · 支付宝 / 微信</div>
+      <div class="pipe-row">
+        <div class="node"><div class="nlabel">SOURCE</div><div class="nname">用户<br>支付宝/微信</div></div>
+        <div class="arrow"><div class="fee">官方 0.6%<br>+ 平台费</div><div class="line">──▶</div></div>
+        <div class="node"><div class="nlabel">通道</div><div class="nname">YunGouOS<br>个人签约</div></div>
+        <div class="arrow"><div class="fee">官方直连<br>T+1</div><div class="line">──▶</div></div>
+        <div class="node"><div class="nlabel">DEST</div><div class="nname">个人<br>银行卡</div></div>
+      </div>
+      <div class="pipe-note">// 两种方式都给所有用户、自由选择。YunGouOS 无固定费、适合小额充值；Stripe 适合海外卡用户。</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 决策摘要 -->
+  <section>
+    <div class="shead"><span class="snum">00</span><h2>决策摘要</h2></div>
+    <p class="sdesc">本手册基于以下已确认决策展开。任何一项变了，对应流程需重新评估。</p>
+    <div class="grid">
+      <div class="chip"><div class="k">收款方式</div><div class="v">双通道并行<small>两种都给所有用户，自由选择</small></div></div>
+      <div class="chip"><div class="k">通道一</div><div class="v">Stripe + Payoneer<small>信用卡；护照开 Stripe 香港个人户</small></div></div>
+      <div class="chip"><div class="k">通道二</div><div class="v">YunGouOS<small>支付宝 / 微信；个人签约官方商户</small></div></div>
+      <div class="chip"><div class="k">收款主体</div><div class="v">大陆个人<small>Stripe 用护照，YunGouOS 用身份证</small></div></div>
+      <div class="chip"><div class="k">计费</div><div class="v">买断 $9.99 / ¥49.9 + 充值<small>充值 1/5/10/20/100 元；充值与买断须注册</small></div></div>
+      <div class="chip"><div class="k">技术栈</div><div class="v">Next.js + FastAPI<small>双支付入口，统一额度账本</small></div></div>
+    </div>
+  </section>
+
+  <!-- 定价（已定） -->
+  <section>
+    <div class="shead"><span class="snum mono">$</span><h2>定价 · 06-14 定案</h2></div>
+    <p class="sdesc">这是<b>对用户的售价</b>（成本/手续费见下「成本明细」）。海外只做买断（卡通道固定费高、不适合小额）；国内买断 + 小额充值都走 YunGouOS。买断与充值<b>均须注册邮箱账号</b>、付费余额绑账号防漂移丢钱；消费时<b>赠送额度优先扣减</b>。</p>
+    <div class="grid">
+      <div class="chip"><div class="k">海外买断 · Stripe</div><div class="v">$9.99<small>信用卡 / 海外；一次买断，海外不做充值</small></div></div>
+      <div class="chip"><div class="k">国内买断 · YunGouOS</div><div class="v">¥49.9<small>支付宝 / 微信；一次买断</small></div></div>
+      <div class="chip"><div class="k">充值档 · YunGouOS</div><div class="v">¥1 / 5 / 10 / 20 / 100<small>支付宝 / 微信；无固定费，小额友好</small></div></div>
+      <div class="chip"><div class="k">赠送额度</div><div class="v">新用户 ¥2<small>优先于付费余额消费；口径称「赠送」非「免费」</small></div></div>
+    </div>
+  </section>
+
+  <!-- 需注册账号 -->
+  <section>
+    <div class="shead"><span class="snum mono">REG</span><h2>需注册的账号 · 官网</h2></div>
+    <p class="sdesc">只在下列官方域名注册。警惕搜索结果里的仿冒站、第三方“代注册”和带返利的推广链接——前者有钓鱼风险，后者可能影响账户健康度。</p>
+    <div class="grid">
+      <div class="chip"><div class="k">通道一 · 收单</div><div class="v">Stripe<small><a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener" class="mono link">dashboard.stripe.com/register</a></small></div></div>
+      <div class="chip"><div class="k">通道一 · 中转</div><div class="v">Payoneer<small><a href="https://www.payoneer.com" target="_blank" rel="noopener" class="mono link">www.payoneer.com</a></small></div></div>
+      <div class="chip"><div class="k">通道二 · 支付宝/微信</div><div class="v">YunGouOS<small><a href="https://www.yungouos.com" target="_blank" rel="noopener" class="mono link">www.yungouos.com</a></small></div></div>
+    </div>
+  </section>
+
+  <!-- 操作步骤 -->
+  <section>
+    <div class="shead"><span class="snum">01</span><h2>操作步骤</h2></div>
+    <p class="sdesc">分两条通道搭建，互不依赖。<b style="color:var(--risk)">通道一全链路同名</b>——Stripe 与 Payoneer 必须同一人真实身份，否则资金卡在中转无法入账；通道二 YunGouOS 用本人身份证签约官方商户。</p>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">0</div><h3>备齐材料</h3></div>
+      <ul>
+        <li><b>通道一（Stripe）</b>：大陆护照（KYC）、香港手机号（淘宝买 HK SIM，约 30–40 元）、本人国内银行卡（收结汇款）</li>
+        <li><b>通道二（YunGouOS）</b>：大陆身份证、本人手机号、本人国内银行卡（收结算款）、一个正规网站地址（进件需要）</li>
+        <li>两通道的银行卡都建议用<b>本人同一张或同名卡</b>，对账省心</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">1</div><h3>通道一 ① 先开 Payoneer，拿到收款账号</h3></div>
+      <ul>
+        <li>打开 <a href="https://www.payoneer.com" target="_blank" rel="noopener" class="mono link">www.payoneer.com</a>，用本人真实身份注册（注册免费）</li>
+        <li>申请<b>收款账户（美元 / 港币）</b>，Payoneer 会签发对应的收款账号，作为 Stripe 的提现目标账户</li>
+        <li>记下这个账号，第 2 步绑定 Stripe payout 时要用</li>
+      </ul>
+      <div class="flag"><b>同名规则：</b>Payoneer 账户只接受同名入账。你用哪个身份开的 Stripe，就只能收来自同名 Stripe 的款。先把这个账户开好，姓名以它为基准对齐 Stripe。</div>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">2</div><h3>通道一 ② 注册 Stripe 香港账户</h3></div>
+      <ul>
+        <li>打开 <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener" class="mono link">dashboard.stripe.com/register</a> 注册</li>
+        <li>国家选 <span class="inline-code">Hong Kong</span>，商家类型选 <span class="inline-code">individual / sole proprietorship</span></li>
+        <li>用护照过 KYC，填香港手机号</li>
+        <li>Payout 银行账户绑定第 1 步的 Payoneer 收款账号</li>
+        <li>把提现设为<b>手动（manual payout）</b>，不要自动</li>
+      </ul>
+      <div class="flag"><b>为什么手动提现：</b>自动提现会把余额全部提走，一旦发生退款/争议而账户余额不足，Stripe 要你补款，容易触发封号。手动提现、定期小批提，更安全。</div>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">3</div><h3>通道二 ③ 注册 YunGouOS，个人签约支付宝/微信</h3></div>
+      <ul>
+        <li>打开 <a href="https://www.yungouos.com" target="_blank" rel="noopener" class="mono link">www.yungouos.com</a>，注册并提交个人进件资料（身份证、本人银行卡、网站地址）</li>
+        <li>分别完成<b>微信支付</b>与<b>支付宝</b>的官方签约（约 30 分钟人工审核，通过后即可发起交易）</li>
+        <li>资金由微信 / 支付宝<b>官方直连结算到你本人银行卡</b>（微信 T+1），平台不碰钱</li>
+        <li>务必先确认<b>当前费率</b>（开通费 + 平台服务费 + 官方 0.6%），口径以官网 / 客服为准</li>
+      </ul>
+      <div class="flag"><b>注意：</b>个人进件有交易限额和风控；支付宝若被认定违规可能调整结算周期。别把唯一收款通道押在一家服务商上。</div>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">4</div><h3>配置商品（两通道：买断 + 灵活充值）</h3></div>
+      <ul>
+        <li><b>通道一 Stripe</b>：建买断商品 <b>$9.99</b>（one-time，海外 / 信用卡；海外只做买断、不做充值，固定费吃掉小额）</li>
+        <li><b>通道二 YunGouOS</b>：建买断 <b>¥49.9</b> + 充值档 <b>¥1 / 5 / 10 / 20 / 100</b>（无固定费，小额友好）</li>
+        <li>买断与充值都<b>须先注册邮箱账号</b>，付费余额绑账号防浏览器漂移丢钱；消费时<b>赠送额度（¥2）优先扣减</b></li>
+        <li>前端把两种付款方式<b>并列展示给所有用户</b>、自由选择——不做地区强制分流</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">5</div><h3>技术集成（双入口 + 统一发额度）</h3></div>
+      <ul>
+        <li>前端：Next.js 提供两个支付入口（Stripe Checkout / YunGouOS 下单）</li>
+        <li>后端：FastAPI 接<b>两套回调</b>——Stripe 的 <span class="inline-code">checkout.session.completed</span> 与 YunGouOS 的异步通知</li>
+        <li>两套回调都<b>验签</b>，最终调用<b>同一个"解锁 / 发额度"函数</b>，落到同一套账本</li>
+        <li>务必做<b>幂等处理</b>（用订单号当幂等键，防止重复发放）</li>
+      </ul>
+      <div class="tip">核心原则：两条通道只是"入口"不同，发放额度的核心函数共用一个（输入档位 → 发 credits + 幂等键）。验签 + 幂等是发卡逻辑最容易出资损的地方。</div>
+    </div>
+
+    <div class="step">
+      <div class="step-top"><div class="badge">6</div><h3>两条通道分别实测</h3></div>
+      <ul>
+        <li><b>通道一</b>：信用卡真实下单 → Stripe 余额 → 手动提现到 Payoneer → 结汇到国内卡</li>
+        <li><b>通道二</b>：支付宝 / 微信真实付一笔小额 → 确认官方直连到本人银行卡</li>
+        <li>两条都确认到账时效、费用、额度发放无误，再正式上线</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 付款方式 -->
+  <section>
+    <div class="shead"><span class="snum mono">PAY</span><h2>付款方式（两种并行）</h2></div>
+    <p class="sdesc">两种方式同时摆给所有用户、自由选择，不做地区强制分流——IP 判断不可靠（用户常挂代理），且大陆留学生身在海外也有支付宝 / 微信。给用户选择本身也能提升转化。</p>
+    <div class="lanes">
+      <div class="lane intl">
+        <div class="lane-top"><span class="lane-tag">通道一</span><span class="lane-cur">信用卡 / 海外</span></div>
+        <div class="lane-flow"><b>用户</b><span class="ar">→</span>信用卡<span class="ar">→</span><b>Stripe HK</b><span class="ar">→</span>Payoneer<span class="ar">→</span>国内卡</div>
+      </div>
+      <div class="lane cn">
+        <div class="lane-top"><span class="lane-tag">通道二</span><span class="lane-cur">支付宝 / 微信</span></div>
+        <div class="lane-flow"><b>用户</b><span class="ar">→</span>支付宝/微信<span class="ar">→</span><b>YunGouOS</b>（官方直连）<span class="ar">→</span>本人银行卡</div>
+      </div>
+    </div>
+    <div class="converge">
+      <h4>两条通道汇入同一套账本</h4>
+      <p>两种付款方式只是"入口"不同，最终都映射到内部统一的额度 / 解锁状态（credits）。两边回调收到付款后调用<b>同一个发放函数</b>，账本只认 credits 一个单位，前端按付款方式展示对应价格。</p>
+    </div>
+    <div class="tip" style="margin-top:14px">实现要点：Stripe 和 YunGouOS 各有一套回调，但发放逻辑共用一个函数（输入档位 → 发 credits + 幂等键）。新增 / 调整档位时两条通道一起改，不会算错。</div>
+  </section>
+
+  <!-- 成本明细 -->
+  <section>
+    <div class="shead"><span class="snum">02</span><h2>成本明细</h2></div>
+    <p class="sdesc">两条通道成本结构完全不同。费率会变动，以各平台后台实时为准；下面是当前参考值。</p>
+
+    <div class="layer">
+      <div class="layer-h"><span class="lname">通道一 · Stripe + Payoneer</span><span class="lrate">≈ 7% + $0.30/笔</span></div>
+      <p>Stripe 国际卡约 3.9% + HK$2.35（≈$0.30），涉及货币转换再 +2%；Payoneer 结汇提现约 1.2%。<b>有每笔固定费，小额极不划算</b>，所以只用来收较大额的买断。退款 / 争议每笔有固定费且不退还。</p>
+    </div>
+
+    <div class="layer">
+      <div class="layer-h"><span class="lname">通道二 · YunGouOS</span><span class="lrate">≈ 2.6%，无固定费</span></div>
+      <p>官方费率 0.6% + 平台服务费约 1–2%，综合约 2.6%，外加一次性开通费。<b>没有每笔固定费，小额非常友好。</b>资金官方直连结算到本人银行卡。具体开通费 / 服务费以官网为准（不同来源口径不一）。</p>
+    </div>
+
+    <div class="calc">
+      <h4>小额场景 · 为什么充值走 YunGouOS</h4>
+      <div class="calc-row"><span>¥1 充值（YunGouOS ~2.6%）</span><span>− ¥0.03</span></div>
+      <div class="calc-row"><span>¥10 充值（YunGouOS ~2.6%）</span><span>− ¥0.26</span></div>
+      <div class="calc-row"><span>¥100 充值（YunGouOS ~2.6%）</span><span>− ¥2.60</span></div>
+      <div class="calc-row"><span>对比：¥10 走卡通道（固定费）</span><span class="neg">− ¥3.2（32%）</span></div>
+      <div class="calc-row total"><span>结论</span><span>小额必走 YunGouOS</span></div>
+    </div>
+    <p class="sdesc" style="margin-top:14px">分工很清楚：<b>买断（较大额）</b>两条通道都行，海外卡用户走 Stripe；<b>小额充值</b>只走 YunGouOS，卡通道的固定费会把小额吃掉三成。</p>
+  </section>
+
+  <!-- 风险红线 -->
+  <section>
+    <div class="shead"><span class="snum">03</span><h2>风险与红线</h2></div>
+    <p class="sdesc">两条通道各有风险点。下面是降低封号 / 冻结 / 资金风险的硬约束。</p>
+    <div class="redlines">
+      <div class="rl-head">⚠ 照做能显著降低风险</div>
+      <ol>
+        <li><b>通道一 · 全链路同名。</b>Stripe 与 Payoneer 用同一人真实身份；Payoneer 只接受同名入账。</li>
+        <li><b>通道一 · 手动提现，别囤大额余额。</b>定期小批提走，避免争议补款时余额不足触发风控。</li>
+        <li><b>通道一 · 控制退款率，ToS 灰色要有预期。</b>用大陆身份开 Stripe HK 属规避地区限制，Stripe 有权按条款关停账户并冻结余额。</li>
+        <li><b>通道二 · 别把唯一通道押一家服务商。</b>YunGouOS 等服务商可能倒闭跑路；好在资金官方直连（钱已到你卡），但接口会停、需换家重新进件。</li>
+        <li><b>通道二 · 个人进件有限额 / 风控。</b>交易限额、支付宝违规可能调整结算周期；资料如实填写、控制异常交易。</li>
+        <li><b>两通道 · 税务自理。</b>无论卡通道结汇还是国内收款，个人所得税申报都是你的责任，金额起来后提前规划。</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 检查清单 -->
+  <section>
+    <div class="shead"><span class="snum">04</span><h2>落地检查清单</h2></div>
+    <p class="sdesc">勾选项仅本地标记进度，刷新会重置——这是一次性的搭建检查表，不用长期保存。</p>
+    <div class="check">
+      <label><input type="checkbox"><span>材料备齐：护照 / 香港手机号（通道一），身份证 / 网站 / 本人银行卡（通道二）</span></label>
+      <label><input type="checkbox"><span>通道一：Payoneer 注册完成，已签发收款账户</span></label>
+      <label><input type="checkbox"><span>通道一：Stripe HK 注册 + KYC 通过，绑定 Payoneer 并设为手动提现</span></label>
+      <label><input type="checkbox"><span>通道二：YunGouOS 注册，微信 + 支付宝个人签约通过</span></label>
+      <label><input type="checkbox"><span>通道二：已确认当前费率（开通费 + 平台费 + 官方 0.6%）</span></label>
+      <label><input type="checkbox"><span>商品配置：Stripe 建买断；YunGouOS 建买断 + 多档充值</span></label>
+      <label><input type="checkbox"><span>前端两种付款方式并列展示，用户自选</span></label>
+      <label><input type="checkbox"><span>FastAPI 接两套回调，验签 + 幂等 + 共用发放函数</span></label>
+      <label><input type="checkbox"><span>两条通道分别小额实测，到账与发放无误</span></label>
+    </div>
+  </section>
+
+  <footer>
+    生成于本次对话 · 费率与开户政策随平台调整，操作前以各平台官方后台为准 · 本手册不构成金融或法律建议
+  </footer>
+
+</main>
+</body>
+</html>
