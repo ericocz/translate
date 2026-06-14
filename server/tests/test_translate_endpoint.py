@@ -1,9 +1,14 @@
+import base64
 import json
 
 import httpx
 import pytest
 from httpx import ASGITransport
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from app.core import crypto
 from app.main import app
 from app.routers.deps import current_user_optional
 from app.routers.translate import (
@@ -141,6 +146,42 @@ async def test_logged_in_records_daily_usage(override):
     finally:
         app.dependency_overrides.pop(get_daily_usage, None)
         app.dependency_overrides.pop(current_user_optional, None)
+
+
+def _enc_client():
+    """模拟加密客户端：返回 (服务端私钥, 客户端临时公钥 b64, 双方共享 AES 密钥)。"""
+    server_priv = crypto.load_private_key(crypto.gen_private_key_b64())
+    eph = ec.generate_private_key(ec.SECP256R1())
+    eph_pub_b64 = base64.b64encode(
+        eph.public_key().public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+        )
+    ).decode()
+    server_pub = ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP256R1(), base64.b64decode(crypto.public_key_b64(server_priv))
+    )
+    key = HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=b"imt-d13", info=b"session-key"
+    ).derive(eph.exchange(ec.ECDH(), server_pub))
+    return server_priv, eph_pub_b64, key
+
+
+async def test_translate_encrypted_path(override, monkeypatch):
+    # 带 X-Eph-Pub：原文以 ct 发、译文以 ct 回，且能用同一密钥解出明文译文。
+    server_priv, eph_pub_b64, key = _enc_client()
+    monkeypatch.setattr("app.routers.translate._server_priv", server_priv)
+    ct_in = crypto.encrypt(key, "Hi", "src:b1")
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate",
+            json={"blocks": [{"id": "b1", "ct": ct_in}]},
+            headers={"X-Eph-Pub": eph_pub_b64},
+        )
+    assert resp.status_code == 200
+    blocks = [json.loads(d) for e, d in parse_sse(resp.text) if e == "block"]
+    assert len(blocks) == 1 and "translated" not in blocks[0]  # 密文路径不回明文
+    assert crypto.decrypt(key, blocks[0]["ct"], "dst:b1") == "你好"
 
 
 async def test_logged_in_over_cap_blocks(override):

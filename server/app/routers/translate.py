@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.core import crypto
 from app.core.config import settings
 from app.db.base import async_session
 from app.services import deepseek
@@ -24,10 +25,14 @@ from app.services.tier_repo import TierRepo
 
 router = APIRouter()
 
+# D-13 应用层加密：静态私钥启动时载一次；空＝明文路径（dev / 现有测试）。
+_server_priv = crypto.load_private_key(settings.session_private_key) if settings.session_private_key else None
+
 
 class BlockIn(BaseModel):
     id: str
-    source: str
+    source: str | None = None  # 明文路径
+    ct: str | None = None      # 加密路径（base64，AAD="src:"+id）
 
 
 class TranslateRequest(BaseModel):
@@ -75,7 +80,14 @@ async def translate_endpoint(
     device_id = request.headers.get("x-device-id", "")
     ip = request.client.host if request.client else None
     local_date = req.localDate or date.today().isoformat()
-    blocks = [SourceBlock(b.id, b.source) for b in req.blocks]
+
+    # D-13：带 X-Eph-Pub 头且服务端有私钥 → ECDH 派生会话密钥、解密原文 ct；否则走明文 source。
+    eph_pub = request.headers.get("x-eph-pub", "")
+    enc_key = crypto.derive_key(_server_priv, eph_pub) if (eph_pub and _server_priv) else None
+    if enc_key is not None:
+        blocks = [SourceBlock(b.id, crypto.decrypt(enc_key, b.ct or "", f"src:{b.id}")) for b in req.blocks]
+    else:
+        blocks = [SourceBlock(b.id, b.source or "") for b in req.blocks]
 
     # 匿名配额闸门（P2；P3 登录用户将在此跳过）。有 pageKey + deviceId 才计。
     # 在返回流之前 await 完成判定/计数；拒绝则流里只发 quota、不查缓存不调模型。
@@ -108,7 +120,10 @@ async def translate_endpoint(
             api_key=settings.deepseek_api_key,
         ):
             if isinstance(ev, BlockEvent):
-                yield _sse("block", {"id": ev.id, "translated": ev.translated})
+                if enc_key is not None:
+                    yield _sse("block", {"id": ev.id, "ct": crypto.encrypt(enc_key, ev.translated, f"dst:{ev.id}")})
+                else:
+                    yield _sse("block", {"id": ev.id, "translated": ev.translated})
             elif isinstance(ev, UsageEvent):
                 # 登录用户记当日 token（只计服务端实际翻译的用量）；匿名不记 daily_usage（走页配额）。
                 if user_id is not None:
