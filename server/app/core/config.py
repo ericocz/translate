@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     access_ttl_min: int = 30
     refresh_ttl_days: int = 30
     session_private_key: str = ""  # D-13 应用层加密静态私钥 base64(原始标量)；空＝明文路径（dev）
+    creem_webhook_secret: str = ""  # D-18 Creem webhook 验签密钥（Developers→Webhook 页）；空＝拒收所有 webhook
+    creem_buyout_product_id: str = ""  # D-18 买断商品 id；空＝不校验商品（仅联调）
 
 
 settings = Settings()
