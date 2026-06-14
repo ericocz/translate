@@ -31,7 +31,7 @@
 
 1. **触发**：内容脚本判断当前域名是否在白名单，在则自动运行。SPA 同文档路由跳转由后端 service worker 的 `webNavigation.onHistoryStateUpdated` 监听后通知 content（`content.ts handleSpaNavigation`，epoch 防串扰、seq 保证带前缀 id 唯一）。
 2. **抽取**：`extractor.ts` 用 `TreeWalker` 抽块级元素、生成 `<gN>/<xN>` 标记 + styleMap、存原文 HTML。
-3. **请求**：`background.ts`（service worker）经 `lib/api.ts` `translateViaBackend` POST `${BACKEND_URL}/v1/translate`（SSE），带 `X-Device-Id`、`pageKey`（`pageKeyFromUrl` 规范化 URL 哈希，URL 不出本机）、`localDate`，登录则带 `Authorization`。**网络调用在 SW 发**：host_permissions 授权下不受页面 CSP / CORS 限制。
+3. **本地缓存优先 + 请求**：`background.ts`（service worker）先经 `lib/translate-cached.ts` 查本地 IndexedDB（`lib/local-cache.ts`）：命中块直接回填、**不发服务端**（天然不扣额度）；未命中块才经 `lib/api.ts` `translateViaBackend` POST `${BACKEND_URL}/v1/translate`（SSE），带 `X-Device-Id`、`pageKey`（`pageKeyFromUrl` 规范化 URL 哈希，URL 不出本机）、`localDate`，登录则带 `Authorization`；服务端回的、标记校验通过的块写回本地。**网络调用在 SW 发**：host_permissions 授权下不受页面 CSP / CORS 限制。
 4. **流式回填**：后端发结构化 SSE 事件（`event: block` `{id,translated}` / `done` / `error` / `quota`）；`lib/sse.ts createSseParser` 跨 chunk 累积解析；content 收 `block` → `restoreSoleWrapper` → 校验 → `rebuilder` 重建 → 淡入替换对应节点。
 5. **失败 / 配额**：`error` / `quota` 经 port 回 content，`errorKind` 透到 popup——`quota`（匿名超 3 页 / 登录超日上限）用**柔和样式 + 登录引导**，不显示红色报错。
 6. **账号 / 匿名 / 打点**：`lib/auth.ts`（注册 / 登录 / 登出 / access 静默刷新，token 存 storage）；`lib/device.ts`（匿名 `deviceId` + `localDateString` + `pageKeyFromUrl`）；`lib/telemetry.ts`（`track` / `reportError`，fire-and-forget、只带 host + 计数）。
@@ -41,11 +41,13 @@
 ```
 entrypoints/
   content.ts            # 抽取 / 标记 / 流式回填 / Ctrl+点击 / 还原；有界沉降补抽 settleAndReextract + SPA 软导航重译 handleSpaNavigation；errorKind 透传
-  background.ts         # service worker：port 适配 → 经 lib/api.ts 调后端；图标三态；webNavigation 软导航监听；翻译生命周期埋点(track/reportError)
+  background.ts         # service worker：port 适配 → 经 translate-cached（本地缓存优先）调后端；图标三态；webNavigation 软导航监听；翻译生命周期埋点(track/reportError)
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号（消 #418）
   popup/  options/      # React「素 Quiet」：popup 账号区(登录/注册/登出)+免费额度N/3或今日token+翻译按钮+配额柔和提示；options 管白名单
 lib/
   api.ts        # translateViaBackend：调后端 /v1/translate 消费 SSE（{abort} 同形旧 client）；带 deviceId/pageKey/Authorization
+  local-cache.ts# 本地译文缓存（IndexedDB·L1，D-11b）：内容寻址键含语言对；先查本地/只发未命中/写回；LRU 200MB·90天逐出
+  translate-cached.ts # 本地优先编排 translateWithCache：命中即回不发服务端，未命中发后端、校验通过写回（background 调它）
   auth.ts       # token 持久化 + 注册/登录/登出 + access 静默刷新
   device.ts     # 匿名 deviceId + 本地日期 + pageKeyFromUrl（cyrb53）
   telemetry.ts  # 打点 / 错误上报（fire-and-forget，只带 host）
@@ -53,7 +55,7 @@ lib/
   extractor.ts  # TreeWalker 抽块 + 生成 <gN>/<xN> 标记 + styleMap
   markers.ts    # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts  # 依 styleMap + tokenize 把带标记译文重建为 DOM
-  storage.ts    # 白名单 / 设置
+  storage.ts    # 白名单 / 设置（含本地缓存开关 cacheEnabled）
   icon.ts       # 工具栏图标三态（off/on/翻译中/出错）
   config.ts     # BACKEND_URL 唯一读取处（构建期由 .env 的 WXT_BACKEND_URL 注入；缺省 http://localhost:8000）
   messages.ts   # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
@@ -69,7 +71,7 @@ lib/
 
 - **React / Next.js 站点（如 react.dev）**：直接改 DOM 与 React 协调冲突曾致 `removeChild` 崩溃。两道防线：`dom-compat.content.ts` 补丁消致命崩溃 + 推迟到 hydration 后再抽取注入消多数 #418。部分把 hydration 延迟 / 流式到 `load` 后的站仍有**可恢复**的 #418/#425。
 - 主要处理加载时已有内容；例外：**有界沉降补抽**（最多 5 轮、每轮 1200ms，补晚渲染 SPA 的首屏块）+ **SPA 软导航重译**。仍**不上常驻 MutationObserver**。
-- **缓存内容寻址（现在后端）**：动态变化块会重译，刷新请求收敛到「变化块」而非 0，属正确行为。
+- **缓存=客户端本地（D-11b）**：译文存 IndexedDB（内容寻址，键含语言对），命中不发服务端、不扣额度；动态变化块标记不同 → 键不同 → 重译，刷新请求收敛到「变化块」而非 0，属正确行为。服务端不再持有缓存（D-11a）。LRU 200MB / 90 天逐出，设置页可关可清。
 
 ## 编码约定
 
