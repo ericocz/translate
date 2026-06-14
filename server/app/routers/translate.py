@@ -22,6 +22,8 @@ from app.services.translator import (
 )
 from app.services.usage_repo import DailyUsageRepo
 from app.services.tier_repo import TierRepo
+from app.services.credit_repo import CreditRepo
+from app.services.pricing import cost_micro
 
 router = APIRouter()
 
@@ -63,6 +65,11 @@ async def get_tier() -> AsyncIterator[TierRepo]:
         yield TierRepo(s)
 
 
+async def get_credits() -> AsyncIterator[CreditRepo]:
+    async with async_session() as s:
+        yield CreditRepo(s)
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -75,6 +82,7 @@ async def translate_endpoint(
     deepseek_stream=Depends(get_deepseek_stream),
     daily=Depends(get_daily_usage),
     tier=Depends(get_tier),
+    credits=Depends(get_credits),
     user_id: int | None = Depends(current_user_optional),
 ):
     device_id = request.headers.get("x-device-id", "")
@@ -96,9 +104,16 @@ async def translate_endpoint(
     if user_id is None and req.pageKey and device_id:
         decision = await quota.check_and_count(device_id, local_date, req.pageKey, ip)
 
-    # 登录用户：梯度限流（固定日 Token 上限分档）。超限即拦截并提醒。
+    # 登录用户分两类：① 有 credits 账户＝付费模式（余额门控 + 实耗扣费，跳梯度限流）；
+    # ② 无账户＝免费模式（梯度限流，现状不变）。无人充值前无账户 → 行为零变化（休眠）。
+    account = await credits.get_account(user_id) if user_id is not None else None
+    is_credit_user = account is not None
     tier_block_msg = None
-    if user_id is not None:
+    credit_block_msg = None
+    if is_credit_user:
+        if account.balance_micro <= 0:
+            credit_block_msg = "额度不足，请充值后继续"
+    elif user_id is not None:
         tev = await tier.evaluate(user_id, local_date)
         if not tev.allowed:
             tier_block_msg = tev.notice
@@ -114,6 +129,9 @@ async def translate_endpoint(
         if tier_block_msg is not None:
             yield _sse("quota", {"message": tier_block_msg})
             return
+        if credit_block_msg is not None:
+            yield _sse("quota", {"message": credit_block_msg})
+            return
         async for ev in translate(
             blocks,
             deepseek_stream=deepseek_stream,
@@ -128,6 +146,9 @@ async def translate_endpoint(
                 # 登录用户记当日 token（只计服务端实际翻译的用量）；匿名不记 daily_usage（走页配额）。
                 if user_id is not None:
                     await daily.add(user_id, local_date, ev.input_tokens, ev.output_tokens, pages=1)
+                # 付费模式：按实耗扣 credits（micro-¥）。免费用户无账户、不扣。
+                if is_credit_user:
+                    await credits.deduct(user_id, cost_micro(ev.input_tokens, ev.output_tokens))
             elif isinstance(ev, DoneEvent):
                 yield _sse("done", {})
             elif isinstance(ev, ErrorEvent):

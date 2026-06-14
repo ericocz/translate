@@ -10,9 +10,12 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.core import crypto
 from app.main import app
+from types import SimpleNamespace
+
 from app.routers.deps import current_user_optional
 from app.routers.translate import (
     get_anon_quota,
+    get_credits,
     get_daily_usage,
     get_deepseek_stream,
     get_tier,
@@ -61,6 +64,32 @@ class FakeTierBlock:
         return _Tev(False, "今日额度已达上限（疑似异常用量），明日恢复", 10_000)
 
 
+class FakeCreditsNone:
+    """免费用户：无 credits 账户。"""
+
+    async def get_account(self, user_id):
+        return None
+
+    async def deduct(self, user_id, amount, kind="deduct"):
+        return 0
+
+
+class FakeCredits:
+    """付费用户：有账户、给定余额；记录扣费。"""
+
+    def __init__(self, balance):
+        self.balance = balance
+        self.deducted: list[int] = []
+
+    async def get_account(self, user_id):
+        return SimpleNamespace(user_id=user_id, balance_micro=self.balance)
+
+    async def deduct(self, user_id, amount, kind="deduct"):
+        self.deducted.append(amount)
+        self.balance -= amount
+        return self.balance
+
+
 def parse_sse(text: str) -> list[tuple[str, str]]:
     events: list[tuple[str, str]] = []
     cur = None
@@ -78,6 +107,7 @@ def override():
     app.dependency_overrides[get_anon_quota] = lambda: FakeQuotaAllow()
     app.dependency_overrides[get_daily_usage] = lambda: FakeDaily()
     app.dependency_overrides[get_tier] = lambda: FakeTierAllow()
+    app.dependency_overrides[get_credits] = lambda: FakeCreditsNone()
     yield
     app.dependency_overrides.clear()
 
@@ -200,4 +230,44 @@ async def test_logged_in_over_cap_blocks(override):
         assert "quota" in kinds and "block" not in kinds and "done" not in kinds
     finally:
         app.dependency_overrides.pop(get_tier, None)
+        app.dependency_overrides.pop(current_user_optional, None)
+
+
+async def test_credit_user_deducts(override):
+    # 付费用户（有账户、有余额）：照常翻译 + 按实耗扣 credits。
+    fake = FakeCredits(balance=10_000_000)
+    app.dependency_overrides[get_credits] = lambda: fake
+    app.dependency_overrides[current_user_optional] = lambda: 5
+    try:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/v1/translate",
+                json={"blocks": [{"id": "b1", "source": "Hi"}]},
+                headers={"Authorization": "Bearer x"},
+            )
+        kinds = [e for e, _ in parse_sse(resp.text)]
+        assert "block" in kinds and "done" in kinds
+        assert fake.deducted and fake.deducted[0] > 0  # 扣了费
+    finally:
+        app.dependency_overrides.pop(get_credits, None)
+        app.dependency_overrides.pop(current_user_optional, None)
+
+
+async def test_credit_user_zero_balance_blocked(override):
+    # 付费用户余额耗尽：发 quota 提醒、不翻译。
+    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=0)
+    app.dependency_overrides[current_user_optional] = lambda: 6
+    try:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/v1/translate",
+                json={"blocks": [{"id": "b1", "source": "Hi"}]},
+                headers={"Authorization": "Bearer x"},
+            )
+        kinds = [e for e, _ in parse_sse(resp.text)]
+        assert "quota" in kinds and "block" not in kinds and "done" not in kinds
+    finally:
+        app.dependency_overrides.pop(get_credits, None)
         app.dependency_overrides.pop(current_user_optional, None)

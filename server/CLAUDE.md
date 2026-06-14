@@ -40,13 +40,13 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## 数据模型（Postgres）
 
-`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；尚未接入翻译流）。
+`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；付费模式按实耗扣费、余额≤0 软拦截，无人充值前无账户＝休眠）。
 
 > D-11：原 `translation_cache` 跨用户共享缓存已下线——隐私上不在服务端留存用户译文；缓存改为客户端 IndexedDB 本地层（见 front），命中本地的块根本不发服务端、不计费。
 
 ## API 表面
 
-- `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；**带 `X-Eph-Pub` 头则收发 `ct` 密文**，D-13）
+- `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；付费用户余额≤0 发 quota、实耗扣 credits；**带 `X-Eph-Pub` 头则收发 `ct` 密文**，D-13）
 - `GET /v1/usage`（匿名返页配额；登录返 tokensToday/cap/notice）
 - `POST /v1/auth/{register,login,refresh,logout}`（register/login 带 `X-Eph-Pub` 头则邮箱/密码走 `ct`，D-13）
 - `POST /v1/events`、`POST /v1/errors`
@@ -54,10 +54,10 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## 关键流程
 
-- **翻译**：鉴权识别身份 → 缓存优先（命中即回 + 记 token）→ 去重 → 分批并发调 DeepSeek → 切块 + 标记校验 → 写缓存（本地估算 token）→ `UsageEvent`。
+- **翻译**：鉴权识别身份 → 命中客户端本地缓存的块根本不到这里（D-11）→ 按 source 去重 → 按 token 预算分批并发调 DeepSeek → 切块 + 标记校验 → `UsageEvent`；登录用户记 `daily_usage`，**付费用户（有 credits 账户）按 `pricing.cost_micro` 实耗扣 credits、余额≤0 软拦截**（休眠至首次充值）。
 - **匿名配额**：`(deviceId, localDate, pageKey)` 去重；不同 pageKey ≥3 且新页 → `quota`。同页刷新不扣。
-- **登录跳配额**：`current_user_optional` 非空则不计匿名配额；改受**梯度限流**约束。
-- **Token 记账**：未命中以接口 `usage` 为准、命中读缓存里 token；都累加进 `daily_usage`（缓存命中也记账）。
+- **登录跳配额**：`current_user_optional` 非空则不计匿名配额；**有 credits 账户＝付费模式（余额门控、跳梯度限流）**，否则免费模式受**梯度限流**约束。
+- **Token 记账**：以接口 `usage` 为准、缺失时 `estimate_tokens` 兜底，累加进 `daily_usage`；付费用户另按 `pricing.cost_micro`（in 1 / out 2 micro-¥/token，成本价透传）扣 credits。
 - **梯度限流**：`tier.py` 纯函数按「固定日 Token 上限」分档；连续顶格降档、连续达标升档；拦截即时经 `quota` 提醒，升降档经 `quota_tier.notice` → `/v1/usage` 取走。
 
 ## 本地开发环境（重要）
