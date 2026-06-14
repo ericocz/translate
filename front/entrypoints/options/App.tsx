@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { getWhitelist, setWhitelist } from '@/lib/storage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { getWhitelist, setWhitelist, getCacheEnabled, setCacheEnabled } from '@/lib/storage';
+import { cacheStats, clearCache } from '@/lib/local-cache';
 
 export function Options() {
   const [list, setList] = useState<string[]>([]);
@@ -7,6 +8,9 @@ export function Options() {
   const [shortcut, setShortcut] = useState(suggestedShortcut);
   // Chrome 是否真的绑定了快捷键：getAll() 返回非空才算（reload/更新后常返空，见经验）。
   const [bound, setBound] = useState(false);
+  const [cacheOn, setCacheOn] = useState(true);
+  const [stats, setStats] = useState({ count: 0, bytes: 0 });
+  const cacheRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     void (async () => setList(await getWhitelist()))();
@@ -18,6 +22,12 @@ export function Options() {
         setBound(true);
       }
     });
+    void getCacheEnabled().then(setCacheOn);
+    void cacheStats().then(setStats);
+    // 来自 popup 直达链接 options.html#cache：滚动到缓存卡片。
+    if (location.hash === '#cache') {
+      setTimeout(() => cacheRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
   }, []);
 
   const addDomain = useCallback(async () => {
@@ -41,6 +51,17 @@ export function Options() {
   // 「修改快捷键」：MV3 不允许扩展用 API 改快捷键，只能打开 Chrome 原生改键页引导用户。
   const openShortcuts = useCallback(() => {
     void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  }, []);
+
+  const toggleCache = useCallback(async () => {
+    const next = !cacheOn;
+    await setCacheEnabled(next);
+    setCacheOn(next);
+  }, [cacheOn]);
+
+  const onClearCache = useCallback(async () => {
+    await clearCache();
+    setStats({ count: 0, bytes: 0 });
   }, []);
 
   const valid = normalizeDomain(newDomain) !== '';
@@ -128,8 +149,37 @@ export function Options() {
             : 'Chrome 还没绑定这个快捷键（扩展更新或重载后常见）。点「修改快捷键」去绑定。'}
         </p>
       </section>
+
+      <section className="card" id="cache" ref={cacheRef}>
+        <div className="card-h">
+          <h2>翻译缓存</h2>
+        </div>
+        <p className="muted">
+          译文只存在你这台设备的浏览器里（IndexedDB），同一页面重访时秒出、且不再消耗额度。
+          我们的服务器不保存你的译文。
+        </p>
+        <div className="kbd-row">
+          <span className="muted">
+            {cacheOn ? `已开启 · ${stats.count} 条 · ${formatBytes(stats.bytes)}` : '已关闭'}
+          </span>
+          <button className="ghost" onClick={() => void toggleCache()}>
+            {cacheOn ? '关闭缓存' : '开启缓存'}
+          </button>
+        </div>
+        <div className="kbd-row">
+          <span className="muted">清空后下次翻译会重新请求。</span>
+          <button className="ghost" onClick={() => void onClearCache()} disabled={stats.count === 0}>
+            清空缓存
+          </button>
+        </div>
+      </section>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 /** 素方案双线标记（开启色：下线桃红），用于设置页页眉。 */

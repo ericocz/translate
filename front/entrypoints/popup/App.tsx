@@ -104,6 +104,10 @@ export function Popup() {
   }, [s.domain, s.enabled, refresh]);
 
   const openSettings = useCallback(() => chrome.runtime.openOptionsPage(), []);
+  const openCacheSettings = useCallback(
+    () => void chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cache') }),
+    []
+  );
 
   if (s.loading) {
     return <div className="pop pop--msg">读取中…</div>;
@@ -216,7 +220,10 @@ export function Popup() {
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
               : '开启即整页翻译'}
         </span>
-        <button className="link" onClick={openSettings}>设置 ›</button>
+        <span>
+          <button className="link" style={{ marginRight: 12 }} onClick={openCacheSettings}>缓存</button>
+          <button className="link" onClick={openSettings}>设置 ›</button>
+        </span>
       </div>
     </div>
   );
