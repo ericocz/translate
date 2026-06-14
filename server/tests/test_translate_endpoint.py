@@ -214,6 +214,22 @@ async def test_translate_encrypted_path(override, monkeypatch):
     assert crypto.decrypt(key, blocks[0]["ct"], "dst:b1") == "你好"
 
 
+async def test_encrypted_bad_ciphertext_errors_not_500(override, monkeypatch):
+    # 篡改/坏 ct（被劫持改包）→ 干净 error 事件，不是 500。
+    server_priv, eph_pub_b64, _key = _enc_client()
+    monkeypatch.setattr("app.routers.translate._server_priv", server_priv)
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate",
+            json={"blocks": [{"id": "b1", "ct": "garbage-not-ciphertext"}]},
+            headers={"X-Eph-Pub": eph_pub_b64},
+        )
+    assert resp.status_code == 200
+    kinds = [e for e, _ in parse_sse(resp.text)]
+    assert "error" in kinds and "block" not in kinds
+
+
 async def test_logged_in_over_cap_blocks(override):
     # 登录用户超日上限：发 quota 提醒、不翻译
     app.dependency_overrides[get_tier] = lambda: FakeTierBlock()

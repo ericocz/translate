@@ -90,10 +90,17 @@ async def translate_endpoint(
     local_date = req.localDate or date.today().isoformat()
 
     # D-13：带 X-Eph-Pub 头且服务端有私钥 → ECDH 派生会话密钥、解密原文 ct；否则走明文 source。
+    # 握手/解密失败（被劫持改包、坏公钥、篡改 ct）→ 干净的 error 事件，而非 500。
     eph_pub = request.headers.get("x-eph-pub", "")
-    enc_key = crypto.derive_key(_server_priv, eph_pub) if (eph_pub and _server_priv) else None
-    if enc_key is not None:
-        blocks = [SourceBlock(b.id, crypto.decrypt(enc_key, b.ct or "", f"src:{b.id}")) for b in req.blocks]
+    enc_key = None
+    enc_error = None
+    if eph_pub and _server_priv:
+        try:
+            enc_key = crypto.derive_key(_server_priv, eph_pub)
+            blocks = [SourceBlock(b.id, crypto.decrypt(enc_key, b.ct or "", f"src:{b.id}")) for b in req.blocks]
+        except Exception:
+            enc_error = "加密握手或解密失败，请重试"
+            blocks = []
     else:
         blocks = [SourceBlock(b.id, b.source or "") for b in req.blocks]
 
@@ -119,6 +126,9 @@ async def translate_endpoint(
             tier_block_msg = tev.notice
 
     async def gen() -> AsyncIterator[str]:
+        if enc_error is not None:
+            yield _sse("error", {"kind": "api", "message": enc_error})
+            return
         if decision is not None and not decision.allowed:
             yield _sse("quota", {
                 "message": decision.message,

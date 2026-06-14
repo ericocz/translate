@@ -2,6 +2,12 @@
 
 用法：cd server && uv run python scripts/gen_session_keypair.py
 """
+import os
+import sys
+
+# 让脚本无论从哪运行都能 import app（把 server 根加入 sys.path）。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.core.crypto import gen_private_key_b64, load_private_key, public_key_b64
 
 priv_b64 = gen_private_key_b64()
