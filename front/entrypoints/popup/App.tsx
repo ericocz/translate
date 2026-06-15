@@ -316,19 +316,19 @@ function AccountSection({ email, onChanged }: { email: string | null; onChanged:
   );
 }
 
-/** 品牌行：素方案的「英→中」双线标记（开启时下线灌桃红） + 名称。 */
+/** 品牌行：素方案的「英→中」双线标记（开启时下线灌橙） + 名称。 */
 function Brand({ enabled }: { enabled: boolean }) {
   return (
     <div className="brand">
       <svg className="brand-mark" viewBox="0 0 32 32" width="22" height="22" aria-hidden>
         <rect
           x="2.5" y="2.5" width="27" height="27" rx="8"
-          fill={enabled ? '#FBF2F5' : '#F4F4F3'}
-          stroke={enabled ? '#F0D8E0' : '#E6E6E3'}
+          fill={enabled ? '#FFF3EE' : '#F4F4F3'}
+          stroke={enabled ? '#FFD9C7' : '#E6E6E3'}
           strokeWidth="1.2"
         />
         <rect x="8" y="11" width="16" height="3.2" rx="1.6" fill="none" stroke="#26242A" strokeWidth="1.6" />
-        <rect x="8" y="18.2" width="13" height="3.2" rx="1.6" fill={enabled ? '#D94A73' : '#B7B6B2'} />
+        <rect x="8" y="18.2" width="13" height="3.2" rx="1.6" fill={enabled ? '#FF4808' : '#B7B6B2'} />
       </svg>
       <span className="brand-name">沉浸式翻译</span>
     </div>

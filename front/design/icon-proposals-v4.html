@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>沉浸式翻译 · 图标提案 V4（深紫+爱马仕橙 / 绿底两态）</title>
+<style>
+  :root {
+    --purple:#7C3AED;--purple-deep:#5B21B6;--purple-surf:#A78BFA;--purple-tint:#F5F3FF;
+    --orange:#F37021;--orange-deep:#C2410C;--orange-surf:#FDBA74;--orange-tint:#FFF7ED;
+    --ghost:#B7AEB4;--green:#10B981;--green-light:#D1FAE5;
+    --ink:#1E1B2E;--muted:#787180;--line:#E3E0EB;--card:#fff;--bg:#FAF9FB;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-font-smoothing:antialiased}
+  body{margin:0;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65}
+  .wrap{max-width:1140px;margin:0 auto;padding:56px 32px 96px}
+
+  header h1{font-size:26px;font-weight:700;margin:0 0 6px;letter-spacing:.5px}
+  header .sub{color:var(--muted);font-size:14px;margin:0}
+  .brief{margin:28px 0 0;padding:20px 22px;background:var(--card);border:1px solid var(--line);border-radius:14px;font-size:13.5px}
+  .brief b{color:var(--purple)}
+  .brief ul{margin:10px 0 0;padding-left:20px}
+  .brief li{margin:4px 0}
+
+  h2.section{font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:64px 0 20px;display:flex;align-items:center;gap:12px}
+  h2.section::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* 配色双栏 */
+  .color-duo{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:720px){.color-duo{grid-template-columns:1fr}}
+  .color-set{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .color-set h4{font-size:15px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .color-set h4 .dot{width:14px;height:14px;border-radius:999px;display:inline-block}
+  .color-set .swatches{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .color-set .sw2{flex:1;min-width:80px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .color-set .sw2 .chip{height:44px}
+  .color-set .sw2 .meta{padding:6px 8px;font-size:11px}
+  .color-set .sw2 .meta .hex{font-family:ui-monospace,monospace;font-size:11px}
+  .color-set .sw2 .meta .lbl{color:var(--muted);font-size:10px;margin-top:1px}
+  .color-set .procon{font-size:12px;color:var(--muted);line-height:1.7}
+  .color-set .procon b{color:var(--ink)}
+
+  /* 配色快切 tabs */
+  .tab-bar{display:flex;gap:0;margin-bottom:18px}
+  .tab-bar button{flex:1;padding:9px 0;font-size:13px;font-weight:700;letter-spacing:.5px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer;font-family:inherit}
+  .tab-bar button:first-child{border-radius:10px 0 0 10px}
+  .tab-bar button:last-child{border-radius:0 10px 10px 0}
+  .tab-bar button.active{background:var(--purple-tint);color:var(--purple);border-color:var(--purple-surf)}
+
+  /* 方案卡 */
+  .concepts{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  @media(max-width:920px){.concepts{grid-template-columns:1fr}}
+  .concept{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 22px 26px;display:flex;flex-direction:column}
+  .concept .tag{display:inline-block;align-self:flex-start;font-size:11px;font-weight:700;letter-spacing:1px;color:var(--purple);background:var(--purple-tint);padding:3px 10px;border-radius:999px;margin-bottom:14px}
+  .concept h3{margin:0 0 2px;font-size:19px;font-weight:700}
+  .concept .en{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:14px}
+  .hero{display:flex;align-items:center;justify-content:center;height:168px;background:linear-gradient(0deg,rgba(0,0,0,.012),rgba(0,0,0,.012)),repeating-conic-gradient(#ece8f3 0% 25%,#fff 0% 50%) 50%/22px 22px;border-radius:14px;border:1px solid var(--line)}
+  .desc{font-size:13.5px;color:#4b4450;margin:16px 0 0}
+  .desc b{color:var(--ink)}
+  .meta-line{font-size:12px;color:var(--muted);margin-top:10px;display:flex;gap:6px}
+  .meta-line .k{color:var(--purple);font-weight:700}
+
+  .ramp{margin-top:18px}
+  .ramp .label{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:8px}
+  .ramp .row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px}
+  .ramp .cell{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .ramp .cell span{font-size:10px;color:var(--muted)}
+  .ramp .onbg{display:flex;gap:8px;align-items:center}
+  .ramp .b{padding:5px;border-radius:6px;display:flex}
+
+  .states-section{margin-top:18px}
+  .states-section .label{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:10px}
+  .states-grid{display:flex;gap:18px;flex-wrap:wrap}
+  .state-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .state-card .lbl{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px}
+  .state-card .sub{font-size:9px;color:var(--muted)}
+
+  .toolbars{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+  .toolbar{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;position:relative}
+  .tb-light{background:#f1f3f4;border:1px solid #e3e5e6}
+  .tb-dark{background:#292a2d}
+  .tb-light .url{flex:1;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;padding:0 10px;font-size:10px;color:#70757a;gap:5px}
+  .tb-dark .url{flex:1;height:22px;border-radius:11px;background:#202124;display:flex;align-items:center;padding:0 10px;font-size:10px;color:#9aa0a6;gap:5px}
+  .dummy{width:16px;height:16px;opacity:.45}
+  .ours{width:16px;height:16px;flex:none}
+
+  .on-strategy{margin-top:18px;background:var(--green-light);border:1px solid #A7F3D0;border-radius:14px;padding:16px 18px;font-size:13.5px}
+  .on-strategy b{color:#059669}
+  .on-strategy .demo{display:flex;gap:20px;align-items:center;margin-top:10px}
+  .on-strategy .demo .pair{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .on-strategy .demo .arr{font-size:16px;color:var(--muted)}
+
+  footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  footer b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- ===== SVG 符号库 ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <style>.glyph{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}</style>
+
+    <!-- ===== 方案 B：逐行浸译（深紫版 off） ===== -->
+    <symbol id="ic-para-off" viewBox="0 0 128 128">
+      <rect x="20" y="18" width="88" height="15" rx="7.5" fill="#7C3AED"/>
+      <rect x="20" y="40" width="72" height="15" rx="7.5" fill="#7C3AED"/>
+      <rect x="20" y="62" width="88" height="15" rx="7.5" fill="#B7AEB4"/>
+      <rect x="20" y="62" width="48" height="15" rx="7.5" fill="#7C3AED"/>
+      <rect x="66" y="60" width="4" height="19" rx="2" fill="#fff" opacity=".9"/>
+      <rect x="20" y="84" width="62" height="15" rx="7.5" fill="#B7AEB4"/>
+      <rect x="20" y="106" width="50" height="15" rx="7.5" fill="#B7AEB4"/>
+    </symbol>
+    <!-- 方案 B on: 绿底 + 品牌色图形 -->
+    <symbol id="ic-para-on" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-para-off"/>
+    </symbol>
+    <!-- 方案 B 橙色版 off -->
+    <symbol id="ic-para-off-or" viewBox="0 0 128 128">
+      <rect x="20" y="18" width="88" height="15" rx="7.5" fill="#F37021"/>
+      <rect x="20" y="40" width="72" height="15" rx="7.5" fill="#F37021"/>
+      <rect x="20" y="62" width="88" height="15" rx="7.5" fill="#B7AEB4"/>
+      <rect x="20" y="62" width="48" height="15" rx="7.5" fill="#F37021"/>
+      <rect x="66" y="60" width="4" height="19" rx="2" fill="#fff" opacity=".9"/>
+      <rect x="20" y="84" width="62" height="15" rx="7.5" fill="#B7AEB4"/>
+      <rect x="20" y="106" width="50" height="15" rx="7.5" fill="#B7AEB4"/>
+    </symbol>
+    <symbol id="ic-para-on-or" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-para-off-or"/>
+    </symbol>
+
+    <!-- ===== 方案 D：三重水波（深紫版 off） ===== -->
+    <symbol id="ic-ripple-off" viewBox="0 0 128 128">
+      <!-- 外层弧（最淡/最宽） -->
+      <path d="M26 78 Q48 38 64 38 Q80 38 102 78" fill="none" stroke="#7C3AED" stroke-width="10" stroke-linecap="round" opacity=".35"/>
+      <!-- 中层弧 -->
+      <path d="M36 78 Q50 50 64 50 Q78 50 92 78" fill="none" stroke="#7C3AED" stroke-width="10" stroke-linecap="round" opacity=".65"/>
+      <!-- 内层弧（最浓/最密） -->
+      <path d="M46 78 Q55 62 64 62 Q73 62 82 78" fill="none" stroke="#7C3AED" stroke-width="10" stroke-linecap="round"/>
+      <!-- 中心投入点：文字/内容落入水面的位置 -->
+      <circle cx="64" cy="60" r="6" fill="#5B21B6"/>
+    </symbol>
+    <symbol id="ic-ripple-on" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-ripple-off"/>
+    </symbol>
+    <symbol id="ic-ripple-off-or" viewBox="0 0 128 128">
+      <path d="M26 78 Q48 38 64 38 Q80 38 102 78" fill="none" stroke="#F37021" stroke-width="10" stroke-linecap="round" opacity=".35"/>
+      <path d="M36 78 Q50 50 64 50 Q78 50 92 78" fill="none" stroke="#F37021" stroke-width="10" stroke-linecap="round" opacity=".65"/>
+      <path d="M46 78 Q55 62 64 62 Q73 62 82 78" fill="none" stroke="#F37021" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="64" cy="60" r="6" fill="#C2410C"/>
+    </symbol>
+    <symbol id="ic-ripple-on-or" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-ripple-off-or"/>
+    </symbol>
+
+    <!-- ===== 方案 E：文本划译（深紫版 off） ===== -->
+    <symbol id="ic-marker-off" viewBox="0 0 128 128">
+      <!-- 三行文本（短横线） -->
+      <rect x="22" y="24" width="56" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="44" width="76" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="64" width="62" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="84" width="72" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="104" width="46" height="11" rx="5.5" fill="#B7AEB4"/>
+      <!-- 一道对角高亮/翻译划线：从左下到右上穿过文本 -->
+      <path d="M24 108 L104 24" stroke="#7C3AED" stroke-width="12" stroke-linecap="round" opacity=".85"/>
+      <!-- 划线内部透出白色细线（高光） -->
+      <path d="M24 108 L104 24" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+    </symbol>
+    <symbol id="ic-marker-on" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-marker-off"/>
+    </symbol>
+    <symbol id="ic-marker-off-or" viewBox="0 0 128 128">
+      <rect x="22" y="24" width="56" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="44" width="76" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="64" width="62" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="84" width="72" height="11" rx="5.5" fill="#B7AEB4"/>
+      <rect x="22" y="104" width="46" height="11" rx="5.5" fill="#B7AEB4"/>
+      <path d="M24 108 L104 24" stroke="#F37021" stroke-width="12" stroke-linecap="round" opacity=".85"/>
+      <path d="M24 108 L104 24" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+    </symbol>
+    <symbol id="ic-marker-on-or" viewBox="0 0 128 128">
+      <rect x="0" y="0" width="128" height="128" rx="22" fill="#10B981"/>
+      <use href="#ic-marker-off-or"/>
+    </symbol>
+
+    <!-- 工具栏假图标 -->
+    <symbol id="dummy-ext" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></symbol>
+    <symbol id="dummy-puz" viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2"/><circle cx="8" cy="8" r="3"/></symbol>
+    <symbol id="dummy-shield" viewBox="0 0 16 16"><path d="M8 1 L14 4 L14 9 A6 6 0 0 1 8 15 A6 6 0 0 1 2 9 L2 4 Z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <header>
+    <h1>沉浸式翻译 · 工具栏图标提案 V4</h1>
+    <p class="sub">2026-06-14 · 深紫+爱马仕橙 / 绿底 on 态</p>
+    <div class="brief">
+      <b>V3→V4 的改动：</b>
+      <ul>
+        <li><b>弃靛蓝</b>：太普通，换<b>深紫 #7C3AED</b> 和 <b>爱马仕橙 #F37021</b> 双色备选</li>
+        <li><b>弃 D/E（书签/叠页）</b>：重做两个全新方向——<b>三重水波</b> + <b>文本划译</b></li>
+        <li><b>on 态修正</b>：不是图标内容变绿，而是 <b>16×16 容器背景变绿 + 品牌色图标不变</b>（绿底 + 紫/橙标）</li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ===== 一、配色选择 ===== -->
+  <h2 class="section">一 · 配色选择：深紫 vs 爱马仕橙</h2>
+  <div class="color-duo">
+    <div class="color-set" style="border-color:var(--purple-surf)">
+      <h4><span class="dot" style="background:#7C3AED"></span> 深紫 Deep Violet</h4>
+      <div class="swatches">
+        <div class="sw2"><div class="chip" style="background:#7C3AED"></div><div class="meta"><div class="hex">#7C3AED</div><div class="lbl">主色</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#5B21B6"></div><div class="meta"><div class="hex">#5B21B6</div><div class="lbl">深紫</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#A78BFA"></div><div class="meta"><div class="hex">#A78BFA</div><div class="lbl">浅紫</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#F5F3FF"></div><div class="meta"><div class="hex">#F5F3FF</div><div class="lbl">底色</div></div></div>
+      </div>
+      <div class="procon">
+        <b>✓</b> 深紫 = 深水之色，直扣「沉浸」隐喻<br/>
+        <b>✓</b> 蓝绿→桃红之间的唯一真空色阶，绝对独占<br/>
+        <b>✓</b> 深沉、专注、学术感，匹配论文精读定位<br/>
+        <b>✗</b> 暗色系在暗底工具栏上对比度可能略低
+      </div>
+    </div>
+    <div class="color-set">
+      <h4><span class="dot" style="background:#F37021"></span> 爱马仕橙 Hermès Orange</h4>
+      <div class="swatches">
+        <div class="sw2"><div class="chip" style="background:#F37021"></div><div class="meta"><div class="hex">#F37021</div><div class="lbl">主色</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#C2410C"></div><div class="meta"><div class="hex">#C2410C</div><div class="lbl">深橙</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#FDBA74"></div><div class="meta"><div class="hex">#FDBA74</div><div class="lbl">浅橙</div></div></div>
+        <div class="sw2"><div class="chip" style="background:#FFF7ED"></div><div class="meta"><div class="hex">#FFF7ED</div><div class="lbl">底色</div></div></div>
+      </div>
+      <div class="procon">
+        <b>✓</b> 高辨识度、热情大胆，工具栏里少数暖色<br/>
+        <b>✓</b> 亮暖色在亮底暗底均有强对比<br/>
+        <b>✗</b> 与桃红同为暖色系，可能被用户模糊混淆<br/>
+        <b>✗</b> 橙=活力/消费，与「深读/学术」调性不够契合
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;font-size:13.5px;color:#4b4450;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px">
+    <b>我的推荐：深紫。</b>它在蓝→桃红的色阶里是唯一真空地带，翻译工具栏里真正「独占」。且深紫=深水=沉浸，语义也最自洽。爱马仕橙辨识度虽高但与桃红的暖色近邻是个硬伤——用户扫工具栏时不会细看色相，只认"那边有个暖图标"。
+  </div>
+
+  <!-- ===== 二、on 态策略 ===== -->
+  <h2 class="section">二 · on 态：绿底容器 + 品牌色图形</h2>
+  <div class="on-strategy">
+    <b>关键变化（V4）：</b>不是把图标图形改成绿色，而是图标保持品牌色不变，<b>16×16 的容器背景变成翠绿 #10B981</b>。品牌色始终在线，同时绿色背景足够大、16px 也能一眼辨认激活状态。
+    <div class="demo">
+      <div class="pair">
+        <svg width="32" height="32" viewBox="0 0 128 128"><rect width="128" height="128" rx="22" fill="none"/><use href="#ic-ripple-off"/></svg>
+        <span style="font-size:11px;color:var(--muted)">off · 透明底</span>
+      </div>
+      <span class="arr">→</span>
+      <div class="pair">
+        <svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-ripple-on"/></svg>
+        <span style="font-size:11px;color:var(--muted)">on · 绿底+紫标</span>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">
+      实现方式：Chrome 扩展 <code>setIcon</code> 切两套位图。off 用透明底 PNG，on 用绿底 PNG——或者用 <code>setBadgeBackgroundColor</code> + 空字符串 badge 也能做到但不够精确（非方形）。切图更稳。
+    </div>
+  </div>
+
+  <!-- ===== 三、三个方案（默认深紫配色） ===== -->
+  <h2 class="section">三 · 三个方向（深紫配色 #7C3AED）</h2>
+
+  <div class="concepts">
+
+    <!-- ============ B ============ -->
+    <section class="concept">
+      <span class="tag">B · 保留</span>
+      <h3>逐行浸译</h3>
+      <div class="en">FADE-IN</div>
+      <div class="hero"><svg width="120" height="120" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+      <p class="desc"><b>整段文字自上而下被深紫「浸」满。</b>已译行=实心深紫、正在译=白色推进前沿、未译行=灰。直接画出产品独有的<b>整页逐块淡入替换</b>。</p>
+      <div class="meta-line"><span class="k">隐喻</span><span>产品核心行为直接可视化</span></div>
+      <div class="meta-line"><span class="k">16px</span><span>叠条剪影 + 上紫下灰，强辨识</span></div>
+
+      <div class="ramp"><div class="label">各尺寸（off 态）</div>
+        <div class="row">
+          <div class="cell"><svg width="48" height="48" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg><span>48</span></div>
+          <div class="cell"><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg><span>32</span></div>
+          <div class="cell"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg><span>16</span></div>
+          <div class="cell onbg">
+            <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+            <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+            <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="states-section"><div class="label">两态（16px 实际像素）</div>
+        <div class="states-grid">
+          <div class="state-card"><div class="lbl">off · 未开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg><div class="sub">透明底+紫标</div></div>
+          <div class="state-card"><div class="lbl">on · 已开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-para-on"/></svg><div class="sub">绿底+紫标</div></div>
+        </div>
+      </div>
+
+      <div class="toolbars">
+        <div class="toolbar tb-light"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+        <div class="toolbar tb-dark"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off"/></svg></div>
+      </div>
+    </section>
+
+    <!-- ============ D ============ -->
+    <section class="concept">
+      <span class="tag">D · 新增</span>
+      <h3>三重水波</h3>
+      <div class="en">RIPPLE</div>
+      <div class="hero"><svg width="120" height="120" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+      <p class="desc"><b>文字如石子投入水中，翻译如波纹向外扩散。</b>外层弧=翻译已传播到远处、中层=正在展开、内层=刚浸入、中心点=投入的文字内容。把「沉浸」画成物理现象。</p>
+      <div class="meta-line"><span class="k">隐喻</span><span>沉浸 = 如石入水、波纹扩散。无工具栏图标用此形。</span></div>
+      <div class="meta-line"><span class="k">16px</span><span>三层弧线形成独特梳状剪影，辨识度极高</span></div>
+
+      <div class="ramp"><div class="label">各尺寸（off 态）</div>
+        <div class="row">
+          <div class="cell"><svg width="48" height="48" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg><span>48</span></div>
+          <div class="cell"><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg><span>32</span></div>
+          <div class="cell"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg><span>16</span></div>
+          <div class="cell onbg">
+            <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+            <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+            <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="states-section"><div class="label">两态（16px 实际像素）</div>
+        <div class="states-grid">
+          <div class="state-card"><div class="lbl">off · 未开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg><div class="sub">透明底+紫标</div></div>
+          <div class="state-card"><div class="lbl">on · 已开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-ripple-on"/></svg><div class="sub">绿底+紫标</div></div>
+        </div>
+      </div>
+
+      <div class="toolbars">
+        <div class="toolbar tb-light"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+        <div class="toolbar tb-dark"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off"/></svg></div>
+      </div>
+    </section>
+
+    <!-- ============ E ============ -->
+    <section class="concept">
+      <span class="tag">E · 新增</span>
+      <h3>文本划译</h3>
+      <div class="en">MARKER</div>
+      <div class="hero"><svg width="120" height="120" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+      <p class="desc"><b>五短行灰色文本，被一道深紫高亮斜线划穿。</b>就像荧光笔标记了一段需要翻译的文字——翻译就是在这页面上"划过"，把每一行标记、转化。文本+划线的组合直观且动作感强。</p>
+      <div class="meta-line"><span class="k">隐喻</span><span>荧光笔划过文本 = 翻译在页面上标记/转化内容</span></div>
+      <div class="meta-line"><span class="k">16px</span><span>斜线穿过短横线 = 独特的×形剪影，极易识别</span></div>
+
+      <div class="ramp"><div class="label">各尺寸（off 态）</div>
+        <div class="row">
+          <div class="cell"><svg width="48" height="48" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg><span>48</span></div>
+          <div class="cell"><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg><span>32</span></div>
+          <div class="cell"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg><span>16</span></div>
+          <div class="cell onbg">
+            <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+            <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+            <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="states-section"><div class="label">两态（16px 实际像素）</div>
+        <div class="states-grid">
+          <div class="state-card"><div class="lbl">off · 未开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg><div class="sub">透明底+紫标</div></div>
+          <div class="state-card"><div class="lbl">on · 已开启</div><svg width="32" height="32" viewBox="0 0 128 128"><use href="#ic-marker-on"/></svg><div class="sub">绿底+紫标</div></div>
+        </div>
+      </div>
+
+      <div class="toolbars">
+        <div class="toolbar tb-light"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+        <div class="toolbar tb-dark"><div class="url">🔒 arxiv.org</div><svg class="dummy" width="16" height="16"><use href="#dummy-ext"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-puz"/></svg><svg class="dummy" width="16" height="16"><use href="#dummy-shield"/></svg><svg class="ours" width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off"/></svg></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ===== 四、爱马仕橙快速对比 ===== -->
+  <h2 class="section">四 · 爱马仕橙配色快速对比 #F37021</h2>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px;font-size:13px">
+    <div style="text-align:center;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px">
+      <div style="font-weight:700;margin-bottom:10px;color:var(--orange)">B · 逐行浸译</div>
+      <div style="display:flex;justify-content:center;gap:16px;margin-bottom:8px">
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-para-off-or"/></svg><div style="font-size:10px;color:var(--muted)">off</div></div>
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-para-on-or"/></svg><div style="font-size:10px;color:var(--muted)">on</div></div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:12px">
+        <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off-or"/></svg></div>
+        <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off-or"/></svg></div>
+        <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-para-off-or"/></svg></div>
+      </div>
+    </div>
+    <div style="text-align:center;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px">
+      <div style="font-weight:700;margin-bottom:10px;color:var(--orange)">D · 三重水波</div>
+      <div style="display:flex;justify-content:center;gap:16px;margin-bottom:8px">
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-ripple-off-or"/></svg><div style="font-size:10px;color:var(--muted)">off</div></div>
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-ripple-on-or"/></svg><div style="font-size:10px;color:var(--muted)">on</div></div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:12px">
+        <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off-or"/></svg></div>
+        <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off-or"/></svg></div>
+        <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-ripple-off-or"/></svg></div>
+      </div>
+    </div>
+    <div style="text-align:center;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px">
+      <div style="font-weight:700;margin-bottom:10px;color:var(--orange)">E · 文本划译</div>
+      <div style="display:flex;justify-content:center;gap:16px;margin-bottom:8px">
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-marker-off-or"/></svg><div style="font-size:10px;color:var(--muted)">off</div></div>
+        <div><svg width="24" height="24" viewBox="0 0 128 128"><use href="#ic-marker-on-or"/></svg><div style="font-size:10px;color:var(--muted)">on</div></div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:12px">
+        <div class="b" style="background:#fff;border:1px solid #e3e5e6"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off-or"/></svg></div>
+        <div class="b" style="background:#ECECEC"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off-or"/></svg></div>
+        <div class="b" style="background:#202124"><svg width="16" height="16" viewBox="0 0 128 128"><use href="#ic-marker-off-or"/></svg></div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top:64px">
+    <b>需要你的反馈：</b>① 深紫还是爱马仕橙？② B / D / E 选哪个方向（可混搭）？③ 绿底容器这个 on 态方向对吗？<br/>
+    定下颜色+方向后，我精修矢量几何，按现有流程（矢量合成 → Lanczos 缩 16/32/48/128 → 落 <code>public/icon/</code>）出正式两态位图。
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
-/* popup · 素 Quiet：纯白、发丝描边、单一桃红强调、克制到接近浏览器原生。
-   不引入 web 字体（作者在国内，运行时拉 Google Fonts 不稳）；靠系统字体 + 留白 + 桃红承载气质。 */
+/* popup · 素 Quiet：纯白、发丝描边、单一橙色强调、克制到接近浏览器原生。
+   不引入 web 字体（作者在国内，运行时拉 Google Fonts 不稳）；靠系统字体 + 留白 + 橙色承载气质。 */
 :root {
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
@@ -10,7 +10,7 @@
   --fg: #1a1a1c;
   --fg2: #76757a;
   --line: #ececea;
-  --peach: #d94a73;
+  --brand: #ff4808;
   --soft: #f3f3f1;       /* 关闭态按钮底 */
   --err: #d5402f;
 }
@@ -20,7 +20,7 @@
     --fg: #ececee;
     --fg2: #9a99a0;
     --line: #2c2c2f;
-    --peach: #ff6e93;
+    --brand: #ff6a33;
     --soft: #29292c;
     --err: #ff7a6b;
   }
@@ -54,7 +54,7 @@ body {
 /* 域名 */
 .domain { display: flex; align-items: center; gap: 8px; }
 .fav { width: 15px; height: 15px; border-radius: 4px; flex: none; object-fit: cover; }
-.fav--ph { background: linear-gradient(135deg, #f3c6d4, #e79ab1); }
+.fav--ph { background: linear-gradient(135deg, #ffd2bf, #ff7a4d); }
 .domain-name { font-size: 12.5px; color: var(--fg2); word-break: break-all; }
 
 /* 状态行 */
@@ -71,14 +71,14 @@ body {
 
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; position: relative; }
 .dot--off { background: #c4c3bf; }
-.dot--on { background: var(--peach); }
+.dot--on { background: var(--brand); }
 .dot--err { background: var(--err); }
 .pulse::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: var(--peach);
+  background: var(--brand);
   animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 @keyframes ping {
@@ -92,7 +92,7 @@ body {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: var(--peach);
+  background: var(--brand);
   transition: width 0.4s ease;
 }
 
@@ -115,9 +115,9 @@ body {
 .action:hover { transform: translateY(-1px); }
 .action:active { transform: none; }
 .action--on {
-  background: var(--peach);
+  background: var(--brand);
   color: #fff;
-  box-shadow: 0 8px 18px -10px rgba(217, 74, 115, 0.7);
+  box-shadow: 0 8px 18px -10px rgba(255, 72, 8, 0.7);
 }
 .action--off { background: var(--soft); color: var(--fg); }
 .action kbd {
@@ -141,7 +141,7 @@ body {
 .link {
   background: none;
   border: 0;
-  color: var(--peach);
+  color: var(--brand);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -168,6 +168,6 @@ body {
   background: var(--bg);
   color: var(--fg);
 }
-.authbox input:focus { outline: none; border-color: var(--peach); }
+.authbox input:focus { outline: none; border-color: var(--brand); }
 .auth-err { font-size: 11.5px; color: var(--err); }
 .auth-row { display: flex; align-items: center; justify-content: space-between; }
