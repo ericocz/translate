@@ -25,3 +25,4 @@ async def test_issue_distinct_orders(db_session):
         b = await repo.issue(email="u@x.com", source="creem", source_ref="ord_2")
     assert a.code != b.code
     assert a.max_devices == 5 and a.product == "buyout"
+    assert a.status == "active"  # Core insert 仍应套用列的客户端默认（不在 .values 里）

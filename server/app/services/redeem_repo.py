@@ -1,17 +1,19 @@
 import secrets
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import RedeemCode
+from app.db.models import BUYOUT_MAX_DEVICES, BUYOUT_PRODUCT, RedeemCode
 
 _ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 去掉易混 0/O/1/I/L
 
 
 def gen_code() -> str:
-    g = lambda: "".join(secrets.choice(_ALPHABET) for _ in range(4))  # noqa: E731
-    return f"IMT-{g()}-{g()}-{g()}"
+    def group() -> str:
+        return "".join(secrets.choice(_ALPHABET) for _ in range(4))
+
+    return f"IMT-{group()}-{group()}-{group()}"
 
 
 class RedeemCodeRepo:
@@ -33,28 +35,25 @@ class RedeemCodeRepo:
         email: str,
         source: str,
         source_ref: str,
-        product: str = "buyout",
-        max_devices: int = 5,
+        product: str = BUYOUT_PRODUCT,
+        max_devices: int = BUYOUT_MAX_DEVICES,
     ) -> RedeemCode:
-        """幂等签发：source_ref 已存在则返回原码；否则新建。"""
-        existing = await self.get_by_source_ref(source, source_ref)
-        if existing:
-            return existing
-        rc = RedeemCode(
-            code=gen_code(),
-            email=email,
-            product=product,
-            source=source,
-            source_ref=source_ref,
-            max_devices=max_devices,
+        """幂等签发：source_ref 已存在则返回原码；否则新建。
+        ON CONFLICT DO NOTHING（source_ref 唯一）兜底 webhook 重投/并发——同一订单只一张。"""
+        stmt = (
+            insert(RedeemCode)
+            .values(
+                code=gen_code(),
+                email=email,
+                product=product,
+                source=source,
+                source_ref=source_ref,
+                max_devices=max_devices,
+            )
+            .on_conflict_do_nothing(index_elements=["source_ref"])
         )
-        self._s.add(rc)
-        try:
-            await self._s.commit()
-        except IntegrityError:  # 并发：source_ref 唯一冲突 → 取已存在
-            await self._s.rollback()
-            existing = await self.get_by_source_ref(source, source_ref)
-            assert existing is not None
-            return existing
-        await self._s.refresh(rc)
+        await self._s.execute(stmt)
+        await self._s.commit()
+        rc = await self.get_by_source_ref(source, source_ref)
+        assert rc is not None  # 刚插入或重投命中已存在，必有一行
         return rc

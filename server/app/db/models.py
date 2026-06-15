@@ -153,6 +153,11 @@ class CreditAccount(Base):
     )
 
 
+# 买断产品策略默认（D-06，非部署开关）——单一来源，model 列默认与 RedeemCodeRepo.issue 共用，避免漂移。
+BUYOUT_PRODUCT = "buyout"
+BUYOUT_MAX_DEVICES = 5
+
+
 class RedeemCode(Base):
     """买断注册码：一张码 = 一次买断（BYOK 终身，激活时绑 ≤max_devices 台，绑定逻辑在激活端点/另计划）。
     source_ref 唯一 → 同一支付订单 webhook 重投只签发一张（幂等）。"""
@@ -162,10 +167,10 @@ class RedeemCode(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    product: Mapped[str] = mapped_column(String(32), default="buyout", nullable=False)
+    product: Mapped[str] = mapped_column(String(32), default=BUYOUT_PRODUCT, nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False)  # creem|yungouos
     source_ref: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)  # 订单 id，幂等键
-    max_devices: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    max_devices: Mapped[int] = mapped_column(Integer, default=BUYOUT_MAX_DEVICES, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active|revoked
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
