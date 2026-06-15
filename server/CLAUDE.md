@@ -1,6 +1,8 @@
 # server/CLAUDE.md —— FastAPI 后端
 
-本目录是「秒懂翻译 / aha translate」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，产品设计见《[../产品设计-服务端化与账号体系.md](../产品设计-服务端化与账号体系.md)》，分阶段计划见 `../docs/superpowers/plans/`（P0–P8）。
+本目录是「秒懂翻译 / aha translate」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，分阶段实现计划见 `../docs/superpowers/plans/`（P0–P8 基座→上架 + D-11~D-18 商业化）。
+
+> **为什么服务端化**：原本纯客户端自用——DeepSeek Key 随构建注入、提示词 / 流水线全在扩展内。要公开上架就有硬伤：① Key 解包即被盗用；② 没账号 / 配额 / 限流 / 打点，挡不住刷量也看不到线上。故把「翻译流水线 + 密钥 + 账号 + 配额 + 限流 + 记账 + 收单」整体收进后端，扩展退化为「DOM 端 + API 客户端」。（早期『服务端全局共享缓存』方案已被 **D-11 否决**：隐私上不在服务端留存用户译文，缓存改到客户端本地、命中不发服务端、不计费。）
 
 ---
 
@@ -32,7 +34,7 @@ app/
   db/      base.py(engine/async_session/Base) · models.py(全部表)
   services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
            translator.py(编排→事件流: Block/Done/Error/UsageEvent)
-           quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py · credit_repo.py(credits 账本: 幂等发放/扣减/余额)
+           quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py · credit_repo.py(credits 账本: 幂等发放/扣减/余额) · pricing.py(扣费费率 cost_micro: in1/out2 micro-¥/token)
            creem.py(D-18 Creem webhook HMAC 验签 + checkout.completed 解析) · redeem_repo.py(买断注册码幂等签发) · email.py(EmailSender 接口 + LogEmailSender 占位)
   routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py · billing.py(Creem webhook 收单)
   main.py  挂载全部 router + /health
@@ -77,4 +79,4 @@ alembic/   迁移；scripts/create_admin.py 建管理员
 
 ## 验证
 
-纯逻辑（markers / 切块 / token / 限流状态机 / 配额）用 pytest 单测；端点用 httpx ASGITransport + 依赖覆盖（fake cache / deepseek / quota / daily / tier）；翻译真实链路用 curl 冒烟（注册 → translate → usage）。
+纯逻辑（markers / 切块 / token / 限流状态机 / 配额 / 费率 / 加密金标向量）用 pytest 单测；端点用 httpx ASGITransport + 依赖覆盖（deepseek / quota / daily / tier / credits）；翻译真实链路用 curl 冒烟（注册 → translate → usage）。
