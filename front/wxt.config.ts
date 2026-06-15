@@ -6,15 +6,15 @@ export default defineConfig({
   srcDir: '.',
   outDir: 'output',
   manifest: {
-    name: '沉浸式翻译（DeepSeek V4 Flash）',
+    name: '秒懂翻译 · aha translate',
     description: '把英文网页整页翻译成中文：原文先垫、流式逐块替换。',
     version: '0.1.0',
     // webNavigation：监听 SPA 同文档导航（pushState/replaceState），对新路由触发翻译。
     permissions: ['storage', 'commands', 'webNavigation'],
     // 客户端不再直连 DeepSeek；后端 fetch 走 <all_urls>（含 http://localhost 开发后端）。
     host_permissions: ['<all_urls>'],
-    // 默认（未开启）图标：橙色双气泡「A / 文」主图。已开启 / 翻译中 / 出错时由
-    // background 运行时换成 on-*/translating-*/error-*（右下角烤入角标）。
+    // 默认（未开启）图标：青绿底白「A / 文 + aha 火花」满铺主图。已开启翻译时由
+    // background 换成 on-*（右下角烤入绿勾角标）。仅 off / on 两态，不随翻译进度变化。
     // 图标文件在 public/icon/，由 design/build-icons.sh 生成，构建后位于扩展根。
     icons: {
       16: 'icon/16.png',
@@ -23,7 +23,7 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     action: {
-      default_title: '沉浸式翻译',
+      default_title: '秒懂翻译',
       default_icon: {
         16: 'icon/16.png',
         32: 'icon/32.png',

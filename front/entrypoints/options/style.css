@@ -1,4 +1,4 @@
-/* options · 素 Quiet：与 popup 同语言——纯白卡片、发丝描边、单一橙色、克制留白。 */
+/* options · 素 Quiet：与 popup 同语言——纯白卡片、发丝描边、单一青绿、克制留白。 */
 :root {
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
@@ -10,7 +10,7 @@
   --fg: #1a1a1c;
   --fg2: #76757a;
   --line: #eae9e6;
-  --brand: #ff4808;
+  --brand: #038f93;
   --soft: #f1f1ef;
 }
 @media (prefers-color-scheme: dark) {
@@ -20,7 +20,7 @@
     --fg: #ececee;
     --fg2: #9a99a0;
     --line: #2c2c2f;
-    --brand: #ff6a33;
+    --brand: #1fc4ca;
     --soft: #29292c;
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "immersive-translate",
+  "name": "aha-translate",
   "description": "自用的英文整页翻译 Chrome 扩展，模型 DeepSeek V4 Flash",
   "private": true,
   "version": "0.1.0",

@@ -72,7 +72,7 @@ export function Options() {
       <header className="head">
         <Mark />
         <div className="head-t">
-          <h1>沉浸式翻译</h1>
+          <h1>秒懂翻译</h1>
           <span className="head-sub">设置</span>
         </div>
       </header>
@@ -182,13 +182,13 @@ function formatBytes(bytes: number): string {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
-/** 素方案双线标记（开启色：下线橙），用于设置页页眉。 */
+/** 素方案双线标记（开启色：下线青绿），用于设置页页眉。 */
 function Mark() {
   return (
     <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden>
-      <rect x="2.5" y="2.5" width="27" height="27" rx="8" fill="#fff3ee" stroke="#ffd9c7" strokeWidth="1.2" />
+      <rect x="2.5" y="2.5" width="27" height="27" rx="8" fill="#e8f7f7" stroke="#bfe7e9" strokeWidth="1.2" />
       <rect x="8" y="11" width="16" height="3.2" rx="1.6" fill="none" stroke="#26242a" strokeWidth="1.6" />
-      <rect x="8" y="18.2" width="13" height="3.2" rx="1.6" fill="#ff4808" />
+      <rect x="8" y="18.2" width="13" height="3.2" rx="1.6" fill="#038f93" />
     </svg>
   );
 }

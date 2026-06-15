@@ -1,6 +1,6 @@
 // background service worker：
 //  ① 翻译 port（薄适配层）——内容脚本把待译块发来，委托 translateBlocks 编排，逐块回送；
-//  ② 工具栏图标三态——按 tab 维护 未开启/已开启/翻译中/出错，让你在工具栏一眼看出某站点状态；
+//  ② 工具栏图标两态——按 tab 显示 未开启 / 已开启翻译（只反映白名单，不随翻译进度变化）；
 //  ③ 工具栏快捷键——翻译 / 取消翻译当前网站。
 // 不含任何翻译业务逻辑（都在后端 /v1/translate）。
 
@@ -18,16 +18,8 @@ import {
 import { setTabIcon, hostOf } from '@/lib/icon';
 
 export default defineBackground(() => {
-  // 「翻译中 / 出错」是按 tab 的临时叠加态；基线 on/off 永远由白名单决定。
-  const overlay = new Map<number, 'translating' | 'error'>();
-
-  /** 刷新某 tab 的图标：有叠加态优先显示，否则按域名是否在白名单显示 on/off。 */
+  /** 刷新某 tab 的图标：按域名是否在白名单显示 on/off（只有这两态）。 */
   async function refreshTabIcon(tabId: number, domain?: string): Promise<void> {
-    const ov = overlay.get(tabId);
-    if (ov) {
-      await setTabIcon(tabId, ov);
-      return;
-    }
     let host = domain;
     if (host === undefined) {
       try {
@@ -53,10 +45,9 @@ export default defineBackground(() => {
     }
   }
 
-  // ---- ① 翻译 port，顺带驱动 翻译中/出错/完成 的图标叠加态 ----
+  // ---- ① 翻译 port：内容脚本发来待译块，委托 translateWithCache 编排、逐块回送 ----
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PORT_NAME) return;
-    const tabId = port.sender?.tab?.id;
     const domain = hostOf(port.sender?.url);
     let job: ApiClient | null = null;
 
@@ -72,19 +63,11 @@ export default defineBackground(() => {
       if (msg.kind === 'cancel') {
         job?.abort();
         job = null;
-        if (tabId !== undefined) {
-          overlay.delete(tabId);
-          void refreshTabIcon(tabId, domain);
-        }
         return;
       }
       if (msg.kind !== 'start') return;
 
       job?.abort(); // 新请求到来：先中止上一轮
-      if (tabId !== undefined) {
-        overlay.set(tabId, 'translating');
-        void setTabIcon(tabId, 'translating');
-      }
       const startedAt = Date.now();
       track('translate_start', domain ?? null, { blocks: msg.blocks.length });
       const thisJob: ApiClient = translateWithCache(
@@ -94,10 +77,6 @@ export default defineBackground(() => {
           onBlock: (id, translated) => send({ kind: 'block', id, translated }),
           onDone: () => {
             if (job === thisJob) job = null;
-            if (tabId !== undefined) {
-              overlay.delete(tabId);
-              void refreshTabIcon(tabId, domain);
-            }
             track('translate_done', domain ?? null, {
               blocks: msg.blocks.length,
               ms: Date.now() - startedAt,
@@ -106,10 +85,6 @@ export default defineBackground(() => {
           },
           onError: (failure) => {
             if (job === thisJob) job = null;
-            if (tabId !== undefined) {
-              overlay.set(tabId, 'error');
-              void setTabIcon(tabId, 'error');
-            }
             track('translate_error', domain ?? null, { kind: failure.kind });
             reportError(failure.kind, failure.message, { host: domain ?? null });
             send({ kind: 'error', failure });
@@ -122,8 +97,6 @@ export default defineBackground(() => {
     port.onDisconnect.addListener(() => {
       job?.abort();
       job = null;
-      // 页面卸载 / 导航：清掉叠加态，重新加载后按白名单显示基线。
-      if (tabId !== undefined) overlay.delete(tabId);
     });
   });
 
@@ -150,8 +123,6 @@ export default defineBackground(() => {
   chrome.tabs.onActivated.addListener(({ tabId }) => void refreshTabIcon(tabId));
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // 开始导航：旧的翻译叠加态作废。
-    if (changeInfo.status === 'loading' && changeInfo.url) overlay.delete(tabId);
     if (changeInfo.status === 'complete' || changeInfo.url) {
       void refreshTabIcon(tabId, hostOf(tab.url));
     }

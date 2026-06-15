@@ -1,5 +1,5 @@
-/* popup · 素 Quiet：纯白、发丝描边、单一橙色强调、克制到接近浏览器原生。
-   不引入 web 字体（作者在国内，运行时拉 Google Fonts 不稳）；靠系统字体 + 留白 + 橙色承载气质。 */
+/* popup · 素 Quiet：纯白、发丝描边、单一青绿强调、克制到接近浏览器原生。
+   不引入 web 字体（作者在国内，运行时拉 Google Fonts 不稳）；靠系统字体 + 留白 + 青绿承载气质。 */
 :root {
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
@@ -10,7 +10,7 @@
   --fg: #1a1a1c;
   --fg2: #76757a;
   --line: #ececea;
-  --brand: #ff4808;
+  --brand: #038f93;
   --soft: #f3f3f1;       /* 关闭态按钮底 */
   --err: #d5402f;
 }
@@ -20,7 +20,7 @@
     --fg: #ececee;
     --fg2: #9a99a0;
     --line: #2c2c2f;
-    --brand: #ff6a33;
+    --brand: #1fc4ca;
     --soft: #29292c;
     --err: #ff7a6b;
   }
@@ -47,14 +47,13 @@ body {
 }
 
 /* 品牌行 */
-.brand { display: flex; align-items: center; gap: 9px; }
-.brand-mark { display: block; flex: none; }
+.brand { display: flex; align-items: center; }
 .brand-name { font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em; }
 
 /* 域名 */
 .domain { display: flex; align-items: center; gap: 8px; }
 .fav { width: 15px; height: 15px; border-radius: 4px; flex: none; object-fit: cover; }
-.fav--ph { background: linear-gradient(135deg, #ffd2bf, #ff7a4d); }
+.fav--ph { background: linear-gradient(135deg, #a8e4e6, #11b6bb); }
 .domain-name { font-size: 12.5px; color: var(--fg2); word-break: break-all; }
 
 /* 状态行 */
@@ -117,7 +116,7 @@ body {
 .action--on {
   background: var(--brand);
   color: #fff;
-  box-shadow: 0 8px 18px -10px rgba(255, 72, 8, 0.7);
+  box-shadow: 0 8px 18px -10px rgba(3, 143, 147, 0.7);
 }
 .action--off { background: var(--soft); color: var(--fg); }
 .action kbd {
