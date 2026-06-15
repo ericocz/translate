@@ -1,6 +1,6 @@
 # front/CLAUDE.md —— 浏览器扩展
 
-本目录是「沉浸式翻译」浏览器扩展。仓库总览见上一级 [`../CLAUDE.md`](../CLAUDE.md)，体验设计见《[../沉浸式翻译插件-用户体验设计.md](../沉浸式翻译插件-用户体验设计.md)》。
+本目录是「秒懂翻译 / aha translate」浏览器扩展。仓库总览见上一级 [`../CLAUDE.md`](../CLAUDE.md)，体验设计见《[../沉浸式翻译插件-用户体验设计.md](../沉浸式翻译插件-用户体验设计.md)》。
 
 > **关键：翻译流水线已搬到后端（`../server`）。** 扩展只负责 DOM（抽取 / 标记 / 重建 / 还原）+ 调后端 API，**不再持有任何密钥**。本文件描述重构后的现状。
 
@@ -41,7 +41,7 @@
 ```
 entrypoints/
   content.ts            # 抽取 / 标记 / 流式回填 / Ctrl+点击 / 还原；有界沉降补抽 settleAndReextract + SPA 软导航重译 handleSpaNavigation；errorKind 透传
-  background.ts         # service worker：port 适配 → 经 translate-cached（本地缓存优先）调后端；图标三态；webNavigation 软导航监听；翻译生命周期埋点(track/reportError)
+  background.ts         # service worker：port 适配 → 经 translate-cached（本地缓存优先）调后端；图标 off/on 两态；webNavigation 软导航监听；翻译生命周期埋点(track/reportError)
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号（消 #418）
   popup/  options/      # React「素 Quiet」：popup 账号区(登录/注册/登出)+免费额度N/3或今日token+翻译按钮+配额柔和提示；options 管白名单
 lib/
@@ -57,7 +57,7 @@ lib/
   markers.ts    # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts  # 依 styleMap + tokenize 把带标记译文重建为 DOM
   storage.ts    # 白名单 / 设置（含本地缓存开关 cacheEnabled）
-  icon.ts       # 工具栏图标三态（off/on/翻译中/出错）
+  icon.ts       # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
   config.ts     # BACKEND_URL + SERVER_PUBKEY（D-13 加密公钥，空＝明文 dev）唯一读取处（构建期由 .env 的 WXT_* 注入）
   messages.ts   # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
   types.ts      # 共享类型（FailureKind 含 'quota'）

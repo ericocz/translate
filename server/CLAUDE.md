@@ -1,6 +1,6 @@
 # server/CLAUDE.md —— FastAPI 后端
 
-本目录是「沉浸式翻译」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，产品设计见《[../产品设计-服务端化与账号体系.md](../产品设计-服务端化与账号体系.md)》，分阶段计划见 `../docs/superpowers/plans/`（P0–P8）。
+本目录是「秒懂翻译 / aha translate」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，产品设计见《[../产品设计-服务端化与账号体系.md](../产品设计-服务端化与账号体系.md)》，分阶段计划见 `../docs/superpowers/plans/`（P0–P8）。
 
 ---
 
