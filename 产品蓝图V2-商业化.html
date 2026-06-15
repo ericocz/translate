@@ -266,6 +266,14 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
     <tr><td class="mono">D-17</td><td>术语与判区</td><td>全局<b>「免费」→「赠送额度」</b>（赠送 ¥2 优先于付费余额消费）。判区：<b>IP 仅软默认</b> + 支付通道 KYC 兜闸，<b>不建 VPN 检测</b>。</td></tr>
   </table>
   <div class="callout ok"><b>本块为准：</b>正文 §0–§16 中凡与上表冲突的旧值（Creem、L2 共享缓存、~40 块分批、¥39.9/$7、chrome.identity 三件套、「免费」字样）一律以「06-14 第二轮」为准；§17 开放问题 O-01~O-17 已全部拍板。<b>本阶段进入编码</b>（解除原「不动代码」约束）。</div>
+
+  <h3 style="margin-top:30px">2026-06-14 第三轮修订（D-18）<span class="tag acc" style="font-size:11px;vertical-align:2px">覆盖 D-10 海外收款部分</span></h3>
+  <p style="font-size:13.5px;color:var(--ink2)">D-10 当时为海外线选了「Stripe HK 护照个人户 + Payoneer 中转」。复核海外收款主体可行性后<b>反转该决策</b>：海外线改回 <b>Creem（MoR）</b>，<b>提现到个人支付宝</b>。下表为准，覆盖 D-10 中「去掉 Creem / 海外＝Stripe HK」一节及 §5/§6 相应处。</p>
+  <table>
+    <tr><th style="width:64px">编号</th><th style="width:150px">决策点</th><th>结论（覆盖 D-10 海外部分）</th></tr>
+    <tr><td class="mono">D-18</td><td>海外收款改回 Creem</td><td><b>海外 $9.99 买断改走 Creem（MoR）</b>，不再用 Stripe HK / Payoneer。<b>提现到个人支付宝</b>（Creem 原生支持：onboarding 选个人 → payout 加支付宝；<b>KYC 实名须与支付宝实名一致</b>，故 KYC 用身份证中文名）。费率 3.9% + $0.40/笔；提现 <code>max($7,1%)</code>/批，攒批再提；最低提现 $50；每月 1/15 出账、风控持有 7–12 天；支付宝限额单笔 ≤5万 CNY、年 30–60万 CNY。<b>理由</b>：免去香港个人户开户与 KYC 冻结风险、免自理海外税（MoR 代缴）、链路无 Payoneer/Wise 中转直进支付宝；代价＝比自建 Stripe 多 ~1 个点费率（$9.99 单约多 $0.1，可接受）。<span class="tag dim">覆盖 D-10 海外、§5、§6 收款链路海外线</span></td></tr>
+  </table>
+  <div class="callout ok"><b>本块为准：</b>正文及 D-10 中凡「海外＝Stripe HK / Payoneer」「去掉 Creem」的表述，海外线一律以 D-18 为准（Creem + 个人支付宝）。<b>大陆线不变</b>（仍 YunGouOS 收 ¥ 买断/充值）；Creem 仅用于海外 $9.99 买断、不做小额充值。收款手册 <a href="stripe-payoneer-and-yungouos.html">stripe-payoneer-and-yungouos.html</a> 的海外章节已被本块取代。</div>
 </section>
 <!-- ================= S3 用户身份与旅程 ================= -->
 <section id="s3">
@@ -316,7 +324,7 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
     <tr><td class="mono">二</td><td>身份识别三件套</td><td>账号 / chrome.identity 哈希 / 指纹哈希，任一命中即同一用户；仅用于防重领，同意后采集。</td><td><span class="tag warn">中</span> GDPR</td><td><a href="#s3">§3</a> <a href="#s10">§10</a></td></tr>
     <tr><td class="mono">三</td><td>新用户 ¥2/$0.5</td><td>领取制（按钮仪式感）；点了才生效；三件套防重领；大陆/海外按 IP 判区（O-06）。</td><td><span class="tag ok">低</span></td><td><a href="#s5">§5</a></td></tr>
     <tr><td class="mono">四</td><td>5000 名额</td><td>原子计数器（DB 行锁）到 5000 即停领；「盈利后追加释放」写进领取页承诺。</td><td><span class="tag ok">低</span></td><td><a href="#s5">§5</a></td></tr>
-    <tr><td class="mono">五</td><td>买断 + 充值</td><td>买断 ¥39.9/$7（BYOK+注册码×5 机+邮箱发码+自助重查）；充值两币种多档（小额档手续费红灯见 §5）；Stripe HK + Creem 双线。</td><td><span class="tag warn">中</span> 灰色开户</td><td><a href="#s5">§5</a></td></tr>
+    <tr><td class="mono">五</td><td>买断 + 充值</td><td>买断 ¥49.9/$9.99（BYOK+注册码×5 机+邮箱发码+自助重查）；充值两币种多档（小额档手续费红灯见 §5）；海外 Creem + 大陆 YunGouOS 双线（D-18）。</td><td><span class="tag ok">低</span></td><td><a href="#s5">§5</a></td></tr>
     <tr><td class="mono">六</td><td>上线必备功能</td><td>双语/单译文/选词 + YouTube/B 站/Netflix 字幕 + Top100 优化 + 输入框三空格 + 目标语言可选（默认浏览器语言、首触弹窗三选、可回看原文）。全量过 Gate 才发（D-05）。</td><td><span class="tag risk">高</span> 工作量</td><td><a href="#s15">§15</a></td></tr>
     <tr><td class="mono">七</td><td>首装引导</td><td>五步 onboarding：语言 → 演示 → 坦白局 → 领取仪式 → 上手；注册码旁路。</td><td><span class="tag ok">低</span></td><td><a href="#s3">§3</a></td></tr>
     <tr><td class="mono">八</td><td>六主题换肤</td><td>6 主题（1 深色）+ 跟随系统开关，CSS variables 实现；本页顶栏即原型演示。作用域默认=扩展自有 UI + 页面译文装饰色（O-07）。</td><td><span class="tag ok">低</span></td><td>顶栏演示</td></tr>
@@ -340,28 +348,26 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
 
   <h3>定价总表（对用户公开展示的就是这张表，D-08 定价透明）<span class="tag acc" style="font-size:11px;vertical-align:2px">06-14 更新</span></h3>
   <table>
-    <tr><th>商品</th><th>大陆（YunGouOS · 支付宝/微信 · ¥）</th><th>海外（Stripe HK · $）</th><th>说明</th></tr>
+    <tr><th>商品</th><th>大陆（YunGouOS · 支付宝/微信 · ¥）</th><th>海外（Creem · MoR · $）</th><th>说明</th></tr>
     <tr><td><b>新人赠送额度</b></td><td>¥2（赠送领取）</td><td>$0.5（赠送领取）</td><td>限 5000 名额；点按钮领取；每用户一次（设备指纹判定）；优先于付费余额消费</td></tr>
     <tr><td><b>充值额度</b></td><td>¥1 / 5 / 10 / 20 / 100</td><td><span class="tag dim">海外不做充值</span></td><td>预付 credits，按 Token 实耗扣减（<b>命中本地缓存不计费</b>）；<b>须注册</b>。海外按量需求走 BYOK</td></tr>
     <tr><td><b>一次性买断</b></td><td>¥49.9</td><td>$9.99</td><td>BYOK 终身用全部功能；注册码 ×5 台；购买填邮箱收码、可自助重查；不必建账号（D-06）</td></tr>
   </table>
 
   <div class="callout ok">
-    <b>小额档手续费红灯已解（O-05 定案）：</b>充值全部走 <b>YunGouOS（综合 ~2.6%，无每笔固定费）</b>——原 Creem/$ 固定费导致的「¥1 收 1 亏 2、¥5 损耗 62%」倒挂随之消失，¥1 档手续费仅约 <b>¥0.03</b>。<b>Stripe 只用于海外 $9.99 买断</b>（一次大额，固定费占比可忽略），<b>不做小额充值</b>。所以五档充值 1/5/10/20/100 元全部健康保留，充值页仍按 D-08 公开每档手续费占比（§6 计算器已按 YunGouOS 口径）。
+    <b>小额档手续费红灯已解（O-05 定案）：</b>充值全部走 <b>YunGouOS（综合 ~2.6%，无每笔固定费）</b>——MoR/$ 固定费（Creem 0.40/笔）导致的「¥1 收 1 亏 2、¥5 损耗 62%」倒挂随之消失，¥1 档手续费仅约 <b>¥0.03</b>。<b>Creem 只用于海外 $9.99 买断</b>（一次大额，固定费占比可忽略），<b>不做小额充值</b>（D-18）。所以五档充值 1/5/10/20/100 元全部健康保留，充值页仍按 D-08 公开每档手续费占比（§6 计算器已按 YunGouOS 口径）。
   </div>
 
-  <h3>收款链路（D-02→D-10 · 详见 <a href="stripe-payoneer-and-yungouos.html">收款手册 ↗</a>）</h3>
+  <h3>收款链路（D-02→D-10→<b>D-18</b> · 海外章节见 <a href="MoR平台选型.html">MoR 选型 ↗</a>）</h3>
   <div class="grid2">
     <div class="card">
-      <b>海外线 · USD</b>
+      <b>海外线 · USD（Creem MoR）</b>
       <div class="flow" style="margin-top:10px">
         <div class="node"><b>用户</b><small>信用卡/钱包</small></div>
-        <div class="ar">~3.9%+HK$2.35<em>+2% 换汇</em></div>
-        <div class="node"><b>Stripe HK</b><small>护照个人户<br>手动提现</small></div>
-        <div class="ar">~1.2%<em>同名</em></div>
-        <div class="node"><b>Payoneer</b><small>港币户</small></div>
-        <div class="ar">结汇</div>
-        <div class="node"><b>国内卡</b><small>$100 到手 ≈ $94-95</small></div>
+        <div class="ar">3.9%+$0.40<em>MoR 代缴税</em></div>
+        <div class="node"><b>Creem</b><small>记录商户<br>个人 onboarding</small></div>
+        <div class="ar">max($7,1%)/批<em>换汇 → CNY</em></div>
+        <div class="node"><b>个人支付宝</b><small>实名须同 KYC<br>单笔≤5万/年30-60万</small></div>
       </div>
     </div>
     <div class="card">
@@ -376,8 +382,8 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
     </div>
   </div>
   <ul>
-    <li><b>统一 credits 账本</b>：两条线各自 webhook（Stripe <code>checkout.session.completed</code> / YunGouOS 异步通知）→ <b>同一个发放函数</b>（档位 → credits + 幂等键去重 + 验签）。档位调整两线同步改，永不算错。</li>
-    <li><b>红线（来自你的手册，原样保留）</b>：Stripe 全链路同名、手动提现不囤大额、控退款争议率、HK 个人户属灰色地带要有预期；YunGouOS 别把唯一通道押一家、个人进件有限额风控；金额起来后提前规划税务申报。</li>
+    <li><b>统一 credits 账本</b>：两条线各自 webhook（Creem <code>checkout.completed</code> 验签 / YunGouOS 异步通知）→ <b>同一个发放函数</b>（档位 → credits + 幂等键去重 + 验签）。档位调整两线同步改，永不算错。</li>
+    <li><b>红线</b>：Creem 端 onboarding 选个人、<b>KYC 实名须与支付宝实名一致</b>（建议用身份证中文名）、$7/批提现费宜攒批再提、注意支付宝限额（单笔 5万 / 年 30-60万 CNY）、控退款争议率；YunGouOS 别把唯一通道押一家、个人进件有限额风控；<b>支付宝到账属境外收入、国内个税申报自负</b>。</li>
     <li><b>买断商品</b>同样走双线 one-time price；支付成功 webhook → 生成注册码 → 发邮件（§8 通道）。</li>
   </ul>
 
@@ -590,7 +596,7 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
     <tr><td>运营打点</td><td>合法利益 + 可拒绝</td><td>坦白局展示 + 设置页<b>可关</b>（opt-out）</td><td>只记 host 与指标；匿名 device id；无正文</td><td><span class="tag warn">补 opt-out 开关</span></td></tr>
     <tr><td>错误上报</td><td>合法利益</td><td>同上，同一开关</td><td>上报前脱敏（去 URL 参数/正文片段）</td><td><span class="tag warn">补脱敏审查</span></td></tr>
     <tr><td>IP → 地区判定（¥/$ 区）</td><td>合法利益</td><td>隐私政策披露</td><td>只存判定结果（CN/非 CN），不存 IP 原文</td><td><span class="tag ok">设计如此</span></td></tr>
-    <tr><td>支付信息</td><td>合同履行</td><td>结账页</td><td>全在 Stripe/Creem（MoR 代持卡数据），我们只收 webhook 结果</td><td><span class="tag ok">合规</span></td></tr>
+    <tr><td>支付信息</td><td>合同履行</td><td>结账页</td><td>全在 Creem（MoR 代持卡数据）/ YunGouOS，我们只收 webhook 结果</td><td><span class="tag ok">合规</span></td></tr>
   </table>
 
   <h3>用户权利兑现</h3>
@@ -646,7 +652,7 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
     <tr><td class="mono">first_translate</td><td>距安装时长</td><td>aha moment 多快到达？</td></tr>
     <tr><td class="mono">translate_page</td><td>host, blocks, l1_hit, l2_hit_rate, provider, duration, mode(双语/单译/选词/字幕/输入框/聊天)</td><td>北极星原料；各模式使用占比；缓存效益</td></tr>
     <tr><td class="mono">quota_empty_shown</td><td>balance_was(claim/topup)</td><td>额度耗尽后多少人见到付费引导？</td></tr>
-    <tr><td class="mono">topup_started / topup_paid</td><td>tier, channel(stripe/creem)</td><td>充值漏斗与档位分布（验证 O-05）</td></tr>
+    <tr><td class="mono">topup_started / topup_paid</td><td>tier, channel(creem/yungouos)</td><td>充值漏斗与档位分布（验证 O-05）</td></tr>
     <tr><td class="mono">buyout_paid / code_activated</td><td>device_seq(第几台)</td><td>买断转化；多设备使用真实度</td></tr>
     <tr><td class="mono">settings_cache_off / telemetry_off / theme_changed</td><td>—</td><td>用户对缓存/隐私/皮肤的真实态度</td></tr>
     <tr><td class="mono">error_shown</td><td>kind, surface</td><td>用户可感知错误的暴露面</td></tr>
@@ -748,7 +754,7 @@ footer{border-top:1px solid var(--line);color:var(--ink3);font-size:12px;padding
   <div class="shead"><span class="no">16</span><h2>里程碑：开发分期，发射一次</h2><span class="sub">每期产物可独立验证 · 顺序按依赖与风险前置排列</span></div>
   <table>
     <tr><th style="width:90px">里程碑</th><th>交付物</th><th>为什么排这里</th></tr>
-    <tr><td><b>M1 钱地基</b></td><td>钱包/credits 账本、领取服务（<b>指纹+唯一码</b>防重领/找回 + 5000 计数）、验证码注册改造、<b>Stripe 买断 + YunGouOS 充值/买断</b>双线 webhook、注册码服务；收款账号按手册搭好并小额实测</td><td>商业化是这次重构的「why」，最大不确定性（开户/到账）必须最先消除</td></tr>
+    <tr><td><b>M1 钱地基</b></td><td>钱包/credits 账本、领取服务（<b>指纹+唯一码</b>防重领/找回 + 5000 计数）、验证码注册改造、<b>Creem 海外买断 + YunGouOS 大陆充值/买断</b>双线 webhook、注册码服务；收款账号按手册搭好并小额实测</td><td>商业化是这次重构的「why」，最大不确定性（开户/到账）必须最先消除</td></tr>
     <tr><td><b>M2 多语言核</b></td><td>提示词参数化、缓存键加语言对、语言矩阵探测器跑出首版、日文军规二修复、L1 缓存上线</td><td>多语言动翻译管道根基，越晚动越贵；日文 bug 同根同修</td></tr>
     <tr><td><b>M3 BYOK 通道</b></td><td>双格式适配器、预设供应商、多模型管理、测试按钮、激活态打通买断全流程</td><td>依赖 M1 注册码 + M2 矩阵；完成后买断商品可内测</td></tr>
     <tr><td><b>M4 场景引擎</b></td><td>字幕引擎（YouTube→B 站→Netflix 递进）、输入框三空格（含 ComfyUI）、Discord 观察器、视角稳定改造</td><td>工作量最大、风险最分散的一期，放在地基稳定之后全力攻坚</td></tr>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海外 $9.99 买断 · 个人开发者两方案落地步骤</title>
+<style>
+  :root{--ink:#1f1d1a;--sub:#6b6660;--line:#e7e2da;--bg:#faf8f4;--card:#fff;
+    --peach:#e8836b;--green:#3f9d6d;--green-soft:#e4f3ea;--amber:#c98a2b;--amber-soft:#f7eedd;
+    --blue:#3b7ea1;--blue-soft:#e3eef4;--red:#c0533a;--red-soft:#f7e3dd;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);padding:32px 20px 80px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.62;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  h1{font-size:23px;margin:0 0 4px;}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:24px;}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:900px){.cols{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .card.one{border-top:4px solid var(--blue);}
+  .card.two{border-top:4px solid var(--green);}
+  .hd{padding:16px 18px 12px;}
+  .hd h2{margin:0 0 6px;font-size:17px;}
+  .hd .sub{color:var(--sub);font-size:12.5px;}
+  .chips{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-size:11px;padding:2px 9px;border-radius:999px;background:#f0ece5;color:var(--sub);}
+  .chip.g{background:var(--green-soft);color:#2c7a52;}
+  .chip.a{background:var(--amber-soft);color:#9a6a16;}
+  .chip.r{background:var(--red-soft);color:var(--red);}
+  ol{margin:0;padding:4px 18px 14px 36px;}
+  ol li{margin:9px 0;font-size:13.5px;}
+  ol li b{font-weight:600;}
+  .hint{color:var(--sub);font-size:12px;display:block;margin-top:2px;}
+  .sec-label{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--sub);padding:10px 18px 2px;text-transform:uppercase;}
+  .risk{background:#fbf2ee;border-top:1px solid var(--line);padding:12px 18px;font-size:12.5px;}
+  .risk b{color:var(--red);}
+  .good{color:var(--green);font-weight:600;}
+  .bad{color:var(--red);font-weight:600;}
+  code{background:#f0ece5;padding:1px 5px;border-radius:4px;font-size:12px;}
+  table.cmp{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13px;margin-top:26px;}
+  table.cmp th{background:#f3efe8;text-align:left;padding:10px 13px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--line);}
+  table.cmp td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.cmp td:first-child{font-weight:600;width:130px;}
+  table.cmp tr:last-child td{border-bottom:none;}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--peach);border-radius:0 10px 10px 0;padding:13px 17px;margin-top:22px;font-size:13.5px;}
+  .verdict b{color:#b5462e;}
+  .note{font-size:12px;color:var(--sub);background:#fbf6ee;border-left:3px solid var(--amber);padding:9px 13px;border-radius:0 8px 8px 0;margin-top:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>海外 $9.99 买断 · 个人开发者两方案落地步骤</h1>
+<div class="meta">2026-06-14 · 面向「无公司主体的个人开发者」 · 已核对 Stripe HK 个人户与 MoR 现状</div>
+
+<div class="cols">
+
+  <!-- 方案一 -->
+  <div class="card one">
+    <div class="hd">
+      <h2>方案一 · Stripe HK 个人户（护照）</h2>
+      <div class="sub">以「Individual」身份注册香港 Stripe，提现到香港收款账户再回流国内</div>
+      <div class="chips">
+        <span class="chip a">费率 ~3.4% + HK$2.35</span>
+        <span class="chip a">上线 数天~数周</span>
+        <span class="chip r">有 KYC 冻结风险</span>
+        <span class="chip">税务自理</span>
+      </div>
+    </div>
+    <div class="sec-label">需要你做的事</div>
+    <ol>
+      <li><b>准备护照</b>作为身份证件（HKID 没有时 Stripe HK 接受护照）。</li>
+      <li><b>办香港手机号</b>注册。<span class="hint">社区称 +86 也能收码，但 HK 号更稳、更不易被风控。</span></li>
+      <li><b>开一个香港收款银行账户（提现落地）</b>。<span class="hint">主流是 <b>ZA Bank（众安银行）</b>——香港虚拟银行，内地居民凭护照/回乡证可<b>远程开户</b>。⚠ 你说的 Payoneer 未必被 Stripe HK 接受做 payout（HK 通常按 HKD 付到香港银行），需先确认；ZA Bank 更稳妥。</span></li>
+      <li><b>准备香港网络环境</b>（注册+验证全程需香港 IP）。</li>
+      <li><b>准备地址证明 + 业务描述 + 落地页 URL</b>（含隐私政策，Stripe 会校验）。</li>
+      <li><b>注册 Stripe 时选 Individual</b>，填业务信息、绑定上面的银行账户。</li>
+      <li><b>小额测试提现</b>跑通 Stripe→银行→国内卡全链路，确认到账与汇率损耗。</li>
+      <li><b>接入</b>：你后端已有账号+加密体系，买断激活码自己发；扩展跳转到你域名结账页（Stripe Checkout）。</li>
+    </ol>
+    <div class="risk">
+      <b>主要风险：</b>账户与资金可能因「人在内地、无真实香港经营」KYC 错配被<b>冻结</b>。→ 起步别囤余额、及时提现；流水做大后建议转正规主体（香港公司 / 美国 LLC）。
+    </div>
+  </div>
+
+  <!-- 方案二 -->
+  <div class="card two">
+    <div class="hd">
+      <h2>方案二 · MoR 平台（记录商户）</h2>
+      <div class="sub">平台是「商户」，你只是供应商；平台代收代缴税、打款给你</div>
+      <div class="chips">
+        <span class="chip r">费率 ~5%</span>
+        <span class="chip g">上线 当天可成</span>
+        <span class="chip g">无需主体 / 零 KYC 风险</span>
+        <span class="chip g">税务平台代缴</span>
+      </div>
+    </div>
+    <div class="sec-label">需要你做的事</div>
+    <ol>
+      <li><b>选平台</b>：个人最友好 <b>Lemon Squeezy</b>（现属 Stripe）/ <b>Polar</b>；<b>Paddle</b> 审核更严会问业务细节。<span class="hint">注：Creem 也是 MoR，你此前蓝图刚去掉它——见下方提醒。</span></li>
+      <li><b>注册 + 个人实名</b>（护照/身份证），填税表 <code>W-8BEN</code>（非美个人免被预扣美国税，平台引导）。</li>
+      <li><b>绑定收款方式</b>：<b>Payoneer 或 Wise 或银行卡</b>（平台按周期打款，常有最低提现额）。<span class="hint">这里 Payoneer 完全适用，是标准选项。</span></li>
+      <li><b>后台建商品</b>：$9.99 一次性买断；用平台自带的 <b>license key</b> 生成/校验做激活码。</li>
+      <li><b>接入</b>：扩展/后端调平台 <b>Checkout 链接</b> + <b>Webhook</b>（支付成功回调 → 你后端激活买断）。比自建 Stripe 更省。</li>
+      <li><b>上线</b>，平台自动处理税务 / 发票 / 退款 / 争议。</li>
+    </ol>
+    <div class="risk">
+      <b>主要代价：</b>抽成 ~5%（高于 Stripe ~1.6 个点）；对平台有依赖（但风控比 Stripe 个人户温和得多）。
+    </div>
+  </div>
+
+</div>
+
+<!-- 对比 -->
+<table class="cmp">
+  <thead><tr><th>维度</th><th>方案一 Stripe HK 个人户</th><th>方案二 MoR 平台</th></tr></thead>
+  <tbody>
+    <tr><td>是否碰主体/KYC</td><td>要你以个人过 Stripe KYC，<span class="bad">有冻结风险</span></td><td><span class="good">完全不碰，主体由平台担</span></td></tr>
+    <tr><td>税务</td><td>自己负责（海外销售税合规自理或担风险）</td><td><span class="good">平台代收代缴，干净</span></td></tr>
+    <tr><td>费率</td><td><span class="good">~3.4%</span>（买断 $9.99 ≈ 抽 $0.34+手续费）</td><td>~5%（≈ 抽 $0.50）</td></tr>
+    <tr><td>上线速度</td><td>开 HK 银行户 + 过 KYC，数天~数周</td><td><span class="good">当天可上线</span></td></tr>
+    <tr><td>收款落地工具</td><td>ZA Bank（推荐）；Payoneer 需先确认</td><td>Payoneer / Wise / 银行卡均可</td></tr>
+    <tr><td>买断激活码</td><td>你后端自发（已有账号+加密体系）</td><td>平台自带 license 生成/校验</td></tr>
+    <tr><td>风控温和度</td><td>较高风险、资金量大更痛</td><td><span class="good">温和</span></td></tr>
+  </tbody>
+</table>
+
+<div class="verdict">
+  <b>给个人开发者起步的建议：选方案二（MoR）。</b>
+  方案一省下的费率只有 ~1.6 个点，落到 $9.99 买断上<b>每单仅差 ~$0.16</b>，却要换来「开香港银行户 + 过 KYC + 冻结风险 + 自理海外税」一堆成本与不确定性，不划算。
+  等月流水做大、确实想省那 1.6 个点时再迁——届时<b>建议直接美国 LLC 拿 ~2.9%</b>，比香港个人户既更合规又更便宜，比 HK 个人户这条「擦边路」干净得多。
+</div>
+
+<div class="note">
+  ⚠ 决策一致性提醒：你的蓝图 V2 此前明确「自有 Stripe 买断、<b>去掉 Creem</b>」，而 Creem 正是一家 MoR。现在方案二等于回到 MoR 路线。建议先想清当时弃用 Creem 的理由（费率？信任？品牌露出？）是否同样适用于 Lemon Squeezy / Paddle——若是，就走方案一/未来美国 LLC；若当时只是嫌 Creem 这一家，换平台即可。
+</div>
+
+<div class="note">
+  来源：Stripe HK 商户/个人验证文档与支持页、国内开发者 Stripe HK 实操清单（gosail.dev）、Stripe 可接受验证文件列表、香港个体户注册指南（Statrys）。费率/开户政策以签约当日官网为准。
+</div>
+</div>
+</body>
+</html>

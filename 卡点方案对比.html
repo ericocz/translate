@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>两大卡点 · 方案对比与建议</title>
+<style>
+  :root{
+    --ink:#1f1d1a; --sub:#6b6660; --line:#e7e2da; --bg:#faf8f4; --card:#fff;
+    --peach:#e8836b; --peach-soft:#fce9e2; --green:#3f9d6d; --green-soft:#e4f3ea;
+    --amber:#c98a2b; --amber-soft:#f7eedd; --blue:#3b7ea1; --blue-soft:#e3eef4;
+    --red:#c0533a; --red-soft:#f7e3dd;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); padding:32px 20px 80px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; line-height:1.62;}
+  .wrap{max-width:1160px; margin:0 auto;}
+  h1{font-size:23px; margin:0 0 4px;}
+  .meta{color:var(--sub); font-size:13px; margin-bottom:28px;}
+  h2{font-size:18px; margin:34px 0 4px; display:flex; align-items:center; gap:10px;}
+  .blk{font-size:11px; font-weight:700; padding:2px 9px; border-radius:6px; background:var(--red-soft); color:var(--red);}
+  .risk{font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px;}
+  .r-low{background:var(--green-soft); color:#2c7a52;}
+  .r-mid{background:var(--amber-soft); color:#9a6a16;}
+  .r-high{background:var(--red-soft); color:var(--red);}
+  p.lead{color:var(--sub); font-size:13.5px; margin:6px 0 16px; max-width:860px;}
+  table{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13px; margin-bottom:8px;}
+  thead th{background:#f3efe8; text-align:left; padding:11px 13px; font-weight:600; font-size:12px; color:var(--sub); border-bottom:1px solid var(--line);}
+  tbody td{padding:12px 13px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  .opt{font-weight:700; font-size:13.5px;}
+  .tag{display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:5px; margin:2px 3px 0 0; background:#f0ece5; color:var(--sub);}
+  .good{color:var(--green); font-weight:600;}
+  .bad{color:var(--red); font-weight:600;}
+  .reco{background:var(--green-soft);}
+  .reco .opt::after{content:" ★推荐"; color:#2c7a52; font-size:11px;}
+  ul.c{margin:4px 0 0; padding-left:16px;} ul.c li{margin:2px 0;}
+  .note{font-size:12.5px; color:var(--sub); background:#fbf6ee; border-left:3px solid var(--amber); padding:9px 13px; border-radius:0 8px 8px 0; margin:8px 0 4px;}
+  .verdict{background:var(--card); border:1px solid var(--line); border-left:4px solid var(--peach); border-radius:0 10px 10px 0; padding:12px 16px; margin:10px 0 0; font-size:13.5px;}
+  .verdict b{color:#b5462e;}
+  code{background:#f0ece5; padding:1px 5px; border-radius:4px; font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>两大卡点 · 方案对比与建议</h1>
+<div class="meta">2026-06-14 · 已核对 Stripe / Chrome 当前政策 · 数字为开办区间估算，最终以各官网当下为准</div>
+
+<!-- 卡点1 -->
+<h2><span class="blk">卡点 1</span> 海外收款主体（开 Stripe 的前提）<span class="risk r-high">高·需先决策</span></h2>
+<p class="lead">
+核心事实：<b>Stripe 香港只接受公司主体（limited company），不收个人户</b>；国内个人身份无法凭空开。
+另一个常见误解先澄清——<b>Payoneer 不是主体方案</b>，它只是「把钱从 Stripe / 平台提到国内卡」的收款落地工具，三个方案里都用得上，但它替代不了主体。真正要在下面三条路里选一条：
+</p>
+<table>
+  <thead><tr>
+    <th style="width:150px">方案</th><th style="width:120px">一次性 + 年成本</th><th style="width:110px">费率</th><th>可行性 / 优势</th><th>代价 / 风险</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><div class="opt">A. 香港公司 + Stripe HK</div><span class="tag">最贴合原蓝图</span></td>
+      <td>注册 ¥3–5k<br>年续费/秘书+审计 ¥5–9k</td>
+      <td>~3.4% + HK$2.35</td>
+      <td><span class="good">KYC 通过率最高、最稳</span>，主体真实可长期经营、开对公账户、报税清晰。香港无外汇管制、无需备案。</td>
+      <td>开办与每年成本最高；需香港注册地址（秘书服务）、每年做账审计；要配香港虚拟银行账户（Airwallex/空中云汇 等）。</td>
+    </tr>
+    <tr>
+      <td><div class="opt">B. 美国 LLC（Stripe Atlas）+ Stripe US</div></td>
+      <td>Atlas 一次性 ~$500<br>州年费 $60–300（如 WY/DE）</td>
+      <td><span class="good">~2.9% + $0.3（更低）</span></td>
+      <td>非美居民可办；Atlas 一条龙给 LLC + EIN + Stripe US；配 Mercury/Wise 收款。费率比香港低。</td>
+      <td>需处理美国年报与<span class="bad">合规报税（5472/1120 等，常需找代理）</span>；银行开户偶有拒；与「香港部署」无关联但不冲突。</td>
+    </tr>
+    <tr class="reco">
+      <td><div class="opt">C. MoR 平台（Paddle / Lemon Squeezy / Polar）</div><span class="tag">零主体起步</span></td>
+      <td><span class="good">¥0 开办</span></td>
+      <td>~5% + 手续费</td>
+      <td><span class="good">无需任何公司主体即可上线收款</span>；平台是「记录商户」，代收代缴全球税(VAT/GST)，打款到你 Payoneer/银行。国内独立开发者最省事的起步路。</td>
+      <td>费率最高（吃掉 ~5%）；<span class="bad">与原蓝图「自有 Stripe 买断」决策冲突</span>——你此前刚去掉 Creem（Creem 正是一家 MoR），需想清当时弃用它的理由是否同样适用于 Paddle 等。</td>
+    </tr>
+  </tbody>
+</table>
+<div class="note">关键澄清：原清单里「Stripe + Payoneer」其实仍隐含需要一个主体（A 或 B）才能开 Stripe。若你想<b>先零成本验证付费转化、再补主体</b>，C 是唯一能立刻上线的路；跑通量级后再迁到 A/B 拿低费率。</div>
+<div class="verdict">
+  <b>建议：</b>按你的目标分两步走——
+  ① <b>先用 C（MoR）上线</b>，零主体、当天能收钱，验证「老外愿不愿为 $9.99 买断付费」；
+  ② 月流水站稳后再上 <b>B（美国 LLC，费率最低、办起来比香港轻）</b>作为长期主通道，把 ~5% 降到 ~3%。
+  只有当你确定要长期重运营、需要香港对公与报税体系时，A 才值得它的高成本。
+  <br><br>若坚持原蓝图「就用自有 Stripe」，则<b>直接选 B</b>（比 A 便宜、费率更低），跳过 C。
+</div>
+
+<!-- 卡点2 -->
+<h2><span class="blk">卡点 2</span> 商店「外部支付」合规<span class="risk r-low">低·基本可放心</span></h2>
+<p class="lead">
+核对后可下调风险：<b>Google 早在 2021-02 关停了自有的 Chrome Web Store Payments</b>，此后官方明确开发者可自由使用任意第三方支付（Stripe/微信/支付宝等）。Edge 同样无内购、允许外部支付。买断/充值走你自己的收款通道<b>是合规常规做法，不是灰色地带</b>。只要守住下面几条即可：
+</p>
+<table>
+  <thead><tr>
+    <th style="width:200px">合规红线</th><th>怎么做才安全</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class="opt">透明披露定价</td>
+      <td>商店详情页 + 扩展内如实写清价格、币种、是买断还是充值、退款政策。不得有诱导/隐藏收费。</td>
+    </tr>
+    <tr>
+      <td class="opt">支付页放在网页、不在扩展内嵌</td>
+      <td>点击后<span class="good">跳转到你域名下的结账页</span>完成支付，而非在扩展弹窗里嵌入支付表单——既合规又规避 MV3 限制。</td>
+    </tr>
+    <tr>
+      <td class="opt">MV3 禁止远程代码</td>
+      <td>扩展包内不得动态加载远程 JS。支付逻辑全部由<span class="good">网页承载</span>，扩展只负责跳转 + 回调校验。你后端已是 SSE 架构，天然契合。</td>
+    </tr>
+    <tr>
+      <td class="opt">数据/隐私声明一致</td>
+      <td>隐私政策 URL（《隐私政策.md》挂网）需与实际数据行为一致；涉及账号/支付要在商店数据用途里勾选准确。</td>
+    </tr>
+  </tbody>
+</table>
+<div class="verdict">
+  <b>结论：</b>这条<b>不构成阻塞</b>，无需线下办理，只是开发/上架时遵守的几条规范。原清单 #18 的 ⚠ 可降级为「普通检查项」。唯一要做对的动作是：<code>支付走网页结账页 + 扩展只跳转</code>。
+</div>
+
+<div class="note" style="margin-top:26px">
+来源：Stripe HK 商户要求与支持文档、Stripe 支持的国家/地区 2026 指南、Chrome Web Store 计划政策与「2021 关停自有支付」公告、Edge 加载项政策。具体费率/年费请在签约前以各官网当日为准。
+</div>
+</div>
+</body>
+</html>

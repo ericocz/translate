@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沉浸式翻译 · 商业化前置清单（需亲自办理）</title>
+<style>
+  :root{
+    --ink:#1f1d1a; --sub:#6b6660; --line:#e7e2da; --bg:#faf8f4;
+    --card:#fff; --peach:#e8836b; --peach-soft:#fce9e2;
+    --green:#3f9d6d; --green-soft:#e4f3ea; --amber:#c98a2b; --amber-soft:#f7eedd;
+    --blue:#3b7ea1; --blue-soft:#e3eef4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.6; padding:32px 20px 80px;
+  }
+  .wrap{max-width:1180px; margin:0 auto;}
+  header{margin-bottom:28px;}
+  h1{font-size:24px; margin:0 0 6px; letter-spacing:.5px;}
+  .meta{color:var(--sub); font-size:13px;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin:18px 0 24px; font-size:12.5px; color:var(--sub);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
+  .summary{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:26px;
+  }
+  .scard{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px;}
+  .scard b{font-size:20px; display:block;}
+  .scard small{color:var(--sub); font-size:12px;}
+
+  .group{margin-bottom:34px;}
+  .group > h2{
+    font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:10px;
+  }
+  .group > p.gdesc{margin:0 0 14px; color:var(--sub); font-size:13px;}
+  .badge{font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px;}
+  .b-pay{background:var(--peach-soft); color:#b5462e;}
+  .b-infra{background:var(--blue-soft); color:#2a6182;}
+  .b-id{background:var(--amber-soft); color:#9a6a16;}
+  .b-model{background:var(--green-soft); color:#2c7a52;}
+  .b-store{background:#ece6f5; color:#6a4fa0;}
+
+  table{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13.5px;}
+  thead th{
+    background:#f3efe8; text-align:left; padding:11px 14px; font-weight:600; font-size:12.5px;
+    color:var(--sub); border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  tbody td{padding:13px 14px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fbf9f5;}
+  .task{font-weight:600;}
+  .why{color:var(--sub); font-size:12.5px; margin-top:3px;}
+  .col-no{width:38px; color:var(--sub);}
+  .col-cost{width:130px; white-space:nowrap;}
+  .col-dep{width:150px;}
+  .col-chk{width:54px; text-align:center;}
+  .pill{display:inline-block; font-size:11px; padding:1px 8px; border-radius:6px; background:#f0ece5; color:var(--sub); margin:1px 2px 1px 0;}
+  .warn{color:#b5462e; font-weight:600;}
+  .ok{color:var(--green);}
+  input[type=checkbox]{width:18px; height:18px; accent-color:var(--peach); cursor:pointer;}
+  .note{font-size:12px; color:var(--sub); background:#fbf6ee; border-left:3px solid var(--amber); padding:8px 12px; border-radius:0 8px 8px 0; margin-top:10px;}
+  footer{margin-top:40px; color:var(--sub); font-size:12px; text-align:center;}
+  @media print{body{background:#fff;} tbody tr:hover{background:none;} .scard,table{break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>沉浸式翻译 · 商业化前置清单（需你亲自办理）</h1>
+  <div class="meta">生成于 2026-06-14（D-18 海外改 Creem 后已更新）· 依据《产品蓝图 V2-商业化》拍板决策 · 勾选框可点击，建议保存/打印逐项推进</div>
+</header>
+
+<div class="legend">
+  <span><i class="dot" style="background:var(--peach)"></i>支付收款</span>
+  <span><i class="dot" style="background:var(--blue)"></i>服务器/域名</span>
+  <span><i class="dot" style="background:var(--amber)"></i>身份/实名基础</span>
+  <span><i class="dot" style="background:var(--green)"></i>上游模型</span>
+  <span><i class="dot" style="background:#6a4fa0"></i>商店上架</span>
+  <span class="warn">⚠ = 有卡点/需先确认方案</span>
+</div>
+
+<div class="summary">
+  <div class="scard"><b>5</b><small>大类</small></div>
+  <div class="scard"><b>18</b><small>待办事项</small></div>
+  <div class="scard"><b>≈ ¥200–800</b><small>一次性开办预估（去主体后大降）</small></div>
+  <div class="scard"><b>0</b><small>关键卡点（主体卡点已被 Creem 化解）</small></div>
+</div>
+
+<!-- A 身份基础 -->
+<div class="group">
+  <h2><span class="badge b-id">A</span> 身份 / 实名基础 <span class="badge b-id">最先办</span></h2>
+  <p class="gdesc">D-18 改 Creem 后，海外收款不再需要香港主体/手机号。身份基础只剩：邮箱 + 身份证（Creem KYC，须与支付宝实名一致）。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">1</td>
+        <td><div class="task">香港手机号（可选 · 已非必需）</div><div class="why">原为开 Stripe HK 用；改 Creem 后收款链路不再需要</div></td>
+        <td class="col-cost">¥50–150/年</td>
+        <td class="col-dep">—</td>
+        <td><span class="warn">D-18 改 Creem 后，收款全程用大陆身份（Creem 个人 + 支付宝 + YunGouOS），不再依赖香港号。</span>仅商店/部分海外服务备用时可留，否则<b>可跳过</b>。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">2</td>
+        <td><div class="task">准备独立企业/项目邮箱</div><div class="why">注册各平台主账号，避免混用私人邮箱</div></td>
+        <td class="col-cost">域名后免费</td>
+        <td class="col-dep">#9 域名</td>
+        <td>建议用自有域名邮箱（如 hi@你的域名），显专业、便于交接。临时可用 Gmail。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">3</td>
+        <td><div class="task ok">✓ 收款主体卡点已消除（D-18）</div><div class="why">改用 Creem（MoR），平台即商户，个人无需任何公司主体</div></td>
+        <td class="col-cost">¥0</td>
+        <td class="col-dep">—</td>
+        <td>原「香港公司 / 美国 LLC / Stripe 个人户」三选一卡点<b>作废</b>。Creem 以个人身份 onboarding 即可收款，海外税由平台代缴。直接进 B 类办 Creem。</td>
+        <td class="col-chk"><input type="checkbox" checked></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">D-18 反转后，海外收款不再需要任何境外主体——这一整条原「最大卡点」被 Creem（MoR）化解。身份基础现在只剩「邮箱 + 身份证（用于 Creem KYC，须与支付宝实名一致）」。</div>
+</div>
+
+<!-- B 海外收款 -->
+<div class="group">
+  <h2><span class="badge b-pay">B</span> 海外收款（Creem MoR · 买断 $9.99 · D-18）</h2>
+  <p class="gdesc">对应蓝图 D-18：海外 $9.99 买断走 Creem（记录商户），个人身份即可，提现到个人支付宝。费率 3.9% + $0.40/笔；提现 max($7,1%)/批；最低提现 $50；月 1/15 出账、风控持有 7–12 天。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">4</td>
+        <td><div class="task">注册 Creem 账号 + 个人 KYC</div><div class="why">海外信用卡收款主通道（MoR）</div></td>
+        <td class="col-cost">免费（抽 3.9%+$0.40）</td>
+        <td class="col-dep">—</td>
+        <td>onboarding 选 <b>Individual（个人）</b>。<span class="warn">KYC 实名务必用身份证中文名——须与支付宝实名完全一致</span>，否则后续打款失败。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">5</td>
+        <td><div class="task">添加个人支付宝为 payout 方式</div><div class="why">Creem 原生支持支付宝出账，无需 Payoneer/Wise 中转</div></td>
+        <td class="col-cost">提现 max($7,1%)/批</td>
+        <td class="col-dep">#4</td>
+        <td>后台 Balance → Add payout method → 中国大陆 → 个人 → 支付宝；填支付宝账号 + 实名（同 #4 KYC）。<span class="pill">限额 单笔≤5万 / 年30-60万 CNY</span></td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">6</td>
+        <td><div class="task">建 $9.99 买断商品 + 小额提现测试</div><div class="why">确认全链路 Creem→支付宝能到账</div></td>
+        <td class="col-cost">—</td>
+        <td class="col-dep">#4 #5</td>
+        <td>后台建 one-time price $9.99、配 license key；正式卖前用小额真实交易跑通一次，确认换汇 → CNY 进支付宝到账。webhook（<code>checkout.completed</code>）接后端发放 credits/注册码。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">税务提醒：Creem（MoR）只代缴海外销售税；支付宝到账属你的境外收入，国内个税申报自负。提现 $7/批固定费，宜攒批再提。</div>
+</div>
+
+<!-- C 国内收款 -->
+<div class="group">
+  <h2><span class="badge b-pay">C</span> 国内收款（微信 / 支付宝，经 YunGouOS）</h2>
+  <p class="gdesc">对应蓝图：国内买断 ¥49.9 + 充值（1/5/10/20/100 元）走微信/支付宝，用 YunGouOS 个人聚合签约（免营业执照、小额无固定费）。Creem 仅用于海外买断（见 B 类），国内小额因其固定费倒挂故不用。充值须先注册账号。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">7</td>
+        <td><div class="task">注册 YunGouOS 账号</div><div class="why">个人免营业执照聚合收款（微信+支付宝）</div></td>
+        <td class="col-cost">免费（按笔抽佣）</td>
+        <td class="col-dep">—</td>
+        <td>实名认证，拿 mch_id / 密钥配后端。确认其费率与提现规则。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">8</td>
+        <td><div class="task">个人签约支付宝 + 微信支付</div><div class="why">在 YunGouOS 内完成渠道授权/签约</div></td>
+        <td class="col-cost">免费</td>
+        <td class="col-dep">#7</td>
+        <td>多数情况下经 YunGouOS 引导授权即可，无需各自单独申请商户号。<span class="warn">确认是否需个人收款码/小微商户。</span></td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">充值/赠送规则（蓝图）：充值须注册账号；新用户赠 ¥2，按设备指纹+唯一码防重与找回。这些是后端逻辑，无需你线下办理，列此仅作提醒。</div>
+</div>
+
+<!-- D 服务器域名 -->
+<div class="group">
+  <h2><span class="badge b-infra">D</span> 服务器 / 域名（仅香港部署）</h2>
+  <p class="gdesc">对应蓝图：仅香港部署。香港无需 ICP 备案，DeepSeek 等直连可达。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">9</td>
+        <td><div class="task">购买域名</div><div class="why">API 域名 + 落地页 + 邮箱</div></td>
+        <td class="col-cost">¥60–100/年</td>
+        <td class="col-dep">—</td>
+        <td>Cloudflare / 阿里云国际 / Namecheap 均可。买完接 Cloudflare 管 DNS + 免费 SSL。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">10</td>
+        <td><div class="task">购买香港云服务器 / VPS</div><div class="why">部署 FastAPI 后端 + PostgreSQL</div></td>
+        <td class="col-cost">¥50–200/月</td>
+        <td class="col-dep">—</td>
+        <td>2C4G 起步即可。阿里云香港 / 腾讯云香港 / Vultr / DigitalOcean。<span class="pill">需公网 IP</span><span class="pill">开 443</span></td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">11</td>
+        <td><div class="task">域名解析 + HTTPS 证书</div><div class="why">api.你的域名 指向服务器并启用 TLS</div></td>
+        <td class="col-cost">免费</td>
+        <td class="col-dep">#9 #10</td>
+        <td>Let's Encrypt / Caddy 自动签发；香港无需备案，解析即生效。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- E 上游模型 -->
+<div class="group">
+  <h2><span class="badge b-model">E</span> 上游模型 API（官方 + 字节 failover）</h2>
+  <p class="gdesc">对应蓝图：DeepSeek 官方 + 字节（火山引擎）双通道 failover。Key 只进 server/.env，绝不入扩展产物/日志。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">12</td>
+        <td><div class="task">DeepSeek 官方账号充值 / 提额</div><div class="why">主翻译通道</div></td>
+        <td class="col-cost">按量预充</td>
+        <td class="col-dep">—</td>
+        <td>已有 Key。上线前预充足够余额并确认并发/限速档位。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">13</td>
+        <td><div class="task">开通火山引擎（字节）API</div><div class="why">官方不可用时的 failover 通道</div></td>
+        <td class="col-cost">按量</td>
+        <td class="col-dep">—</td>
+        <td>实名 + 开通对应模型，拿 Key 配 server。确认与官方接口的映射/差异。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- F 商店上架 -->
+<div class="group">
+  <h2><span class="badge b-store">F</span> 商店上架（Chrome / Edge）</h2>
+  <p class="gdesc">扩展发布所需的开发者账号。Chrome 一次性 $5，Edge 免费。</p>
+  <table>
+    <thead><tr>
+      <th class="col-no">#</th><th>事项</th><th class="col-cost">预估费用</th><th class="col-dep">前置依赖</th><th>说明 / 注意</th><th class="col-chk">完成</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="col-no">14</td>
+        <td><div class="task">Chrome Web Store 开发者账号</div></td>
+        <td class="col-cost">$5（一次性）</td>
+        <td class="col-dep">—</td>
+        <td>Google 账号 + 信用卡支付注册费。需隐私政策 URL（已有《隐私政策.md》待挂网）。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">15</td>
+        <td><div class="task">Microsoft Edge 加载项开发者账号</div></td>
+        <td class="col-cost">免费</td>
+        <td class="col-dep">—</td>
+        <td>微软账号注册，同包可复用。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">16</td>
+        <td><div class="task">隐私政策 / 落地页上线</div><div class="why">商店审核与收款合规均需可公开访问的 URL</div></td>
+        <td class="col-cost">免费</td>
+        <td class="col-dep">#9 #11</td>
+        <td>把《隐私政策.md》《上架材料.md》挂到域名下；Creem/商店都会校验。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">17</td>
+        <td><div class="task">准备商店素材（截图/图标/文案）</div></td>
+        <td class="col-cost">免费</td>
+        <td class="col-dep">—</td>
+        <td>图标已重做；补全应用商店要求的截图尺寸与多语言描述。</td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+      <tr>
+        <td class="col-no">18</td>
+        <td><div class="task">⚠ 确认商店付费政策合规</div><div class="why">扩展内引导外部支付需符合各商店条款</div></td>
+        <td class="col-cost">—</td>
+        <td class="col-dep">#4 #7</td>
+        <td><span class="warn">买断/充值走 Creem/微信结账页而非商店内购，需确认 Chrome/Edge 对「外部支付」的政策要求（已查：允许，见卡点对比），避免下架风险。</span></td>
+        <td class="col-chk"><input type="checkbox"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  推进顺序建议：A（身份，尤其 #3 主体）→ D（服务器域名，解锁 URL/邮箱）→ B/C（收款）→ E（模型）→ F（上架）。<br>
+  完成一项就回来勾一项；遇到卡点（标⚠）可随时找我一起定方案。
+</footer>
+</div>
+</body>
+</html>

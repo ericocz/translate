@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoR 平台选型 · 国内个人开发者 / $9.99 买断</title>
+<style>
+  :root{--ink:#1f1d1a;--sub:#6b6660;--line:#e7e2da;--bg:#faf8f4;--card:#fff;
+    --peach:#e8836b;--green:#3f9d6d;--green-soft:#e4f3ea;--amber:#c98a2b;--amber-soft:#f7eedd;
+    --blue:#3b7ea1;--blue-soft:#e3eef4;--red:#c0533a;--red-soft:#f7e3dd;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);padding:32px 20px 80px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.6;}
+  .wrap{max-width:1220px;margin:0 auto;}
+  h1{font-size:23px;margin:0 0 4px;}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:14px;}
+  .lead{font-size:13.5px;color:var(--sub);max-width:900px;margin-bottom:22px;}
+  .lead b{color:var(--ink);}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13px;}
+  thead th{background:#f3efe8;text-align:left;padding:11px 12px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--line);white-space:nowrap;}
+  tbody td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fbf9f5;}
+  .name{font-weight:700;font-size:13.5px;}
+  .name small{display:block;font-weight:400;color:var(--sub);font-size:11.5px;margin-top:2px;}
+  .reco td{background:var(--green-soft);}
+  .reco .name::after{content:" ★";color:#2c7a52;}
+  .y{color:var(--green);font-weight:600;}
+  .n{color:var(--red);font-weight:600;}
+  .m{color:var(--amber);font-weight:600;}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:5px;margin:1px 2px 0 0;background:#f0ece5;color:var(--sub);}
+  .verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--peach);border-radius:0 10px 10px 0;padding:13px 17px;margin-top:22px;font-size:13.5px;}
+  .verdict b{color:#b5462e;}
+  .note{font-size:12px;color:var(--sub);background:#fbf6ee;border-left:3px solid var(--amber);padding:9px 13px;border-radius:0 8px 8px 0;margin-top:16px;}
+  .crit{font-size:13px;background:var(--red-soft);border-left:4px solid var(--red);border-radius:0 10px 10px 0;padding:11px 15px;margin:18px 0;}
+  .crit b{color:var(--red);}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>MoR 平台选型 · 国内个人开发者 / $9.99 买断</h1>
+<div class="meta">2026-06-14 · 费率为当前公开头条价，签约前以官网为准</div>
+<p class="lead">
+你的硬约束：<b>国内个人、无公司、一次性买断、需 license key 激活码、要能提现到 Payoneer/Wise</b>。
+费率各家只差 1～1.5 个点，落到 $9.99 上每单差几分钱——<b>真正的筛选关键是「能否给国内个人打款」</b>（提现轨道）。下表按这个优先级排。
+</p>
+
+<div class="crit">
+<b>提现轨道是生死线：</b>用 <b>Stripe Connect 出账</b>的平台（如 Polar），收款方需在 Stripe 支持的国家/地区——国内个人可能卡住；用 <b>Payoneer / Wise / PayPal 出账</b>的平台（Paddle / Lemon Squeezy / Creem）对国内个人更友好。<b>定平台前，先用你的国籍/地址在注册流里确认 payout 方式可用，再谈费率。</b>
+</div>
+
+<table>
+  <thead><tr>
+    <th>平台</th><th>费率（头条价）</th><th>license key</th><th>提现轨道</th><th>国内个人友好度</th><th>审核</th><th>定位 / 一句话</th>
+  </tr></thead>
+  <tbody>
+    <tr class="reco">
+      <td><div class="name">Creem<small>indie / AI builder</small></div></td>
+      <td><span class="y">~3.9% + $0.40</span><br>最低</td>
+      <td class="y">内置</td>
+      <td>Payoneer / Wise / 银行</td>
+      <td class="y">高（Payoneer 轨道）</td>
+      <td class="y">宽松</td>
+      <td>专为独立开发者/AI 产品做，license key、分成、联盟都内置。<span class="tag">你蓝图曾去掉它，见下</span></td>
+    </tr>
+    <tr class="reco">
+      <td><div class="name">Lemon Squeezy<small>现属 Stripe</small></div></td>
+      <td>5% + $0.50</td>
+      <td class="y">内置（成熟）</td>
+      <td>Wise / PayPal<br><span class="tag">每月14/28号，满$100</span></td>
+      <td class="y">高（Wise/PayPal）</td>
+      <td class="m">中</td>
+      <td>最成熟稳妥、文档好、归 Stripe 后更可信。费率偏高。新注册偶有地区限制需确认。</td>
+    </tr>
+    <tr>
+      <td><div class="name">Polar<small>开发者友好、开源</small></div></td>
+      <td><span class="y">~4% + $0.40</span></td>
+      <td class="y">内置</td>
+      <td class="m">Stripe 出账</td>
+      <td class="n">低/需确认（Stripe 轨道）</td>
+      <td class="y">宽松</td>
+      <td>API/文档最干净、对开发者最友好。<span class="n">但出账走 Stripe，国内个人收款可能受限——务必先验证</span>。</td>
+    </tr>
+    <tr>
+      <td><div class="name">Dodo Payments<small>新锐、面向亚洲</small></div></td>
+      <td>~4% + $0.40</td>
+      <td class="y">内置</td>
+      <td>Payoneer / Wise / 银行</td>
+      <td class="m">中（较新，需确认）</td>
+      <td class="y">宽松</td>
+      <td>新平台、主打印度/亚洲独立开发者，费率低。生态与稳定性待观察。</td>
+    </tr>
+    <tr>
+      <td><div class="name">Paddle<small>SaaS 老牌</small></div></td>
+      <td>5% + $0.50</td>
+      <td class="y">支持</td>
+      <td>Payoneer / 电汇 / PayPal</td>
+      <td class="m">中（轨道OK但审核严）</td>
+      <td class="n">严格</td>
+      <td>最老牌、合规强，但<span class="n">onboarding 审核严、对个人/小体量不友好</span>，常要业务证明。起步不建议。</td>
+    </tr>
+    <tr>
+      <td><div class="name">Gumroad<small>创作者电商</small></div></td>
+      <td class="n">~10% 一口价</td>
+      <td class="m">弱/需变通</td>
+      <td>PayPal / Stripe / 银行</td>
+      <td class="m">中</td>
+      <td class="y">最宽松</td>
+      <td>注册最简单、几分钟开卖，但<span class="n">费率最高</span>、license/软件激活不是强项。仅适合极简验证。</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="verdict">
+  <b>给你的两个现实选择：</b><br>
+  ① <b>Creem</b> —— 费率最低（3.9%）、专为独立开发者做、license key 内置、Payoneer 轨道对国内个人友好。<b>唯一顾虑是你蓝图 V2 此前主动去掉了它</b>，需先想清当时原因。<br>
+  ② <b>Lemon Squeezy</b> —— 若你排斥 Creem 这家或要"更稳的大厂背书"，它是最成熟选择（归 Stripe）、license 管理一流、Wise/PayPal 出账。代价是 5% 费率。<br>
+  <b>Polar 虽然对开发者最香，但它走 Stripe 出账，国内个人收款是大问号——除非你先验证 payout 能用，否则别押它。</b>
+</div>
+
+<div class="note">
+  ⚠ 一致性提醒：蓝图 V2 拍板「自有 Stripe 买断、去掉 Creem」。若当时弃 Creem 是嫌「MoR 模式费率高/不够品牌露出」，那该理由对 Lemon Squeezy 同样成立，应回头考虑方案一（Stripe HK）或未来美国 LLC；若只是不信任 Creem 这一家，换 Lemon Squeezy 即可。这关系到要不要回改蓝图，建议明确一下。
+</div>
+
+<div class="note">
+  来源：多家 2026 MoR 横评（Dodo Payments、Affonso、buildmvpfast、devtoolpicks、Freemius、Cleverbridge）、各平台官网定价页。费率/提现/地区政策以签约当日为准；务必在注册流里用本人信息确认 payout 可用后再投入接入。
+</div>
+</div>
+</body>
+</html>
