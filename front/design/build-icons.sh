@@ -20,16 +20,16 @@ trap 'rm -rf "$TMP"' EXIT
 magick "$SRC" -resize ${W}x${W} -background none -gravity center -extent ${W}x${W} \
   PNG32:"$TMP/master.png"
 
-# 2) on 角标几何（512 画布）：~37% 方块，贴右下角，圆角 ~22%；绿底白勾 ✓
+# 2) on 角标几何（512 画布）：~37% 直角方块，紧贴右下角（无留白、无圆角）；绿底白勾 ✓
 BS=188                     # 角标边长
-M=4                        # 贴边留白
-X0=$((W - M - BS)); Y0=$((W - M - BS)); X1=$((W - M)); Y1=$((W - M))
-R=42                       # 圆角
+M=0                        # 紧贴图标右/下边，无留白
+X0=$((W - M - BS)); Y0=$((W - M - BS)); X1=$((W - 1)); Y1=$((W - 1))
 CX=$(( (X0 + X1) / 2 )); CY=$(( (Y0 + Y1) / 2 ))
-CHK="stroke-width 26 fill none path 'M $((CX-46)),$((CY+2)) L $((CX-14)),$((CY+36)) L $((CX+52)),$((CY-40))'"
+# 勾加粗到 40、整体略放大：圆头半径=描边一半(20)占比更高，缩到 16/32px 时圆角仍读得出（细勾的圆头会被降采样压成直角）
+CHK="stroke-width 40 fill none path 'M $((CX-50)),$((CY+0)) L $((CX-14)),$((CY+38)) L $((CX+54)),$((CY-44))'"
 
 magick -size ${W}x${W} xc:none \
-  -fill "#1FB24A" -draw "roundrectangle $X0,$Y0 $X1,$Y1 $R,$R" \
+  -fill "#1FB24A" -draw "rectangle $X0,$Y0 $X1,$Y1" \
   -fill white -stroke white \
   -draw "stroke-linecap round stroke-linejoin round $CHK" \
   PNG32:"$TMP/overlay.png"
