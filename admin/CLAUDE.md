@@ -1,6 +1,6 @@
 # admin/CLAUDE.md —— Next.js 管理台
 
-本目录是「沉浸式翻译」管理台，连后端 `/admin/*` 做运营。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，后端见 [`../server/CLAUDE.md`](../server/CLAUDE.md)。
+本目录是「秒懂翻译 / aha translate」管理台，连后端 `/admin/*` 做运营。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，后端见 [`../server/CLAUDE.md`](../server/CLAUDE.md)。
 
 ---
 
@@ -15,7 +15,7 @@
 ```
 app/
   layout.tsx        # 根布局 + 顶部导航（概览/用户/错误日志/API Key/登录）
-  globals.css       # 全局样式（素净、桃红强调，与扩展同色系）
+  globals.css       # 全局样式（素净、青绿强调，与扩展同色系）
   login/page.tsx    # 'use client'：邮箱密码 → POST /admin/login → 存 token → 跳 /
   page.tsx          # 概览：/admin/stats（用户/翻译/错误/Token 卡片 + Top 域名）
   users/page.tsx    # /admin/users（邮箱/今日 token/档位/注册）

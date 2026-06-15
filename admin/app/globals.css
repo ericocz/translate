@@ -8,7 +8,7 @@ body {
 .nav { display: flex; gap: 16px; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #ececea; }
 .nav .brand { font-weight: 700; margin-right: 12px; }
 .nav a { color: #444; text-decoration: none; font-size: 14px; }
-.nav a:hover { color: #d94a73; }
+.nav a:hover { color: #038f93; }
 .main { padding: 24px; max-width: 1000px; margin: 0 auto; }
 h1 { font-size: 20px; }
 h2 { font-size: 15px; color: #555; margin-top: 24px; }
@@ -21,7 +21,7 @@ table { width: 100%; border-collapse: collapse; background: #fff; border: 1px so
 th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #f0f0ee; font-size: 13px; }
 th { background: #fafafa; color: #666; }
 input { font: inherit; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; margin: 4px 6px 4px 0; }
-button { font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: #d94a73; color: #fff; cursor: pointer; }
+button { font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: #038f93; color: #fff; cursor: pointer; }
 button:hover { filter: brightness(1.05); }
 .err { color: #d5402f; }
 .row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
