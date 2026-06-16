@@ -1,82 +1,85 @@
 # server/CLAUDE.md —— FastAPI 后端
 
-本目录是「秒懂翻译 / aha translate」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)，分阶段实现计划见 `../docs/superpowers/plans/`（P0–P8 基座→上架 + D-11~D-18 商业化）。
+「秒懂翻译 / aha translate」的后端，拥有「翻译这件事」的全部业务。仓库总览见 [`../CLAUDE.md`](../CLAUDE.md)。
 
-> **为什么服务端化**：原本纯客户端自用——DeepSeek Key 随构建注入、提示词 / 流水线全在扩展内。要公开上架就有硬伤：① Key 解包即被盗用；② 没账号 / 配额 / 限流 / 打点，挡不住刷量也看不到线上。故把「翻译流水线 + 密钥 + 账号 + 配额 + 限流 + 记账 + 收单」整体收进后端，扩展退化为「DOM 端 + API 客户端」。（早期『服务端全局共享缓存』方案已被 **D-11 否决**：隐私上不在服务端留存用户译文，缓存改到客户端本地、命中不发服务端、不计费。）
-
----
+**为什么服务端化**：原本是纯客户端自用——DeepSeek Key 随构建注入、提示词 / 流水线全在扩展内。要公开上架就有硬伤：① Key 解包即被盗用；② 没账号 / 配额 / 限流 / 打点，挡不住刷量也看不到线上。故把「翻译流水线 + 密钥 + 账号 + 配额 + 限流 + 记账 + 收单」整体收进后端，扩展退化为「DOM 端 + API 客户端」。译文**不在服务端留存**（隐私）——缓存改到客户端本地，命中不发服务端、不计费。
 
 ## 技术栈
 
-- Python **3.12**（uv 锁定；机器默认 3.14，生态兼容性差，用 `uv venv --python 3.12`）。
+- Python **3.12**（uv 锁定；机器默认 3.14 生态兼容差，用 `uv venv --python 3.12`）。
 - FastAPI（async）+ SQLAlchemy 2.0 async + asyncpg + Alembic 迁移；PyJWT + argon2-cffi；pytest + pytest-asyncio。
-- SSE 用 `StreamingResponse` 手写 `event:`/`data:` 帧。
+- SSE 用 `StreamingResponse` 手写 `event:` / `data:` 帧。
 - **uv 默认索引切清华镜像**（`pyproject.toml` 的 `[[tool.uv.index]]`，pypi.org 直连被墙）。
 
-## 铁律（服务端侧，逐条对应客户端旧约束）
+## 模型：DeepSeek V4 Flash
 
-1. **系统提示词逐字节稳定**（`app/core/prompt.py` 唯一来源，禁止动态拼接）——命中 DeepSeek 前缀缓存（hit 价 ¥0.02 的来源）。
-2. **显式关思考**：请求体顶层 `thinking: {type:'disabled'}`（`deepseek-v4-flash` 默认开思考）。
-3. **按 token 预算装箱 + 有限并发**（`batch_by_token_budget`：累计 `estimate_tokens(src)` ≤ `OUTPUT_TOKEN_BUDGET`，正常文章一次请求、超长才分片，配合 `deepseek.MAX_OUTPUT_TOKENS` 防截断）；**按 source 去重**。
+调用 `deepseek-v4-flash`（`app/core/hashing.py` 的 `MODEL`），关思考、稳定前缀、真实 usage。1M 上下文 / 384K 输出上限、成本价 ¥1/¥2（输入 / 输出，每 M token）透传扣费。**模型能力、参数、前缀缓存、关思考的完整认知见 [`deepseek-v4-flash.md`](deepseek-v4-flash.md)**——调模型 / 改 `deepseek.py` / 动费率前先读它。
+
+## 铁律（模型侧，逐条对应客户端旧约束）
+
+1. **系统提示词逐字节稳定**（`app/core/prompt.py` 唯一来源，禁止动态拼接）——命中 DeepSeek 前缀缓存（cache-hit 价仅 miss 的 1/50）。
+2. **显式关思考**：请求体顶层 `thinking: {type: "disabled"}`（V4 Flash 默认开思考；关掉后首 token 快、不产 reasoning_tokens，且 `temperature` 才生效——思考模式下采样参数无效）。
+3. **按 token 预算装箱 + 有限并发**（`batch_by_token_budget`：累计 `estimate_tokens(src)` ≤ `OUTPUT_TOKEN_BUDGET`，正常网页一次请求、超长才分片，配合 `deepseek.MAX_OUTPUT_TOKENS=384000` 防截断）；**按 source 去重**。
 4. **`[[id]]` 流式切块**：模型逐 token 返回、标记常被拆散——在**完整缓冲**上重扫（`block_splitter.py`）；正则字符类**必须含 `.`**（沉降补抽 / SPA 用 `r{batch}.b{n}`）。
-5. **标记平衡校验**（`markers.py`，与客户端等价）——决定 `success` 计数与「全失败才报错」；服务端不再写缓存（D-11；原样回显 / 校验不过仍回送、由客户端再校验）。
-6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计 Token、接口缺失时 `estimate_tokens` 兜底；**只对服务端实际翻译的块记账**（命中本地缓存的块由客户端拦下、根本不发服务端，D-11）。
+5. **标记平衡校验**（`markers.py`，与客户端等价）——决定 `success` 计数与「全失败才报错」；校验不过的块仍原样回送、由客户端再校验。
+6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计 Token、缺失时 `estimate_tokens` 兜底；**只对服务端实际翻译的块记账**（命中本地缓存的块根本不到服务端）。
 7. **API Key 只在服务端 env**（`app/core/config.py`，绝不下发客户端、绝不入日志 / 事件）。
-8. **DeepSeek 直连**：httpx `trust_env=False`（DeepSeek 是中国服务，无需代理；绕开开发机个人 SOCKS 代理，省 socksio 依赖）。
-9. **应用层加密（D-13）**：见 `X-Eph-Pub` 头则 ECDH(P-256)+HKDF 派生会话密钥（`app/core/crypto.py`，私钥 `session_private_key` 在 env），解密 `ct` 原文 / 加密 `ct` 译文（`/v1/translate`），及解密 auth 的 email/password（`ct`，AAD=`auth`）；**只加密叶子字段**，SSE 信封与标记校验仍在明文上做；**非 E2E**（解密后才发模型）。无头＝明文路径（dev / 现有测试）。返回的 token 仍走明文头（残留）。
+8. **DeepSeek 直连**：httpx `trust_env=False`（DeepSeek 是中国服务无需代理，绕开开发机个人 SOCKS 代理、省 socksio 依赖）。
+9. **应用层加密（可选）**：见 `X-Eph-Pub` 头则 ECDH(P-256)+HKDF 派生会话密钥（`app/core/crypto.py`，私钥在 env），解密 `ct` 原文 / 加密 `ct` 译文，及解密 auth 的 email/password。**只加密叶子字段**，SSE 信封与标记校验仍在明文上做；**非 E2E**（解密后才发模型）。无头＝明文路径（dev / 测试）。
 
-## 模块
+## 模块地图
 
 ```
 app/
-  core/    config.py(Settings/env) · prompt.py(SYSTEM_PROMPT) · hashing.py(版本键+内容寻址键 sha256)
-           tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希) · crypto.py(D-13 ECDH+HKDF+AES-GCM 会话加密)
+  core/    config.py(Settings/env) · prompt.py(SYSTEM_PROMPT) · hashing.py(MODEL + 版本键 sha256)
+           tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希) · crypto.py(ECDH+HKDF+AES-GCM 会话加密)
   db/      base.py(engine/async_session/Base) · models.py(全部表)
-  services/ markers.py · block_splitter.py · deepseek.py(请求体+SSE+Usage 捕获+错误分类)
-           translator.py(编排→事件流: Block/Done/Error/UsageEvent)
-           quota.py(匿名每页一次/3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py · credit_repo.py(credits 账本: 幂等发放/扣减/余额) · pricing.py(扣费费率 cost_micro: in1/out2 micro-¥/token)
-           creem.py(D-18 Creem webhook HMAC 验签 + checkout.completed 解析) · redeem_repo.py(买断注册码幂等签发) · email.py(EmailSender 接口 + LogEmailSender 占位)
+  services/ markers.py · block_splitter.py · deepseek.py(请求体 + SSE + Usage 捕获 + 错误分类)
+           translator.py(编排 → 事件流 Block/Done/Error/UsageEvent)
+           quota.py(匿名每页一次 / 3 页天) · usage_repo.py(daily_usage) · tier.py(梯度限流纯函数) · tier_repo.py · auth.py
+           credit_repo.py(credits 账本：幂等发放 / 扣减 / 余额) · pricing.py(扣费费率 cost_micro：in 1 / out 2 micro-¥/token)
+           creem.py(Creem webhook HMAC 验签 + checkout.completed 解析) · redeem_repo.py(买断注册码幂等签发) · email.py(EmailSender 接口 + LogEmailSender 占位)
   routers/ deps.py(current_user_optional) · translate.py · usage.py · auth.py · telemetry.py · admin.py · billing.py(Creem webhook 收单)
   main.py  挂载全部 router + /health
-alembic/   迁移；scripts/create_admin.py 建管理员
+alembic/   迁移
+scripts/   create_admin.py(建管理员) · gen_session_keypair.py(生成应用层加密密钥对) · smoke_translate.py(真实链路冒烟)
 ```
 
 ## 数据模型（Postgres）
 
-`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，只存 host）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放；付费模式按实耗扣费、余额≤0 软拦截，无人充值前无账户＝休眠）· `redeem_codes`（买断注册码：`source_ref`=支付订单 id 唯一防重投只签一张；买断＝BYOK 终身 + ≤`max_devices` 台，D-18 海外 Creem 收单）。
+`anon_usage`（匿名每页去重）· `users` / `sessions`（账号 + refresh 哈希）· `daily_usage`（每用户每日 token + pages）· `quota_tier`（梯度限流状态机 + notice）· `events` / `error_logs`（打点 / 错误，**只存 host**）· `admins` / `upstream_keys`（管理台）· `credit_accounts` / `credit_txns`（预付额度余额 + 流水，整数 micro-¥=1e-6 元，`idempotency_key` 唯一防重复发放）· `redeem_codes`（买断注册码：`source_ref`=支付订单 id 唯一防重投只签一张）。
 
-> D-11：原 `translation_cache` 跨用户共享缓存已下线——隐私上不在服务端留存用户译文；缓存改为客户端 IndexedDB 本地层（见 front），命中本地的块根本不发服务端、不计费。
+> 译文**不在服务端留存**：原跨用户共享缓存已下线（隐私），缓存改为客户端 IndexedDB 本地层，命中本地的块根本不发服务端、不计费。
 
 ## API 表面
 
-- `POST /v1/translate`（SSE：block/done/error/quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；付费用户余额≤0 发 quota、实耗扣 credits；**带 `X-Eph-Pub` 头则收发 `ct` 密文**，D-13）
-- `GET /v1/usage`（匿名返页配额；登录返 tokensToday/cap/notice）
-- `POST /v1/auth/{register,login,refresh,logout}`（register/login 带 `X-Eph-Pub` 头则邮箱/密码走 `ct`，D-13）
-- `POST /v1/billing/creem/webhook`（D-18 海外买断收单：`creem-signature` HMAC-SHA256 验签 → `checkout.completed` 解析 → 按订单 id 幂等签发注册码 → 发邮件；非买断完成事件回 200 忽略、验签失败回 400）
+- `POST /v1/translate`（SSE：block / done / error / quota；登录跳匿名配额、超日上限发 quota；结束发 UsageEvent 写 daily_usage；付费用户余额 ≤0 发 quota、按实耗扣 credits；带 `X-Eph-Pub` 头则收发 `ct` 密文）
+- `GET /v1/usage`（匿名返页配额；登录返 tokensToday / cap / notice）
+- `POST /v1/auth/{register,login,refresh,logout}`（register / login 带 `X-Eph-Pub` 头则邮箱 / 密码走 `ct`）
+- `POST /v1/billing/creem/webhook`（海外买断收单：`creem-signature` HMAC-SHA256 验签 → `checkout.completed` 解析 → 按订单 id 幂等签发注册码 → 发邮件；非买断完成事件回 200 忽略、验签失败回 400）
 - `POST /v1/events`、`POST /v1/errors`
 - `/admin/{login,stats,users,errors,events,keys}`（管理员 JWT `scope:admin`；keys 响应脱敏，绝不回完整 Key）
 
 ## 关键流程
 
-- **翻译**：鉴权识别身份 → 命中客户端本地缓存的块根本不到这里（D-11）→ 按 source 去重 → 按 token 预算分批并发调 DeepSeek → 切块 + 标记校验 → `UsageEvent`；登录用户记 `daily_usage`，**付费用户（有 credits 账户）按 `pricing.cost_micro` 实耗扣 credits、余额≤0 软拦截**（休眠至首次充值）。
+- **翻译**：鉴权识别身份 → 命中客户端本地缓存的块根本不到这里 → 按 source 去重 → 按 token 预算分批并发调 DeepSeek → 切块 + 标记校验 → `UsageEvent`；登录用户记 `daily_usage`，**付费用户（有 credits 账户）按 `pricing.cost_micro` 实耗扣 credits、余额 ≤0 软拦截**（休眠至首次充值）。
 - **匿名配额**：`(deviceId, localDate, pageKey)` 去重；不同 pageKey ≥3 且新页 → `quota`。同页刷新不扣。
-- **登录跳配额**：`current_user_optional` 非空则不计匿名配额；**有 credits 账户＝付费模式（余额门控、跳梯度限流）**，否则免费模式受**梯度限流**约束。
-- **Token 记账**：以接口 `usage` 为准、缺失时 `estimate_tokens` 兜底，累加进 `daily_usage`；付费用户另按 `pricing.cost_micro`（in 1 / out 2 micro-¥/token，成本价透传）扣 credits。
+- **登录跳配额**：`current_user_optional` 非空则不计匿名配额；**有 credits 账户＝付费模式**（余额门控、跳梯度限流），否则免费模式受**梯度限流**约束。
 - **梯度限流**：`tier.py` 纯函数按「固定日 Token 上限」分档；连续顶格降档、连续达标升档；拦截即时经 `quota` 提醒，升降档经 `quota_tier.notice` → `/v1/usage` 取走。
 
 ## 本地开发环境（重要）
 
-- **dev 库用本机 Postgres.app 的 `imt`(:5432)**，不是 `docker-compose.yml` 的 :5433（开发机当时 Docker 未起）；`server/.env`（gitignore）含 `DATABASE_URL=postgresql+asyncpg://eric@localhost:5432/imt`、`DEEPSEEK_API_KEY`、`jwt_secret`。要 docker 路径需先开 Docker Desktop。
-- **测试夹具**：`conftest.py` 的 `db_session` 建表 + 用后 TRUNCATE + **`await engine.dispose()`**（pytest-asyncio 每测一新事件循环，asyncpg 连接绑 loop，不 dispose 下个测试复用旧连接报 InterfaceError）。
-- 建管理员：`uv run python scripts/create_admin.py <email> <password>`。
+- **dev 库用本机 Postgres.app 的 `imt`(:5432)**，不是 `docker-compose.yml` 的 :5433（开发机当时 Docker 未起）；`server/.env`（gitignore）含 `DATABASE_URL=postgresql+asyncpg://eric@localhost:5432/imt`、`DEEPSEEK_API_KEY`、`jwt_secret`。要 docker 路径须先开 Docker Desktop。
+- **测试夹具**：`conftest.py` 的 `db_session` 建表 + 用后 TRUNCATE + **`await engine.dispose()`**（pytest-asyncio 每测一新事件循环，asyncpg 连接绑 loop，不 dispose 则下个测试复用旧连接报 InterfaceError）。
 
 ## 命令
 
 - 起服务：`uv run uvicorn app.main:app --port 8000`
-- 测试：`uv run pytest`（提交前必跑；pytest 与 commit 分开，别让 `| tail` 吞退出码）
+- 测试：`uv run pytest`（**提交前必跑**；与 commit 分开，别让 `| tail` 吞退出码）
 - 迁移：`uv run alembic revision --autogenerate -m "x" && uv run alembic upgrade head`
+- 建管理员：`uv run python scripts/create_admin.py <email> <password>`
 - 装依赖（清华镜像，遇代理报错清环境）：`env -u ALL_PROXY -u all_proxy -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy uv add <pkg>`
 
 ## 验证
 
-纯逻辑（markers / 切块 / token / 限流状态机 / 配额 / 费率 / 加密金标向量）用 pytest 单测；端点用 httpx ASGITransport + 依赖覆盖（deepseek / quota / daily / tier / credits）；翻译真实链路用 curl 冒烟（注册 → translate → usage）。
+纯逻辑（markers / 切块 / token / 限流状态机 / 配额 / 费率 / 加密金标向量）用 pytest 单测；端点用 httpx ASGITransport + 依赖覆盖（deepseek / quota / daily / tier / credits）；翻译真实链路用 `scripts/smoke_translate.py` 或 curl 冒烟（注册 → translate → usage）。

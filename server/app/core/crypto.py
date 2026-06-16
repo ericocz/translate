@@ -1,7 +1,7 @@
 """应用层加密（D-13）：ECDH(P-256) + HKDF-SHA256 → AES-256-GCM。
 服务端静态私钥在 env；客户端钉死服务端公钥、每会话发临时公钥，服务端无状态重新派生会话密钥。
 非 E2E：服务端解密原文发模型、加密译文回客户端。只加密叶子字段，SSE 信封/标记校验不动。
-跨语言规格见 docs/.../2026-06-14-d13-app-layer-encryption.md（两端逐字节一致）。
+客户端对应实现 front/lib/crypto.ts（同套盐/info/AAD，两端逐字节一致）。
 """
 from __future__ import annotations
 

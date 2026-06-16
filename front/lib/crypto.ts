@@ -1,6 +1,6 @@
 // 应用层加密（D-13）：ECDH(P-256)+HKDF-SHA256→AES-256-GCM。钉死服务端公钥，每会话临时密钥。
 // 只在构建注入了 SERVER_PUBKEY 时启用（生产）；dev 无公钥＝明文路径。原生 Web Crypto，不引库。
-// 跨语言规格见 docs/.../2026-06-14-d13-app-layer-encryption.md（与 server/app/core/crypto.py 逐字节一致）。
+// 服务端对应实现 server/app/core/crypto.py（同套盐/info/AAD，两端逐字节一致）。
 import { SERVER_PUBKEY } from './config';
 
 const enc = new TextEncoder();
