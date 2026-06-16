@@ -24,8 +24,8 @@ async def db_session():
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE anon_usage, users, sessions, daily_usage, "
-                "quota_tier, events, error_logs, admins, upstream_keys, "
+                "TRUNCATE users, sessions, daily_usage, "
+                "events, error_logs, admins, upstream_keys, "
                 "credit_accounts, credit_txns, redeem_codes CASCADE"
             )
         )

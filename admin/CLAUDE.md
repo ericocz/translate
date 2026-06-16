@@ -6,7 +6,7 @@
 
 - **Next.js 14（App Router）+ React 18 + TypeScript**。
 - **刻意只用原生组件**（不引 shadcn/ui、Tremor、TanStack，降安装 / 构建面与风险）：原生 `fetch` + 轻量表格 / 卡片 + 一份全局 CSS。
-- 包管理 pnpm；**registry 用 npmmirror**（`admin/.npmrc`，npm 直连被墙）。装依赖遇代理报错时命令前清 `*PROXY*` 环境变量。
+- 包管理 pnpm，**直连官方 registry**（作者有 VPN、服务器在香港，原 npmmirror 已撤）。装依赖遇本机代理报错时命令前清 `*PROXY*` 环境变量。
 
 ## 结构
 
@@ -16,7 +16,7 @@ app/
   globals.css       # 全局样式（素净、青绿强调，与扩展同色系）
   login/page.tsx    # 'use client'：邮箱密码 → POST /admin/login → 存 token → 跳 /
   page.tsx          # 概览：/admin/stats（用户 / 翻译 / 错误 / Token 卡片 + Top 域名）
-  users/page.tsx    # /admin/users（邮箱 / 今日 token / 档位 / 注册）
+  users/page.tsx    # /admin/users（邮箱 / 今日 token / 余额 / 注册）
   logs/page.tsx     # /admin/errors（时间 / 类型 / 消息 / 用户）
   keys/page.tsx     # /admin/keys（label / 脱敏 key / 状态 + 添加 + 启停 PATCH）
 lib/api.ts          # API 封装：localStorage 存 imt_admin_token、自动带 Authorization；401 清 token 跳 /login；

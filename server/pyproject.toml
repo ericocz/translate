@@ -25,11 +25,6 @@ testpaths = ["tests"]
 [tool.uv]
 package = false
 
-# 作者在国内：用清华镜像作默认索引（pypi.org 直连被墙、个人代理不稳）。
-[[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-default = true
-
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

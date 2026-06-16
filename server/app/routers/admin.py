@@ -10,10 +10,10 @@ from app.core.security import create_admin_token, decode_admin_token, verify_pas
 from app.db.base import async_session
 from app.db.models import (
     Admin,
+    CreditAccount,
     DailyUsage,
     ErrorLog,
     Event,
-    QuotaTier,
     UpstreamKey,
     User,
 )
@@ -86,9 +86,9 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
     today = date.today().isoformat()
     rows = (await session.execute(select(User).order_by(User.id.desc()).limit(200))).scalars().all()
     ids = [u.id for u in rows]
-    # 批量取当日用量与档位（按 user_id 归集），避免逐用户 N+1 查询。
+    # 批量取当日用量与额度余额（按 user_id 归集），避免逐用户 N+1 查询。
     usage_by_user: dict[int, DailyUsage] = {}
-    tier_by_user: dict[int, QuotaTier] = {}
+    balance_by_user: dict[int, int] = {}
     if ids:
         usage_rows = (
             await session.execute(
@@ -98,19 +98,21 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
             )
         ).scalars()
         usage_by_user = {du.user_id: du for du in usage_rows}
-        tier_rows = (
-            await session.execute(select(QuotaTier).where(QuotaTier.user_id.in_(ids)))
+        owner_to_id = {f"u:{i}": i for i in ids}
+        bal_rows = (
+            await session.execute(
+                select(CreditAccount).where(CreditAccount.owner.in_(list(owner_to_id)))
+            )
         ).scalars()
-        tier_by_user = {qt.user_id: qt for qt in tier_rows}
+        balance_by_user = {owner_to_id[ca.owner]: int(ca.balance_micro) for ca in bal_rows}
     out = []
     for u in rows:
         du = usage_by_user.get(u.id)
-        qt = tier_by_user.get(u.id)
         out.append({
             "id": u.id,
             "email": u.email,
             "tokensToday": int((du.input_tokens + du.output_tokens) if du else 0),
-            "tier": qt.tier if qt else 0,
+            "balanceMicro": balance_by_user.get(u.id, 0),
             "createdAt": u.created_at.isoformat() if u.created_at else None,
         })
     return out

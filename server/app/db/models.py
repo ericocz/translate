@@ -7,26 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
-class AnonUsage(Base):
-    """匿名「每页一次」去重计数：一行 = 某设备某本地日翻译过的一个页面（page_key 为客户端算好的哈希）。
-    唯一约束保证同设备同日同页只占一行；当日不同 page_key 行数即「已用页数」。"""
-
-    __tablename__ = "anon_usage"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    local_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD（用户时区）
-    page_key: Mapped[str] = mapped_column(String(32), nullable=False)
-    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 软兜底，仅记录不硬卡
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint("device_id", "local_date", "page_key", name="uq_anon_device_date_page"),
-    )
-
-
 class User(Base):
     __tablename__ = "users"
 
@@ -113,20 +93,6 @@ class UpstreamKey(Base):
     )
 
 
-class QuotaTier(Base):
-    """登录用户梯度限流状态机：tier 决定日 Token 上限；strikes/clean_days 累计跨日表现；
-    notice 暂存升降档提醒，供 /v1/usage 取走。"""
-
-    __tablename__ = "quota_tier"
-
-    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    tier: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    strikes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    clean_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_day: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    notice: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
-
 class Session(Base):
     """登录会话：refresh token 只存 sha256 哈希；access 是短时 JWT 无需存。"""
 
@@ -142,11 +108,12 @@ class Session(Base):
 
 
 class CreditAccount(Base):
-    """用户预付额度余额。整数 micro-¥（1e-6 元）记账，不用浮点。"""
+    """预付额度余额。owner = "u:{user_id}"（注册用户）或 "d:{device_id}"（未注册设备，领赠送用）。
+    整数 micro-¥（1e-6 元）记账，不用浮点。"""
 
     __tablename__ = "credit_accounts"
 
-    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    owner: Mapped[str] = mapped_column(String(80), primary_key=True)
     balance_micro: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
@@ -184,7 +151,7 @@ class CreditTxn(Base):
     __tablename__ = "credit_txns"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    owner: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     delta_micro: Mapped[int] = mapped_column(BigInteger, nullable=False)  # +发放 / -扣减
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # grant|gift|deduct|refund
     balance_after: Mapped[int] = mapped_column(BigInteger, nullable=False)

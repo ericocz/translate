@@ -10,7 +10,6 @@ from app.core import crypto
 from app.core.config import settings
 from app.db.base import async_session
 from app.services import deepseek
-from app.services.quota import AnonQuotaRepo
 from app.routers.deps import current_user_optional
 from app.services.translator import (
     BlockEvent,
@@ -21,14 +20,16 @@ from app.services.translator import (
     translate,
 )
 from app.services.usage_repo import DailyUsageRepo
-from app.services.tier_repo import TierRepo
-from app.services.credit_repo import CreditRepo
+from app.services.credit_repo import CreditRepo, device_owner, user_owner
 from app.services.pricing import cost_micro
 
 router = APIRouter()
 
 # D-13 应用层加密：静态私钥启动时载一次；空＝明文路径（dev / 现有测试）。
 _server_priv = crypto.load_private_key(settings.session_private_key) if settings.session_private_key else None
+
+# 余额不足（无账户或余额≤0）统一文案——前端按登录态引导领赠送/充值/买断。
+_NO_CREDIT_MSG = "额度不足：可领取赠送额度、充值，或买断后用自己的模型"
 
 
 class BlockIn(BaseModel):
@@ -39,8 +40,7 @@ class BlockIn(BaseModel):
 
 class TranslateRequest(BaseModel):
     blocks: list[BlockIn]
-    localDate: str | None = None  # 用户本地日 YYYY-MM-DD（匿名配额按本地日跨天重置）
-    pageKey: str | None = None    # 客户端算好的页面身份哈希（匿名「每页一次」）
+    localDate: str | None = None  # 用户本地日 YYYY-MM-DD（daily_usage 按本地日记账）
 
 
 # ---- 依赖（测试可覆盖）----
@@ -49,20 +49,9 @@ def get_deepseek_stream():
     return deepseek.stream_with_default_client
 
 
-async def get_anon_quota() -> AsyncIterator[AnonQuotaRepo]:
-    """每请求开一个 DB session，返回匿名配额仓库。"""
-    async with async_session() as s:
-        yield AnonQuotaRepo(s)
-
-
 async def get_daily_usage() -> AsyncIterator[DailyUsageRepo]:
     async with async_session() as s:
         yield DailyUsageRepo(s)
-
-
-async def get_tier() -> AsyncIterator[TierRepo]:
-    async with async_session() as s:
-        yield TierRepo(s)
 
 
 async def get_credits() -> AsyncIterator[CreditRepo]:
@@ -78,15 +67,12 @@ def _sse(event: str, data: dict) -> str:
 async def translate_endpoint(
     req: TranslateRequest,
     request: Request,
-    quota=Depends(get_anon_quota),
     deepseek_stream=Depends(get_deepseek_stream),
     daily=Depends(get_daily_usage),
-    tier=Depends(get_tier),
     credits=Depends(get_credits),
     user_id: int | None = Depends(current_user_optional),
 ):
     device_id = request.headers.get("x-device-id", "")
-    ip = request.client.host if request.client else None
     local_date = req.localDate or date.today().isoformat()
 
     # D-13：带 X-Eph-Pub 头且服务端有私钥 → ECDH 派生会话密钥、解密原文 ct；否则走明文 source。
@@ -104,43 +90,18 @@ async def translate_endpoint(
     else:
         blocks = [SourceBlock(b.id, b.source or "") for b in req.blocks]
 
-    # 匿名配额闸门（P2；P3 登录用户将在此跳过）。有 pageKey + deviceId 才计。
-    # 在返回流之前 await 完成判定/计数；拒绝则流里只发 quota、不查缓存不调模型。
-    # 登录用户（user_id 非空）跳过匿名配额：无限翻译（用量记账留 P4、限流留 P5）。
-    decision = None
-    if user_id is None and req.pageKey and device_id:
-        decision = await quota.check_and_count(device_id, local_date, req.pageKey, ip)
-
-    # 登录用户分两类：① 有 credits 账户＝付费模式（余额门控 + 实耗扣费，跳梯度限流）；
-    # ② 无账户＝免费模式（梯度限流，现状不变）。无人充值前无账户 → 行为零变化（休眠）。
-    account = await credits.get_account(user_id) if user_id is not None else None
-    is_credit_user = account is not None
-    tier_block_msg = None
-    credit_block_msg = None
-    if is_credit_user:
-        if account.balance_micro <= 0:
-            credit_block_msg = "额度不足，请充值后继续"
-    elif user_id is not None:
-        tev = await tier.evaluate(user_id, local_date)
-        if not tev.allowed:
-            tier_block_msg = tev.notice
+    # 统一额度门控（走平台 key 的翻译）：owner = 注册用户 u:{id} 或未注册设备 d:{deviceId}。
+    # 无 owner（既未登录又无 deviceId）或余额≤0 → 发 quota、不翻。BYOK 客户端直连不经此端点。
+    owner = user_owner(user_id) if user_id is not None else (device_owner(device_id) if device_id else None)
+    balance = await credits.get_balance(owner) if owner else 0
+    no_credit = owner is None or balance <= 0
 
     async def gen() -> AsyncIterator[str]:
         if enc_error is not None:
             yield _sse("error", {"kind": "api", "message": enc_error})
             return
-        if decision is not None and not decision.allowed:
-            yield _sse("quota", {
-                "message": decision.message,
-                "used": decision.used,
-                "limit": decision.limit,
-            })
-            return
-        if tier_block_msg is not None:
-            yield _sse("quota", {"message": tier_block_msg})
-            return
-        if credit_block_msg is not None:
-            yield _sse("quota", {"message": credit_block_msg})
+        if no_credit:
+            yield _sse("quota", {"message": _NO_CREDIT_MSG, "balance": balance})
             return
         async for ev in translate(
             blocks,
@@ -153,12 +114,10 @@ async def translate_endpoint(
                 else:
                     yield _sse("block", {"id": ev.id, "translated": ev.translated})
             elif isinstance(ev, UsageEvent):
-                # 登录用户记当日 token（只计服务端实际翻译的用量）；匿名不记 daily_usage（走页配额）。
+                # 按实耗扣 owner 额度（成本价 ×1.3）。登录用户另记 daily_usage 作统计。
+                await credits.deduct(owner, cost_micro(ev.input_tokens, ev.output_tokens))
                 if user_id is not None:
                     await daily.add(user_id, local_date, ev.input_tokens, ev.output_tokens, pages=1)
-                # 付费模式：按实耗扣 credits（micro-¥）。免费用户无账户、不扣。
-                if is_credit_user:
-                    await credits.deduct(user_id, cost_micro(ev.input_tokens, ev.output_tokens))
             elif isinstance(ev, DoneEvent):
                 yield _sse("done", {})
             elif isinstance(ev, ErrorEvent):
