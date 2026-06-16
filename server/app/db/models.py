@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -158,4 +158,24 @@ class CreditTxn(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class RedeemActivation(Base):
+    """买断码激活绑定的设备：一行 = 一个 code 在一台设备上激活。
+    唯一 (code_id, device_id) → 同设备重复激活幂等；每 code 至多 max_devices 行。"""
+
+    __tablename__ = "redeem_activations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("redeem_codes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    activated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("code_id", "device_id", name="uq_redeem_activation_code_device"),
     )

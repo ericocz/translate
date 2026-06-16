@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.ratelimit import SlidingWindowCounter, classify, client_ip
-from app.routers import admin, auth, billing, telemetry, translate, usage
+from app.routers import admin, auth, billing, redeem, telemetry, translate, usage
 
 app = FastAPI(title="Immersive Translate Backend")
 
@@ -27,6 +27,7 @@ app.include_router(auth.router)
 app.include_router(telemetry.router)
 app.include_router(admin.router)
 app.include_router(billing.router)
+app.include_router(redeem.router)
 
 
 @app.get("/health")
