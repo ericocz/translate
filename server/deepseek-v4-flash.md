@@ -142,6 +142,26 @@ httpx 客户端用 `trust_env=False` 直连 `api.deepseek.com`（中国服务无
 
 ---
 
+## 9. 速率限制 / 并发 / 多 key（2026-06-16 查证 + 决策）
+
+> 来源：DeepSeek 官方 rate limit 文档（api-docs.deepseek.com）+ 本项目讨论决策。
+
+**DeepSeek 的限制是「并发数」，不是 RPM/TPM**：
+- v4-flash **2,500 并发** / v4-pro 500 并发（一个请求从发出到响应完成＝占一个并发）。超限返 **429**，**可免费申请扩容**。
+- **并发按「账号」计算，与用哪个 API key 无关**——同账号的多个 key **共享**同一配额。
+- 没有「每分钟请求数 / token 数」（RPM/TPM）限制。
+
+**「多 key」的真相（易误解）**：
+- 同账号多 key **不能**扩并发、**不能**做账号级 failover（欠费 / 封号是账号级，同账号一起挂）。
+- 多 key 只用于**密钥管理**：泄露时单独吊销受损 key、按 key 分用量统计、平滑轮换。
+
+**决策：上游 key 池暂缓**（原后端完善计划的 ③）。理由：
+- 单账号 2,500 并发对 flash 极高，现阶段（`translator.CONCURRENCY=4` + 少量用户）远撞不到，且能免费扩容——并发墙不是当前问题。
+- 单账号 + key 在 `server/.env`、已靠「绝不下发客户端 / 不入日志」控泄露，多 key 的管理价值也弱。
+- **要真正扩并发 / 容灾，必须「多账号」（N×2500 + 各自独立余额 + 账号级 failover）或「跨 provider（字节火山）」——规模化后再做。** 届时把 `upstream_keys` 表（admin 已有 CRUD、但**现未接入翻译调用**，`translate.py` 写死 `settings.deepseek_api_key` 单 key）接入：按账号池轮换 + 失败 failover。
+
+---
+
 ## 参考来源
 
 - DeepSeek API 官方文档：定价、思考模式、上下文缓存、V4 发布说明（api-docs.deepseek.com）。

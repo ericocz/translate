@@ -82,3 +82,30 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 - 命令（在 `front/` 下）：`pnpm dev`（HMR）/ `pnpm build`（产物 `output/chrome-mv3`，作解包扩展加载）/ `pnpm compile`（`tsc --noEmit`，**提交前必跑**）/ `pnpm zip`。
 - **验证**：纯函数（markers / 切块 / sse / pageKey）用一次性 `node .test-*.mjs` 脚本单测；端到端用 Chrome DevTools（调试 Chrome 开 `:9222`）连扩展 SW——注意 background 发的请求在页面 network 看不到，要去 SW 上下文查。
 - **全站回归**：语料见《[../测试网站清单.md](../测试网站清单.md)》（150 站），结果汇总进《[../测试运行记录.md](../测试运行记录.md)》，❌ 转经验库立案。改抽取 / 标记 / 重建后据此回归。
+
+## 跨平台架构方向（规划 · 2026-06-16 讨论，未实现）
+
+> 前端要从「单一 Chrome 扩展」演进为「桌面扩展 + 手机端」。本节是**方向记录，代码尚未动工**；开工前先读。
+
+**核心认知：没有「一套代码同时出扩展 + app」**——浏览器扩展（manifest + content script + `chrome.*` API）和手机 app（原生 / WebView）宿主环境根本不同，任何框架都跨不了。**能共用的是业务逻辑，不是 UI / 平台壳。**
+
+**目标格局（三端共用 core）：**
+
+| 平台 | 形态 | 复用 |
+|---|---|---|
+| 桌面 | Chrome / Edge 扩展（现有 `front/`） | core 全部 |
+| **Android** | **自带 WebView 的浏览器 app**（Android 无扩展，只能自己做） | core + 壳自写 |
+| **iOS** | **Safari Web Extension**（由现有扩展移植，苹果官方 WebExtensions 标准，大部分代码直接复用、**不用做浏览器**） | 扩展代码大部分 |
+
+**分层（monorepo）：**
+- `core-api`：账号 / 额度 / 翻译 API client / device / 加密握手 —— 任何平台可用。
+- `core-translate`：抽取 / 标记 / 重建 / SSE 解析（纯 DOM JS，注入任何 WebView 都能用）。
+- 各平台壳：`extension`（WXT，content + SW + popup）、`android app`、`ios safari ext`——UI + 注入胶水各写各的，共用不了。
+
+**决策：先只做 Android（浏览器 / WebView 形态），iOS（Safari 扩展）以后单独做。** 前提是**现在就把 `core` 从 `front/` 抽干净（平台无关）**，否则 iOS / Android 复用不了、白做。
+
+**Android 技术选型：** `core` 必然 TS；壳倾向 **React Native + TS**（技能复用，`react-native-webview` 的 `injectJavaScript` + `onMessage` 注入 core-translate），或原生 Kotlin（WebView 控制最强）。「用 TS」**≠「和扩展同一套代码」**：语言 + core 逻辑复用，壳和注入胶水仍各写。框架不急定，先抽 core。
+
+**后端：完全共用**——平台无关 HTTP / SSE API，app 端只是多一个 HTTP 客户端（API client + 稳定 deviceId + 可选加密握手，都在 `core-api`）。后端基本不动。
+
+**下一步前置：** 把 `front/` 的翻译逻辑（extractor / markers / rebuilder / api / cache / crypto / device）抽成 `core`，这是三端共用的地基、对 Android 和 iOS 都必须。
