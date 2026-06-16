@@ -21,6 +21,9 @@ import {
 
 const STYLE_ID = 'immersive-translate-style';
 const FADE_CLASS = 'imt-fade-in';
+const RETRY_LABEL = '重试翻译';
+const RETRY_BUSY = '重试中…';
+const RETRY_CONTEXT = 2; // 重试时连带的上下文段数（目标段前后各 RETRY_CONTEXT 段一起发模型）
 
 interface BlockRecord {
   id: string;
@@ -30,6 +33,8 @@ interface BlockRecord {
   originalHTML: string;
   translatedFrag: DocumentFragment | null;
   status: 'pending' | 'done' | 'failed';
+  /** 失败段内追加的「重试翻译」文字按钮（仅失败块有）。 */
+  retryBtn?: HTMLElement | null;
 }
 
 export default defineContentScript({
@@ -266,24 +271,32 @@ export default defineContentScript({
       });
     }
 
-    function openPortAndStart(payload: { id: string; source: string }[]) {
+    function openPortAndStart(
+      payload: { id: string; source: string }[],
+      opts?: { bypassCache?: boolean }
+    ) {
       port?.disconnect();
       // 用局部 p 捕获本次 port：沉降补抽会串行起多个 job，旧 port 的回调若在新 job 启动后才触发，
       // 必须用 `port === p` 守卫，避免它把当前 port / running 清掉（否则补译 job 会被误判结束）。
       const p = chrome.runtime.connect({ name: PORT_NAME });
       port = p;
+      const ids = payload.map((b) => b.id);
       p.onMessage.addListener((msg: BgToContent) => {
         if (msg.kind === 'block') {
           applyBlock(msg.id, msg.translated); // 块回填始终生效（属于 records，与是否当前 port 无关）
         } else if (msg.kind === 'done') {
           if (port === p) state.running = false;
+          finalizeJob(ids); // 本批里没译成的块 → 标失败 + 段内「重试翻译」按钮
         } else if (msg.kind === 'error') {
           if (port === p) {
             state.running = false;
             state.lastError = msg.failure.message;
             state.lastErrorKind = msg.failure.kind;
           }
-          // 失败的视觉表现：失败块就保持英文，无须特别处理。
+          // quota/auth 是系统性引导（popup 已提示登录/充值），不给段落挂按钮——只复位「重试中…」态；
+          // 其余（network/api/unknown）可能只是部分失败，给失败块挂「重试翻译」按钮。
+          if (msg.failure.kind === 'quota' || msg.failure.kind === 'auth') unstickBusyButtons(ids);
+          else finalizeJob(ids);
         }
       });
       p.onDisconnect.addListener(() => {
@@ -291,9 +304,83 @@ export default defineContentScript({
           state.running = false;
           port = null;
         }
+        // 被新 job / 取消 superseded 时，复位卡在「重试中…」的按钮（不改状态、不新增按钮）。
+        unstickBusyButtons(ids);
       });
-      const startMsg: ContentToBg = { kind: 'start', blocks: payload };
+      const startMsg: ContentToBg = { kind: 'start', blocks: payload, bypassCache: opts?.bypassCache };
       p.postMessage(startMsg);
+    }
+
+    /** 一批翻译结束后收尾：没译成的块标失败 + 挂「重试翻译」按钮；已译成的清掉残留按钮。 */
+    function finalizeJob(ids: string[]) {
+      for (const id of ids) {
+        const rec = state.records.get(id);
+        if (!rec) continue;
+        if (rec.status === 'done') {
+          removeRetryButton(rec);
+          continue;
+        }
+        rec.status = 'failed';
+        if (rec.root.isConnected) ensureRetryButton(rec);
+      }
+    }
+
+    /** 在失败段内追加 / 复位「重试翻译」文字按钮（幂等：已存在则复位到可点状态）。 */
+    function ensureRetryButton(rec: BlockRecord) {
+      const existing = rec.retryBtn;
+      if (existing && existing.isConnected) {
+        existing.textContent = RETRY_LABEL;
+        existing.removeAttribute('disabled');
+        return;
+      }
+      const btn = document.createElement('button');
+      btn.className = 'imt-retry-btn';
+      btn.type = 'button';
+      btn.textContent = RETRY_LABEL;
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (btn.hasAttribute('disabled')) return;
+        btn.textContent = RETRY_BUSY;
+        btn.setAttribute('disabled', '');
+        retryBlock(rec);
+      });
+      // 追加进失败块自身：其 data-trans-id 让抽取器整树跳过这个按钮，绝不送翻；
+      // 关站/还原走 originalHTML 重置 innerHTML 时按钮也随之消失，无需额外清理。
+      rec.root.appendChild(btn);
+      rec.retryBtn = btn;
+    }
+
+    function removeRetryButton(rec: BlockRecord) {
+      rec.retryBtn?.remove();
+      rec.retryBtn = null;
+    }
+
+    /** 把这些块里卡在「重试中…」（disabled）的按钮复位到可点状态——用于 job 被取消/系统性失败时，避免按钮永久卡死。 */
+    function unstickBusyButtons(ids: string[]) {
+      for (const id of ids) {
+        const b = state.records.get(id)?.retryBtn;
+        if (b && b.isConnected && b.hasAttribute('disabled')) {
+          b.textContent = RETRY_LABEL;
+          b.removeAttribute('disabled');
+        }
+      }
+    }
+
+    /**
+     * 重试单个失败段：连带前后各 RETRY_CONTEXT 段一起发模型，让模型有上下文译好这段。
+     * 关键走 bypassCache——否则上下文段命中本地缓存被直接回填、只有失败段被单独发服务端，又失去上下文。
+     * 上下文里已译完的块 applyBlock 会早退（不重复重建）；本次仍没译成的块由 finalizeJob 复位按钮。
+     */
+    function retryBlock(rec: BlockRecord) {
+      const ordered = Array.from(state.records.values()).filter((r) => r.root.isConnected);
+      const idx = ordered.findIndex((r) => r.id === rec.id);
+      if (idx < 0) return; // 记录已被 SPA 清掉
+      const from = Math.max(0, idx - RETRY_CONTEXT);
+      const to = Math.min(ordered.length, idx + RETRY_CONTEXT + 1);
+      const payload = ordered.slice(from, to).map((r) => ({ id: r.id, source: r.source }));
+      state.running = true;
+      openPortAndStart(payload, { bypassCache: true });
     }
 
     function cancelStream() {
@@ -313,6 +400,8 @@ export default defineContentScript({
     function applyBlock(id: string, translated: string) {
       const rec = state.records.get(id);
       if (!rec) return;
+      // 已译完的块不重复处理：retry 把上下文段一起发回时会重复回填，跳过避免无谓重建/淡入。
+      if (rec.status === 'done') return;
       // 补回模型整对省略的「最外层唯一内联包装」（最典型：超链接 <a> 裹住整块文字）。
       // 否则 rebuild 拿不到 open token、不重建这层壳，文字直接落进父元素——链接失效，且在
       // white-space:nowrap 的容器里（如热门问题侧栏 li）中文不换行、整行溢出。见经验库。
@@ -331,6 +420,7 @@ export default defineContentScript({
       syncAriaHiddenShadows(frag, rec.source);
       rec.translatedFrag = frag;
       rec.status = 'done';
+      removeRetryButton(rec); // 这段译好了，去掉它的重试按钮（若有）
       // 若整页处于"看英文"模式或该块被局部锁为英文，则不刷 DOM。
       if (state.mode !== 'zh') return;
       if (state.perBlockMode.get(id) === 'en') return;
@@ -399,6 +489,13 @@ function injectStyle() {
   s.textContent = `
     .${FADE_CLASS} { animation: imt-fade 130ms ease-in; }
     @keyframes imt-fade { from { opacity: 0.35; } to { opacity: 1; } }
+    .imt-retry-btn {
+      display: inline-block; margin-left: 6px; padding: 0; border: 0; background: none;
+      color: #038f93; font: inherit; font-size: 0.82em; line-height: inherit;
+      cursor: pointer; opacity: 0.9; vertical-align: baseline;
+    }
+    .imt-retry-btn:hover { text-decoration: underline; opacity: 1; }
+    .imt-retry-btn[disabled] { cursor: default; opacity: 0.5; text-decoration: none; }
   `;
   document.documentElement.appendChild(s);
 }

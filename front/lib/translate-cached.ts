@@ -45,12 +45,14 @@ const defaultDeps: CacheDeps = {
   server: translateViaBackend,
 };
 
-/** 与 translateViaBackend 同形（返回 {abort}）：可直接替换 background 的调用。 */
+/** 与 translateViaBackend 同形（返回 {abort}）：可直接替换 background 的调用。
+ *  bypassCache=true 时跳过本地缓存查询、整批直接发服务端（重试带上下文用）；成功译文照常写回缓存。 */
 export function translateWithCache(
   blocks: ApiBlock[],
   pageKey: string,
   handlers: ApiHandlers,
-  deps: CacheDeps = defaultDeps
+  deps: CacheDeps = defaultDeps,
+  bypassCache = false
 ): ApiClient {
   let inner: ApiClient | null = null;
   let aborted = false;
@@ -69,10 +71,12 @@ export function translateWithCache(
     }
 
     let hits = new Map<string, string>();
-    try {
-      hits = await deps.getMany(blocks.map((b) => b.source));
-    } catch {
-      hits = new Map();
+    if (!bypassCache) {
+      try {
+        hits = await deps.getMany(blocks.map((b) => b.source));
+      } catch {
+        hits = new Map();
+      }
     }
     if (aborted) return;
 

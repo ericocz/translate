@@ -6,6 +6,9 @@ export const PORT_NAME = 'translate-stream';
 export interface StartMsg {
   kind: 'start';
   blocks: { id: string; source: string }[];
+  /** 重试场景：跳过本地缓存，把整批（含上下文段）都发模型——否则上下文段命中本地缓存被直接回填、
+   *  只有失败段被单独发服务端，就又失去了上下文。 */
+  bypassCache?: boolean;
 }
 
 /** content -> background：取消当前流。 */

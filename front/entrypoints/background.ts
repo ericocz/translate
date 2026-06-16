@@ -89,7 +89,9 @@ export default defineBackground(() => {
             reportError(failure.kind, failure.message, { host: domain ?? null });
             send({ kind: 'error', failure });
           },
-        }
+        },
+        undefined,
+        msg.bypassCache
       );
       job = thisJob;
     });
