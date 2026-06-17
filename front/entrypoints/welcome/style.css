@@ -1,0 +1,125 @@
+/* welcome 引导页 · 素 Quiet：与 popup / options 同语言——纯白卡片、发丝描边、单一青绿、克制留白。 */
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 14px;
+
+  --bg: #fbfbfa;
+  --card: #ffffff;
+  --fg: #1a1a1c;
+  --fg2: #76757a;
+  --line: #eae9e6;
+  --brand: #038f93;
+  --soft: #f1f1ef;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618;
+    --card: #1f1f22;
+    --fg: #ececee;
+    --fg2: #9a99a0;
+    --line: #2c2c2f;
+    --brand: #1fc4ca;
+    --soft: #29292c;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); }
+
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: clamp(40px, 8vh, 80px) 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Hero */
+.hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.hero-logo { width: 60px; height: 60px; border-radius: 14px; }
+.hero h1 { margin: 4px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.hero-sub { margin: 0; max-width: 440px; font-size: 13.5px; line-height: 1.6; color: var(--fg2); }
+
+/* 卡片（同 options） */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card-h { display: flex; align-items: center; gap: 10px; }
+.card-h h2 { margin: 0; font-size: 14.5px; font-weight: 700; }
+.muted { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--fg2); }
+
+/* 三步 */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.step { display: flex; gap: 12px; align-items: flex-start; }
+.step-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.step-b { display: flex; flex-direction: column; gap: 3px; }
+.step-b strong { font-size: 13.5px; font-weight: 650; }
+
+/* 领取额度 */
+.claim-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.add {
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.2s ease;
+}
+.add:hover:not(:disabled) { transform: translateY(-1px); }
+.add:disabled { opacity: 0.4; cursor: default; }
+
+.claim-ok { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.5; }
+.claim-badge {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  padding: 2px 9px;
+  border-radius: 99px;
+}
+.claim-err { font-size: 12px; line-height: 1.55; color: #c0392b; }
+@media (prefers-color-scheme: dark) { .claim-err { color: #ff8a7a; } }
+
+/* 页脚 */
+.foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.foot-hint { font-size: 12px; color: var(--fg2); }
+.ghost {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--brand);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.12s ease;
+}
+.ghost:hover { border-color: var(--brand); transform: translateY(-1px); }

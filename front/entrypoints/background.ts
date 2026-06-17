@@ -176,7 +176,13 @@ export default defineBackground(() => {
     }
   });
 
-  chrome.runtime.onInstalled.addListener(() => void refreshAllTabs());
+  chrome.runtime.onInstalled.addListener((details) => {
+    void refreshAllTabs();
+    // 首次安装：打开引导页（怎么用 + 末尾领 ¥2）。更新 / 浏览器重启不弹。
+    if (details.reason === 'install') {
+      chrome.tabs.create({ url: chrome.runtime.getURL('/welcome.html') });
+    }
+  });
   chrome.runtime.onStartup.addListener(() => void refreshAllTabs());
 
   // ---- ④ SPA 同文档导航（pushState/replaceState）：通知 content 对新路由重译 ----

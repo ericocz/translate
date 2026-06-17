@@ -43,10 +43,13 @@ TypeScript strict；Chrome **MV3**；[WXT](https://wxt.dev/)（基于 Vite，处
 entrypoints/
   content.ts            # 抽取 / 标记 / 流式回填 / Ctrl+点击 / 还原；有界沉降补抽 settleAndReextract +
                         #   SPA 软导航重译 handleSpaNavigation；失败段收尾 finalizeJob + 段内重试 retryBlock
-  background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点
+  background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点；
+                        #   onInstalled(reason='install') 打开引导页 welcome.html（更新/重启不弹）
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号
   popup/  options/      # React「素 Quiet」：popup 账号区 + 额度区(GiftBar 未登录领 ¥2/显余额、登录显余额+充值入口跳 options) + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁 + 未买断挂「买断 $9.99」购买入口跳 Creem 静态 link)；
                         #   options 管白名单 + 充值卡(Recharge.tsx 登录选档位→微信扫码二维码→轮询到账) + BYOK 配置卡(Byok.tsx)
+  welcome/              # 首装引导页（welcome.html，整页标签）：三步上手 + 末尾领 ¥2（claimGift）；
+                        #   领取门控浏览器标识——getInstanceId() 取不到('')则禁用领取、提示去设置充值
 lib/
   api.ts          # translateViaBackend：调后端 /v1/translate 消费 SSE；带 deviceId/pageKey/Authorization
   local-engine/   # BYOK 本地翻译引擎（镜像后端 services/，跑在 SW）：types(ProviderConfig)/presets/
