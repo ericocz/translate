@@ -45,9 +45,14 @@ entrypoints/
                         #   SPA 软导航重译 handleSpaNavigation；失败段收尾 finalizeJob + 段内重试 retryBlock
   background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号
-  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度提示 + 翻译按钮；options 管白名单
+  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度提示 + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁)；
+                        #   options 管白名单 + BYOK 配置卡(Byok.tsx)
 lib/
   api.ts          # translateViaBackend：调后端 /v1/translate 消费 SSE；带 deviceId/pageKey/Authorization
+  local-engine/   # BYOK 本地翻译引擎（镜像后端 services/，跑在 SW）：types(ProviderConfig)/presets/
+                  #   estimate-tokens(按码点对齐 Python)/block-splitter(搬运+容错)/prompt(zh+few-shot)/
+                  #   providers(openai+anthropic)/local-translator(编排→ApiClient)/compat-test/key-vault(PIN)/stats
+  redeem.ts       # 买断码激活：POST /v1/redeem/verify 验码绑设备 → 落地买断态
   local-cache.ts  # 本地译文缓存（IndexedDB）：内容寻址键含语言对；LRU 200MB / 90 天逐出
   translate-cached.ts # 本地优先编排：命中即回不发服务端，未命中发后端、校验通过写回；bypassCache=跳本地整批发（重试带上下文用）
   auth.ts         # token 持久化 + 注册 / 登录 / 登出 + access 静默刷新
@@ -58,7 +63,7 @@ lib/
   extractor.ts    # TreeWalker 抽块 + 生成 <gN>/<xN> 标记 + styleMap
   markers.ts      # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
-  storage.ts      # 白名单 / 设置（含本地缓存开关 cacheEnabled）
+  storage.ts      # 白名单 / 设置（缓存开关）+ 买断态 / BYOK 配置 / resolveTranslateRoute(platform|byok|locked)
   icon.ts         # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
   config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）唯一读取处，构建期由 .env 的 WXT_* 注入
   messages.ts     # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
@@ -68,7 +73,22 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 
 ## 后端契约
 
-`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE)、`GET /v1/usage`、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
+`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE)、`GET /v1/usage`、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/redeem/verify`（买断激活，带 `X-Device-Id`）、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
+
+## BYOK（自带模型 · 买断解锁）
+
+买断 $9.99 = 解锁 **BYOK**：买断用户配置「自己的模型 + key（含本地模型）」，翻译由 **SW 直连该 provider**，**不经后端、不计费、平台零成本**（与平台 key 路径互斥，由模式开关二选一）。设计与全部决策原在 `BYOK-第二批方案.md`（已落地删除），权威落于此。
+
+**核心对等**：BYOK 下 SW 接管「后端的角色」——与后端一样**只处理带 `<gN>` 标记的文本、不碰 styleMap**。复用 content 侧 `extractor`/`markers`/`rebuilder` 不变；新增的是 `lib/local-engine/`（镜像后端 `services/`，全 TS、跑在 SW）。
+
+- **核心抽象 `ProviderConfig`**（`local-engine/types.ts`）：把「提示词适配 + 上下文差异」两个难题收敛到一份配置，**加新模型 = 加一行 `presets.ts`，不改代码**；provider 专有差异全塞 `extraBody`（如 DeepSeek 关思考 `{thinking:{type:'disabled'}}`）。
+- **唯二适配器**（`providers.ts`）：`openai`（DeepSeek/OpenAI/Kimi/GLM/本地 Ollama）+ `anthropic`（Claude）。`local-translator.ts` 镜像后端 `translate()`（去重→token 装箱→有限并发→切块→标记校验→逐块回调），**产出与 `translateViaBackend` 同形的 `ApiClient`**，故直接当 `translate-cached` 的 `deps.server` 注入——**本地缓存层对 BYOK / 平台两路都生效**。
+- **双端一致性（防漂移铁律）**：`prompt` / `block-splitter` / `estimate-tokens` + 标记协议变成「Python 一份、TS 一份」。`estimate-tokens.ts` 须**按码点计数**对齐 Python（扩展 B 字符 UTF-16 占 2 码元会破坏对齐）。**金标向量** `test-vectors/local-engine.json` 由后端生成，前端 `.test-local-engine.mjs` 与后端 `tests/test_golden_vectors.py` 共读同一组 expected，改协议未同步即失败。
+- **路由三态**（`storage.resolveTranslateRoute`）：`platform`（默认/未买断/未启用）/ `byok`（直连）/ `locked`（key 已 PIN 加密但 session 无解锁明文 → background 直接发 `auth` 错引导去 popup 输 PIN，不发任何请求）。
+- **key 安全（§E）**：key 存 `storage.local`、**永不上传**。可选 **PIN 加密**（`key-vault.ts`：PBKDF2→AES-GCM，密文存 local、解锁明文放 `storage.session` 内存态、关浏览器即失需重新解锁）。本地模型可无 key。
+- **质量中档五件套**：提示词 few-shot 钉死占位符协议（`prompt.ts` zh 版与后端 `SYSTEM_PROMPT` 逐字一致 + 正反例）；`block-splitter` 容错（全角 `［［`、夹空格 `[ [` 归一化）；**兼容性自检**（`compat-test.ts`：固定占位符块跑一遍算标记保留率 → 好/中/差，options「测试兼容性」按钮，**必须在 SW 跑**绕 CORS，走 `byok-compat-test` runtime 消息）；**降级率反馈**（翻译统计 success/total 存 `storage.session`，popup 降级率 >30% 柔提示）；评分「差」**软拦**（需勾选「仍要启用」才能开）。
+- **权限**：BYOK 直连用户任意 endpoint（含 `http://localhost`）由现有 `host_permissions: <all_urls>`（翻译任意站点本就需要）覆盖，**无需额外申请**；将来若收窄 `<all_urls>` 再走 `optional_host_permissions` 运行时申请。
+- **UI**：options「自带模型」卡（买断后显：启用开关 / 预设·custom / 字段 / 测试兼容性 / PIN）；popup（未买断=激活码入口 → `/v1/redeem/verify`；已买断=模式角标 + locked 时 PIN 解锁 + 降级柔提示）。
 
 ## 已知坑（详见经验库《[../翻译问题记录.md](../翻译问题记录.md)》）
 
@@ -83,29 +103,8 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 - **验证**：纯函数（markers / 切块 / sse / pageKey）用一次性 `node .test-*.mjs` 脚本单测；端到端用 Chrome DevTools（调试 Chrome 开 `:9222`）连扩展 SW——注意 background 发的请求在页面 network 看不到，要去 SW 上下文查。
 - **全站回归**：语料见《[../测试网站清单.md](../测试网站清单.md)》（150 站），结果汇总进《[../测试运行记录.md](../测试运行记录.md)》，❌ 转经验库立案。改抽取 / 标记 / 重建后据此回归。
 
-## 跨平台架构方向（规划 · 2026-06-16 讨论，未实现）
+## 平台范围：只有浏览器扩展
 
-> 前端要从「单一 Chrome 扩展」演进为「桌面扩展 + 手机端」。本节是**方向记录，代码尚未动工**；开工前先读。
+**现状即终态（当前规划内）：前端只有浏览器扩展（Chrome / Edge MV3），没有 iOS / Android 客户端，也没有在做。** 多端（手机 app / Safari 扩展）不是路线图，别按「三端」假设设计或抽层。
 
-**核心认知：没有「一套代码同时出扩展 + app」**——浏览器扩展（manifest + content script + `chrome.*` API）和手机 app（原生 / WebView）宿主环境根本不同，任何框架都跨不了。**能共用的是业务逻辑，不是 UI / 平台壳。**
-
-**目标格局（三端共用 core）：**
-
-| 平台 | 形态 | 复用 |
-|---|---|---|
-| 桌面 | Chrome / Edge 扩展（现有 `front/`） | core 全部 |
-| **Android** | **自带 WebView 的浏览器 app**（Android 无扩展，只能自己做） | core + 壳自写 |
-| **iOS** | **Safari Web Extension**（由现有扩展移植，苹果官方 WebExtensions 标准，大部分代码直接复用、**不用做浏览器**） | 扩展代码大部分 |
-
-**分层（monorepo）：**
-- `core-api`：账号 / 额度 / 翻译 API client / device / 加密握手 —— 任何平台可用。
-- `core-translate`：抽取 / 标记 / 重建 / SSE 解析（纯 DOM JS，注入任何 WebView 都能用）。
-- 各平台壳：`extension`（WXT，content + SW + popup）、`android app`、`ios safari ext`——UI + 注入胶水各写各的，共用不了。
-
-**决策：先只做 Android（浏览器 / WebView 形态），iOS（Safari 扩展）以后单独做。** 前提是**现在就把 `core` 从 `front/` 抽干净（平台无关）**，否则 iOS / Android 复用不了、白做。
-
-**Android 技术选型：** `core` 必然 TS；壳倾向 **React Native + TS**（技能复用，`react-native-webview` 的 `injectJavaScript` + `onMessage` 注入 core-translate），或原生 Kotlin（WebView 控制最强）。「用 TS」**≠「和扩展同一套代码」**：语言 + core 逻辑复用，壳和注入胶水仍各写。框架不急定，先抽 core。
-
-**后端：完全共用**——平台无关 HTTP / SSE API，app 端只是多一个 HTTP 客户端（API client + 稳定 deviceId + 可选加密握手，都在 `core-api`）。后端基本不动。
-
-**下一步前置：** 把 `front/` 的翻译逻辑（extractor / markers / rebuilder / api / cache / crypto / device）抽成 `core`，这是三端共用的地基、对 Android 和 iOS 都必须。
+> 备忘（仅供日后万一重提，非计划）：真要上手机端，没有「一套代码同时出扩展 + app」——宿主环境（`chrome.*` vs 原生 / WebView）跨不了，能共用的只有业务逻辑；前置是先把翻译逻辑（extractor / markers / rebuilder / api / cache / crypto / device）抽成平台无关 `core`。**在没有明确决策前不要为此做任何抽层 / 改目录。**
