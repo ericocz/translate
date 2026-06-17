@@ -45,7 +45,7 @@ entrypoints/
                         #   SPA 软导航重译 handleSpaNavigation；失败段收尾 finalizeJob + 段内重试 retryBlock
   background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号
-  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度提示 + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁)；
+  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度提示 + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁 + 未买断挂「买断 $9.99」购买入口跳 Creem 静态 link)；
                         #   options 管白名单 + BYOK 配置卡(Byok.tsx)
 lib/
   api.ts          # translateViaBackend：调后端 /v1/translate 消费 SSE；带 deviceId/pageKey/Authorization
@@ -65,7 +65,7 @@ lib/
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
   storage.ts      # 白名单 / 设置（缓存开关）+ 买断态 / BYOK 配置 / resolveTranslateRoute(platform|byok|locked)
   icon.ts         # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
-  config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）唯一读取处，构建期由 .env 的 WXT_* 注入
+  config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）+ BUYOUT_URL（Creem 买断 link，空＝popup 不显购买入口）唯一读取处，构建期由 .env 的 WXT_* 注入
   messages.ts     # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
   types.ts        # 共享类型（FailureKind 含 'quota'）
 design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4 态 × 4 尺寸

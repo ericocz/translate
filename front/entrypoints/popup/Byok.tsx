@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getBuyout, resolveTranslateRoute, type TranslateRoute } from '@/lib/storage';
 import { unlock } from '@/lib/local-engine/key-vault';
 import { redeemVerify, reasonText } from '@/lib/redeem';
+import { BUYOUT_URL } from '@/lib/config';
 import { readLastStats, downgradeRate, DOWNGRADE_NOTICE_THRESHOLD } from '@/lib/local-engine/stats';
 
 /** popup 的 BYOK 区：未买断→激活码；已买断→模式角标 +（加密则）PIN 解锁 + 降级柔提示。 */
@@ -76,9 +77,14 @@ export function ByokSection({ onChanged }: { onChanged?: () => void }) {
     if (!codeOpen) {
       return (
         <div className="byokbar">
-          <span className="byokbar-t">已买断？用自带模型翻译</span>
+          <span className="byokbar-t">买断解锁自带模型</span>
+          {BUYOUT_URL && (
+            <a className="link" href={BUYOUT_URL} target="_blank" rel="noopener noreferrer">
+              买断 $9.99 ›
+            </a>
+          )}
           <button className="link" onClick={() => setCodeOpen(true)}>
-            输入激活码
+            已有激活码
           </button>
         </div>
       );

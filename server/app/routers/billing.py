@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -6,11 +7,12 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.base import async_session
 from app.services import creem
-from app.services.email import LogEmailSender
+from app.services.email import make_email_sender
 from app.services.redeem_repo import RedeemCodeRepo
 
 router = APIRouter()
-_email = LogEmailSender()
+log = logging.getLogger("billing")
+_email = make_email_sender()
 
 
 @router.post("/v1/billing/creem/webhook")
@@ -35,9 +37,13 @@ async def creem_webhook(request: Request):
         rc = await RedeemCodeRepo(s).issue(
             email=parsed["email"], source="creem", source_ref=parsed["order_id"]
         )
-    await _email.send(
-        parsed["email"],
-        "你的沉浸式翻译买断注册码",
-        f"感谢购买！注册码：{rc.code}（最多 {rc.max_devices} 台设备激活）。",
-    )
+    # 邮件失败不丢单：码已落库，可重投 webhook / admin 手动补发。
+    try:
+        await _email.send(
+            parsed["email"],
+            "你的秒懂翻译买断注册码",
+            f"感谢购买！注册码：{rc.code}（最多 {rc.max_devices} 台设备激活）。",
+        )
+    except Exception:
+        log.exception("买断码邮件发送失败（码已落库 order=%s，可重投/手动补发）", parsed["order_id"])
     return {"ok": True, "code_issued": True}
