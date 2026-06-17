@@ -51,29 +51,31 @@ export function translateWithCache(
   blocks: ApiBlock[],
   pageKey: string,
   handlers: ApiHandlers,
-  deps: CacheDeps = defaultDeps,
+  deps: Partial<CacheDeps> = {},
   bypassCache = false
 ): ApiClient {
+  // 只覆盖关心的依赖（如 BYOK 仅换 server），其余取默认实现。
+  const d: CacheDeps = { ...defaultDeps, ...deps };
   let inner: ApiClient | null = null;
   let aborted = false;
 
   void (async () => {
     let enabled = true;
     try {
-      enabled = await deps.getEnabled();
+      enabled = await d.getEnabled();
     } catch {
       enabled = true;
     }
     if (aborted) return;
     if (!enabled) {
-      inner = deps.server(blocks, pageKey, handlers);
+      inner = d.server(blocks, pageKey, handlers);
       return;
     }
 
     let hits = new Map<string, string>();
     if (!bypassCache) {
       try {
-        hits = await deps.getMany(blocks.map((b) => b.source));
+        hits = await d.getMany(blocks.map((b) => b.source));
       } catch {
         hits = new Map();
       }
@@ -91,7 +93,7 @@ export function translateWithCache(
     const srcById = new Map(misses.map((b) => [b.id, b.source]));
     const writeback: { source: string; translated: string }[] = [];
 
-    inner = deps.server(misses, pageKey, {
+    inner = d.server(misses, pageKey, {
       onBlock: (id, translated) => {
         handlers.onBlock(id, translated);
         const source = srcById.get(id);
@@ -100,12 +102,12 @@ export function translateWithCache(
         }
       },
       onDone: () => {
-        if (writeback.length) void deps.putMany(writeback);
+        if (writeback.length) void d.putMany(writeback);
         handlers.onDone();
       },
       onError: (failure) => {
         // 部分成功也写回，不浪费已译好的块。
-        if (writeback.length) void deps.putMany(writeback);
+        if (writeback.length) void d.putMany(writeback);
         handlers.onError(failure);
       },
     });
