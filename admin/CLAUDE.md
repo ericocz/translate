@@ -31,7 +31,7 @@ lib/api.ts          # API 封装：localStorage 存 imt_admin_token、自动带 
 
 ## 后端契约
 
-`GET /admin/stats` · `GET /admin/users` · `GET /admin/errors` · `GET /admin/events` · `GET|POST /admin/keys` · `PATCH /admin/keys/{id}` · `POST /admin/login`。**上游 Key 全程脱敏**：列表 / 创建只回 `masked`（末 4 位），绝不回完整 key。改协议须同步 `../server/app/routers/admin.py`。
+`GET /admin/stats` · `GET /admin/users` · `GET /admin/errors` · `GET /admin/events` · `GET|POST /admin/keys` · `PATCH /admin/keys/{id}` · `POST /admin/login` · `POST /admin/credits/grant`（users 页「调额度」按钮：`userId`+`amount`（元，正补发 / 负扣回）→ 复用后端 `CreditRepo.grant`）。**上游 Key 全程脱敏**：列表 / 创建只回 `masked`（末 4 位），绝不回完整 key。改协议须同步 `../server/app/routers/admin.py`。
 
 ## 命令与注意
 

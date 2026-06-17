@@ -1,5 +1,6 @@
 import logging
 import uuid
+from decimal import Decimal
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, Request
@@ -15,7 +16,7 @@ from app.services.credit_repo import CreditRepo, user_owner
 router = APIRouter()
 log = logging.getLogger("recharge")
 
-# 充值档位（元）→ credits 按 1:1 入账（micro-¥）。平台盈利在翻译 ×1.3、不在充值加价。
+# 充值档位（元）→ credits 按 1:1 入账。平台盈利在翻译 ×1.3、不在充值加价。
 TIERS = {"10": 10, "30": 30, "68": 68}
 PRODUCT_BODY = "秒懂翻译额度充值"
 
@@ -86,11 +87,11 @@ async def recharge_notify(request: Request):
     if user_id is None:
         log.warning("充值回调无法解析 user_id：outTradeNo=%s", out_trade_no)
         return PlainTextResponse("SUCCESS")
-    micro = int(round(float(form.get("money", "0")) * 1_000_000))
+    paid_yuan = Decimal(form.get("money", "0"))  # 实付金额（元）→ 1:1 入账
     async with async_session() as s:
         await CreditRepo(s).grant(
             user_owner(user_id),
-            micro,
+            paid_yuan,
             kind="grant",
             idempotency_key=f"recharge:{out_trade_no}",  # 重投/并发只入账一次
         )

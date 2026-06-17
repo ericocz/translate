@@ -21,7 +21,7 @@ from app.services.translator import (
 )
 from app.services.usage_repo import DailyUsageRepo
 from app.services.credit_repo import CreditRepo, device_owner, user_owner
-from app.services.pricing import cost_micro
+from app.services.pricing import cost
 
 router = APIRouter()
 
@@ -101,7 +101,7 @@ async def translate_endpoint(
             yield _sse("error", {"kind": "api", "message": enc_error})
             return
         if no_credit:
-            yield _sse("quota", {"message": _NO_CREDIT_MSG, "balance": balance})
+            yield _sse("quota", {"message": _NO_CREDIT_MSG, "balance": float(balance)})
             return
         async for ev in translate(
             blocks,
@@ -115,7 +115,7 @@ async def translate_endpoint(
                     yield _sse("block", {"id": ev.id, "translated": ev.translated})
             elif isinstance(ev, UsageEvent):
                 # 按实耗扣 owner 额度（成本价 ×1.3）。登录用户另记 daily_usage 作统计。
-                await credits.deduct(owner, cost_micro(ev.input_tokens, ev.output_tokens))
+                await credits.deduct(owner, cost(ev.input_miss_tokens, ev.input_hit_tokens, ev.output_tokens))
                 if user_id is not None:
                     await daily.add(user_id, local_date, ev.input_tokens, ev.output_tokens, pages=1)
             elif isinstance(ev, DoneEvent):

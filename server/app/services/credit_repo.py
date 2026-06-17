@@ -1,9 +1,10 @@
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
+from decimal import Decimal
+
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CreditAccount, CreditTxn
+from app.db.models import CreditTxn
 
 
 def user_owner(user_id: int) -> str:
@@ -17,53 +18,40 @@ def device_owner(device_id: str) -> str:
 
 
 class CreditRepo:
-    """预付额度账本：发放（幂等）/ 扣减 / 查余额。owner = u:{user_id} 或 d:{device_id}。
-    余额以整数 micro-¥ 原子更新。deduct 不防透支（可短暂为负）——余额≤0 拦截由调用方门控。"""
+    """预付额度账本（方案 B）：账本流水 `credit_txns` 是唯一真相，
+    **余额＝某 owner 全部 delta 之和**（不存运行余额、无并发丢更新问题），展示层 round 2 位。
+    owner = u:{user_id} 或 d:{device_id}。单位元 Decimal、高精度，不用浮点。
+    deduct 不防透支（可短暂为负）——余额≤0 拦截由调用方门控。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def get_balance(self, owner: str) -> int:
-        row = await self._s.scalar(select(CreditAccount).where(CreditAccount.owner == owner))
-        return int(row.balance_micro if row else 0)
+    async def get_balance(self, owner: str) -> Decimal:
+        total = await self._s.scalar(
+            select(func.coalesce(func.sum(CreditTxn.delta), 0)).where(CreditTxn.owner == owner)
+        )
+        return Decimal(total)
 
-    async def get_account(self, owner: str) -> CreditAccount | None:
-        """返回账户行（无则 None）——区分「从未领过/充过（无账户）」与「有账户、余额耗尽」。"""
-        return await self._s.scalar(select(CreditAccount).where(CreditAccount.owner == owner))
+    async def has_account(self, owner: str) -> bool:
+        """是否领过赠送/充过（账本里有过任何流水）——区分「从未有账户」与「有账户、余额耗尽」。"""
+        row = await self._s.scalar(select(CreditTxn.id).where(CreditTxn.owner == owner).limit(1))
+        return row is not None
 
     async def grant(
-        self, owner: str, amount_micro: int, kind: str = "grant", idempotency_key: str | None = None
-    ) -> int:
-        """发放额度（充值/赠送）。带 idempotency_key 时重复/并发只入账一次。返回新余额。"""
+        self, owner: str, amount: Decimal, kind: str = "grant", idempotency_key: str | None = None
+    ) -> Decimal:
+        """发放额度（充值/赠送，单位元）。带 idempotency_key 时重复/并发只入账一次。返回新余额。"""
         try:
-            return await self._apply(owner, amount_micro, kind, idempotency_key)
+            await self._apply(owner, amount, kind, idempotency_key)
         except IntegrityError:
             await self._s.rollback()  # idempotency_key 唯一冲突＝已入账过
-            return await self.get_balance(owner)
+        return await self.get_balance(owner)
 
-    async def deduct(self, owner: str, amount_micro: int, kind: str = "deduct") -> int:
-        """扣减额度（实耗）。返回新余额。"""
-        return await self._apply(owner, -amount_micro, kind, None)
+    async def deduct(self, owner: str, amount: Decimal, kind: str = "deduct") -> Decimal:
+        """扣减额度（实耗，单位元、高精度）。返回新余额。"""
+        await self._apply(owner, -amount, kind, None)
+        return await self.get_balance(owner)
 
-    async def _apply(self, owner: str, delta: int, kind: str, idempotency_key: str | None) -> int:
-        stmt = (
-            insert(CreditAccount)
-            .values(owner=owner, balance_micro=delta)
-            .on_conflict_do_update(
-                index_elements=["owner"],
-                set_={"balance_micro": CreditAccount.balance_micro + delta},
-            )
-            .returning(CreditAccount.balance_micro)
-        )
-        new_balance = int(await self._s.scalar(stmt))
-        self._s.add(
-            CreditTxn(
-                owner=owner,
-                delta_micro=delta,
-                kind=kind,
-                balance_after=new_balance,
-                idempotency_key=idempotency_key,
-            )
-        )
+    async def _apply(self, owner: str, delta: Decimal, kind: str, idempotency_key: str | None) -> None:
+        self._s.add(CreditTxn(owner=owner, delta=delta, kind=kind, idempotency_key=idempotency_key))
         await self._s.commit()
-        return new_balance

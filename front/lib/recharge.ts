@@ -26,7 +26,7 @@ export async function createRecharge(tier: string): Promise<RechargeOrder> {
   }
 }
 
-/** 当前登录用户余额（micro-¥）；未登录或失败返回 null。用于充值后轮询到账。 */
+/** 当前登录用户余额（元）；未登录或失败返回 null。用于充值后轮询到账。 */
 export async function fetchBalance(): Promise<number | null> {
   const token = await getAccessToken();
   if (!token) return null;

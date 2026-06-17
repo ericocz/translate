@@ -6,7 +6,7 @@ import { getDeviceId, getInstanceId } from './device';
 
 export interface GiftOutcome {
   ok: boolean;
-  balance?: number; // micro-¥
+  balance?: number; // 元
   error?: string;
 }
 

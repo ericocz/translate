@@ -16,8 +16,16 @@ MAX_OUTPUT_TOKENS = 384000
 
 @dataclass
 class Usage:
-    input_tokens: int
-    output_tokens: int
+    """DeepSeek 真实用量。输入按前缀缓存命中拆两档计价（命中价≈未命中 1/50）：
+    prompt_tokens = cache_hit + cache_miss。输出永不缓存。"""
+
+    input_miss_tokens: int   # 输入·未命中（¥1/M）
+    input_hit_tokens: int    # 输入·命中（¥0.02/M）
+    output_tokens: int       # 输出（¥2/M）
+
+    @property
+    def input_tokens(self) -> int:
+        return self.input_miss_tokens + self.input_hit_tokens
 
 
 # 流里既有内容增量（str），也可能有最后一块的真实用量（Usage）。
@@ -85,9 +93,15 @@ async def stream_content_deltas(
                     continue  # 单事件解析失败不致命
                 usage = obj.get("usage")
                 if usage:
+                    hit = int(usage.get("prompt_cache_hit_tokens", 0))
+                    miss = int(usage.get("prompt_cache_miss_tokens", 0))
+                    # 缺命中拆分字段（老接口/异常）时全算未命中，宁可少算缓存折扣不少收成本。
+                    if hit == 0 and miss == 0:
+                        miss = int(usage.get("prompt_tokens", 0))
                     yield Usage(
-                        int(usage.get("prompt_tokens", 0)),
-                        int(usage.get("completion_tokens", 0)),
+                        input_miss_tokens=miss,
+                        input_hit_tokens=hit,
+                        output_tokens=int(usage.get("completion_tokens", 0)),
                     )
                 try:
                     delta = obj["choices"][0]["delta"].get("content")

@@ -1,5 +1,6 @@
 import base64
 import json
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -27,9 +28,9 @@ async def fake_stream(api_key, blocks):
 class FakeCredits:
     """额度账户 mock：按 owner 存单一余额，记录扣费。"""
 
-    def __init__(self, balance=10_000_000):
+    def __init__(self, balance=Decimal("10")):
         self.balance = balance
-        self.deducted: list[int] = []
+        self.deducted: list[Decimal] = []
 
     async def get_balance(self, owner):
         return self.balance
@@ -115,7 +116,7 @@ async def test_no_owner_blocked(override):
 
 async def test_deducts_on_translate(override):
     # 有余额 → 翻译 + 按实耗扣 credits（×1.3）
-    fake = FakeCredits(balance=10_000_000)
+    fake = FakeCredits(balance=Decimal("10"))
     app.dependency_overrides[get_credits] = lambda: fake
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
@@ -126,7 +127,8 @@ async def test_deducts_on_translate(override):
         )
     kinds = [e for e, _ in parse_sse(resp.text)]
     assert "block" in kinds and "done" in kinds
-    assert fake.deducted and fake.deducted[0] > 0
+    # 扣费链路在 UsageEvent 时执行一次、按真实成本扣（方案 B 高精度，金额 > 0）。
+    assert len(fake.deducted) == 1 and fake.deducted[0] > 0
 
 
 async def test_logged_in_records_daily_usage(override):

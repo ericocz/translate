@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import httpx
 from httpx import ASGITransport
 
@@ -91,7 +93,7 @@ async def test_notify_grants_credits(db_session, monkeypatch):
     assert r.status_code == 200 and r.text == "SUCCESS"
     async with async_session() as s:
         bal = await CreditRepo(s).get_balance(user_owner(5))
-    assert bal == 10_000_000
+    assert bal == Decimal("10")
 
 
 async def test_notify_idempotent_on_replay(db_session, monkeypatch):
@@ -103,7 +105,7 @@ async def test_notify_idempotent_on_replay(db_session, monkeypatch):
         await c.post("/v1/recharge/notify", data=form)  # 重投
     async with async_session() as s:
         bal = await CreditRepo(s).get_balance(user_owner(5))
-    assert bal == 10_000_000  # 仍只入账一次
+    assert bal == Decimal("10")  # 仍只入账一次
 
 
 async def test_notify_bad_signature_rejected(db_session, monkeypatch):

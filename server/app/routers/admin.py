@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -10,13 +11,14 @@ from app.core.security import create_admin_token, decode_admin_token, verify_pas
 from app.db.base import async_session
 from app.db.models import (
     Admin,
-    CreditAccount,
+    CreditTxn,
     DailyUsage,
     ErrorLog,
     Event,
     UpstreamKey,
     User,
 )
+from app.services.credit_repo import CreditRepo, user_owner
 
 router = APIRouter(prefix="/admin")
 
@@ -99,12 +101,13 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
         ).scalars()
         usage_by_user = {du.user_id: du for du in usage_rows}
         owner_to_id = {f"u:{i}": i for i in ids}
-        bal_rows = (
-            await session.execute(
-                select(CreditAccount).where(CreditAccount.owner.in_(list(owner_to_id)))
-            )
-        ).scalars()
-        balance_by_user = {owner_to_id[ca.owner]: int(ca.balance_micro) for ca in bal_rows}
+        # 余额＝账本流水加总（方案 B）：按 owner 聚合 SUM(delta)。
+        bal_rows = await session.execute(
+            select(CreditTxn.owner, func.sum(CreditTxn.delta))
+            .where(CreditTxn.owner.in_(list(owner_to_id)))
+            .group_by(CreditTxn.owner)
+        )
+        balance_by_user = {owner_to_id[owner]: total for owner, total in bal_rows}
     out = []
     for u in rows:
         du = usage_by_user.get(u.id)
@@ -112,7 +115,7 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
             "id": u.id,
             "email": u.email,
             "tokensToday": int((du.input_tokens + du.output_tokens) if du else 0),
-            "balanceMicro": balance_by_user.get(u.id, 0),
+            "balance": float(balance_by_user.get(u.id, 0)),  # 元
             "createdAt": u.created_at.isoformat() if u.created_at else None,
         })
     return out
@@ -202,3 +205,32 @@ async def patch_key(
     k.status = body.status
     await session.commit()
     return _key_out(k)
+
+
+# ---- 手动调额度（客服补单 / 退款纠正）----
+class CreditAdjustIn(BaseModel):
+    userId: int | None = None  # 注册用户 → owner=u:{userId}
+    owner: str | None = None   # 直接指定 owner（u:{id} | d:{deviceId}），与 userId 二选一
+    amount: Decimal            # 元，正=补发/赠送，负=扣回/纠正
+    note: str | None = None    # 备注（留痕，记入流水 kind 之外暂不落库）
+    ref: str | None = None     # 提供则作幂等键 admin:{ref}，防重复提交双发
+
+
+@router.post("/credits/grant")
+async def admin_grant_credits(
+    body: CreditAdjustIn,
+    session: AsyncSession = Depends(get_session),
+    _: int = Depends(admin_required),
+):
+    """手动给某 owner 调额度（元）：正数补发、负数扣回。
+    幂等：带 ref 时同一 ref 重复提交只入账一次（防误点双发）。"""
+    owner = body.owner or (user_owner(body.userId) if body.userId is not None else None)
+    if not owner:
+        raise HTTPException(status_code=400, detail="需指定 userId 或 owner")
+    amount = body.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if amount == 0:
+        raise HTTPException(status_code=400, detail="amount 不能为 0")
+    kind = "refund" if amount < 0 else "admin_grant"
+    idem = f"admin:{body.ref}" if body.ref else None
+    balance = await CreditRepo(session).grant(owner, amount, kind=kind, idempotency_key=idem)
+    return {"ok": True, "owner": owner, "amount": float(amount), "balance": float(balance)}

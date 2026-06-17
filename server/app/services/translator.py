@@ -63,10 +63,17 @@ class ErrorEvent:
 
 @dataclass(frozen=True)
 class UsageEvent:
-    """本次请求应计入用户当日用量的 token（接口真实 usage 优先，缺失时本地估算兜底）。"""
+    """本次请求应计入的 token（接口真实 usage 优先，缺失时本地估算兜底）。
+    输入按前缀缓存命中拆两档（计价不同）；本地估算兜底时全算未命中（不少收成本）。"""
 
-    input_tokens: int
+    input_miss_tokens: int
+    input_hit_tokens: int
     output_tokens: int
+
+    @property
+    def input_tokens(self) -> int:
+        """daily_usage 统计用的输入总量（命中+未命中）。"""
+        return self.input_miss_tokens + self.input_hit_tokens
 
 
 Event = BlockEvent | DoneEvent | ErrorEvent | UsageEvent
@@ -111,11 +118,12 @@ async def translate(
     sem = asyncio.Semaphore(CONCURRENCY)
     success = 0
     last_error: ErrorEvent | None = None
-    used_in = 0
+    used_miss = 0
+    used_hit = 0
     used_out = 0
 
     async def run_batch(batch: list[tuple[str, str]]) -> None:
-        nonlocal success, last_error, used_in, used_out
+        nonlocal success, last_error, used_miss, used_hit, used_out
         async with sem:
             collected: list[tuple[str, str]] = []
             splitter = BlockSplitter(lambda i, t: collected.append((i, t)))
@@ -142,12 +150,13 @@ async def translate(
                     success += 1
                 est_in += estimate_tokens(source)
                 est_out += estimate_tokens(translated)
-            # 记账：优先真实 usage；接口没给时回退本地估算之和。
+            # 记账：优先真实 usage（含命中/未命中拆分）；接口没给时回退本地估算（全算未命中）。
             if batch_usage is not None:
-                used_in += batch_usage.input_tokens
+                used_miss += batch_usage.input_miss_tokens
+                used_hit += batch_usage.input_hit_tokens
                 used_out += batch_usage.output_tokens
             else:
-                used_in += est_in
+                used_miss += est_in
                 used_out += est_out
 
     async def producer() -> None:
@@ -162,7 +171,7 @@ async def translate(
         yield item
     await task
 
-    yield UsageEvent(used_in, used_out)
+    yield UsageEvent(used_miss, used_hit, used_out)
     # 全失败才报错；部分成功照常结束（未成功的块留待下次刷新重试）。
     if success == 0 and last_error is not None:
         yield last_error

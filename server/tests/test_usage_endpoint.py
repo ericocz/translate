@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 
 import httpx
@@ -10,14 +11,17 @@ from app.routers.translate import get_credits, get_daily_usage
 
 
 class FakeCredits:
-    def __init__(self, balance=0, has_account=False):
+    def __init__(self, balance=Decimal("0"), has_account=False):
         self._balance = balance
         self._has = has_account
         self.granted_keys = []  # 收到的 idempotency_key（验防薅幂等键来源）
         self._used = set()  # 模拟真实幂等：同 key 只入账一次
 
-    async def get_account(self, owner):
-        return SimpleNamespace(owner=owner, balance_micro=self._balance) if self._has else None
+    async def get_balance(self, owner):
+        return self._balance
+
+    async def has_account(self, owner):
+        return self._has
 
     async def grant(self, owner, amount, kind="grant", idempotency_key=None):
         self.granted_keys.append(idempotency_key)
@@ -37,7 +41,7 @@ class FakeDailyUsage:
 
 @pytest.fixture
 def override_usage():
-    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=1_500_000, has_account=True)
+    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=Decimal("1.5"), has_account=True)
     app.dependency_overrides[get_daily_usage] = lambda: FakeDailyUsage()
     yield
     app.dependency_overrides.clear()
@@ -48,7 +52,7 @@ async def test_usage_anon_returns_balance(override_usage):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         resp = await c.get("/v1/usage", headers={"X-Device-Id": "dev1"})
     assert resp.status_code == 200
-    assert resp.json() == {"loggedIn": False, "balance": 1_500_000, "hasAccount": True}
+    assert resp.json() == {"loggedIn": False, "balance": 1.5, "hasAccount": True}
 
 
 async def test_usage_no_account_zero_balance(override_usage):
@@ -68,7 +72,7 @@ async def test_usage_logged_in_returns_tokens(override_usage):
         assert resp.status_code == 200
         assert resp.json() == {
             "loggedIn": True,
-            "balance": 1_500_000,
+            "balance": 1.5,
             "hasAccount": True,
             "tokensToday": 1234,
         }
@@ -77,13 +81,13 @@ async def test_usage_logged_in_returns_tokens(override_usage):
 
 
 async def test_grant_gift_returns_2yuan():
-    # 领赠送：发 ¥2（2,000,000 micro-¥）
+    # 领赠送：发 ¥2（元）
     app.dependency_overrides[get_credits] = lambda: FakeCredits()
     try:
         transport = ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
             r = await c.post("/v1/grant/gift", headers={"X-Device-Id": "dev1"})
-        assert r.json() == {"ok": True, "balance": 2_000_000}
+        assert r.json() == {"ok": True, "balance": 2.0}
     finally:
         app.dependency_overrides.clear()
 
@@ -112,8 +116,8 @@ async def test_gift_instance_id_idempotent_across_devices():
             r2 = await c.post(
                 "/v1/grant/gift", headers={"X-Device-Id": "devB", "X-Instance-Id": "inst-X"}
             )
-        assert r1.json()["balance"] == 2_000_000
-        assert r2.json()["balance"] == 2_000_000  # 没再发（仍 ¥2，不是 ¥4）
+        assert r1.json()["balance"] == 2.0
+        assert r2.json()["balance"] == 2.0  # 没再发（仍 ¥2，不是 ¥4）
         assert fake.granted_keys == ["gift:inst:inst-X", "gift:inst:inst-X"]
     finally:
         app.dependency_overrides.clear()
@@ -130,7 +134,7 @@ async def test_gift_new_instance_id_can_grant_again():
             r2 = await c.post(
                 "/v1/grant/gift", headers={"X-Device-Id": "devC", "X-Instance-Id": "inst-Y"}
             )
-        assert r2.json()["balance"] == 4_000_000  # 不同 instanceID 各发一次
+        assert r2.json()["balance"] == 4.0  # 不同 instanceID 各发一次
         assert fake.granted_keys == ["gift:inst:inst-X", "gift:inst:inst-Y"]
     finally:
         app.dependency_overrides.clear()

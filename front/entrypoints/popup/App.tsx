@@ -7,18 +7,18 @@ import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 import { claimGift } from '@/lib/grant';
 
-/** 额度信息（后端 /v1/usage）：balance=owner 余额 micro-¥、hasAccount=领过赠送/充过。 */
+/** 额度信息（后端 /v1/usage）：balance=owner 余额（元）、hasAccount=领过赠送/充过。 */
 interface UsageInfo {
   loggedIn: boolean;
-  balance?: number; // micro-¥
+  balance?: number; // 元
   hasAccount?: boolean;
   tokensToday?: number;
   notice?: string | null;
 }
 
-/** micro-¥ → 「¥X.XX」展示。 */
-function yuan(micro: number | undefined): string {
-  return '¥' + ((micro ?? 0) / 1_000_000).toFixed(2);
+/** 余额（元）→ 「¥X.XX」展示。 */
+function yuan(amount: number | undefined): string {
+  return '¥' + (amount ?? 0).toFixed(2);
 }
 
 interface PopupState {

@@ -70,7 +70,7 @@ export function RechargeCard() {
       <div className="card-h">
         <h2>充值额度</h2>
         {balance !== null && (
-          <span className="muted">余额 ¥{(balance / 1_000_000).toFixed(2)}</span>
+          <span className="muted">余额 ¥{balance.toFixed(2)}</span>
         )}
       </div>
 

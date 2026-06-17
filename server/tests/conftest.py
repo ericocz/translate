@@ -26,7 +26,7 @@ async def db_session():
             text(
                 "TRUNCATE users, sessions, daily_usage, "
                 "events, error_logs, admins, upstream_keys, "
-                "credit_accounts, credit_txns, redeem_codes CASCADE"
+                "credit_txns, redeem_codes CASCADE"
             )
         )
     # pytest-asyncio 每个测试用新事件循环；asyncpg 连接绑定在创建它的 loop 上。

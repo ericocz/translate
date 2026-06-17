@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 
@@ -8,7 +9,7 @@ from app.services.credit_repo import device_owner, user_owner
 
 router = APIRouter()
 
-GIFT_AMOUNT_MICRO = 2_000_000  # 赠送额度 ¥2（micro-¥）
+GIFT_AMOUNT = Decimal("2")  # 赠送额度 ¥2（元）
 
 
 @router.get("/v1/usage")
@@ -24,11 +25,13 @@ async def usage_endpoint(
     local_date = localDate or date.today().isoformat()
     device_id = request.headers.get("x-device-id", "")
     owner = user_owner(user_id) if user_id is not None else (device_owner(device_id) if device_id else None)
-    account = await credits.get_account(owner) if owner else None
+    # 余额＝账本流水加总（方案 B）；hasAccount＝有过流水。前端展示 round 2 位。
+    balance = await credits.get_balance(owner) if owner else Decimal("0")
+    has_account = await credits.has_account(owner) if owner else False
     out = {
         "loggedIn": user_id is not None,
-        "balance": int(account.balance_micro) if account else 0,  # micro-¥
-        "hasAccount": account is not None,
+        "balance": float(balance),  # 元（前端 toFixed(2) 展示）
+        "hasAccount": has_account,
     }
     if user_id is not None:
         out["tokensToday"] = await daily.tokens_today(user_id, local_date)
@@ -49,5 +52,5 @@ async def grant_gift(request: Request, credits=Depends(get_credits)):
     instance_id = request.headers.get("x-instance-id", "").strip()
     owner = device_owner(device_id)
     idem = f"gift:inst:{instance_id}" if instance_id else f"gift:{owner}"
-    balance = await credits.grant(owner, GIFT_AMOUNT_MICRO, kind="gift", idempotency_key=idem)
-    return {"ok": True, "balance": balance}
+    balance = await credits.grant(owner, GIFT_AMOUNT, kind="gift", idempotency_key=idem)
+    return {"ok": True, "balance": float(balance)}

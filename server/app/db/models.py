@@ -1,6 +1,7 @@
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -107,19 +108,6 @@ class Session(Base):
     )
 
 
-class CreditAccount(Base):
-    """预付额度余额。owner = "u:{user_id}"（注册用户）或 "d:{device_id}"（未注册设备，领赠送用）。
-    整数 micro-¥（1e-6 元）记账，不用浮点。"""
-
-    __tablename__ = "credit_accounts"
-
-    owner: Mapped[str] = mapped_column(String(80), primary_key=True)
-    balance_micro: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
 # 买断产品策略默认（D-06，非部署开关）——单一来源，model 列默认与 RedeemCodeRepo.issue 共用，避免漂移。
 BUYOUT_PRODUCT = "buyout"
 BUYOUT_MAX_DEVICES = 5
@@ -145,16 +133,17 @@ class RedeemCode(Base):
 
 
 class CreditTxn(Base):
-    """额度流水：发放(grant/gift) / 扣减(deduct) / 退款(refund)。
+    """额度流水（唯一真相）：发放(grant/gift/admin_grant) / 扣减(deduct) / 退款(refund)。
+    **余额＝某 owner 全部 delta 之和**（方案 B，不存运行余额）；展示层 round 2 位。
+    delta 高精度元（NUMERIC(18,10)）以精确承载按 token 三档计价的亚分级成本。
     idempotency_key 唯一 → webhook 重投/并发只入账一次（DB 约束兜底）。"""
 
     __tablename__ = "credit_txns"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     owner: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    delta_micro: Mapped[int] = mapped_column(BigInteger, nullable=False)  # +发放 / -扣减
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # grant|gift|deduct|refund
-    balance_after: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    delta: Mapped[Decimal] = mapped_column(Numeric(18, 10), nullable=False)  # +发放 / -扣减（元）
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # grant|gift|deduct|refund|admin_grant
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

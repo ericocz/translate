@@ -69,11 +69,13 @@ async def test_usage_event_from_model_real_usage():
     async def ds(api_key, blocks):
         for bid, _ in blocks:
             yield f"[[{bid}]] 你好"
-        yield Usage(40, 12)
+        yield Usage(input_miss_tokens=30, input_hit_tokens=10, output_tokens=12)
 
     evs = await drain(translate([SourceBlock("b1", "Hi")], deepseek_stream=ds, api_key="k"))
     u = next(e for e in evs if isinstance(e, UsageEvent))
-    assert u.input_tokens == 40 and u.output_tokens == 12  # 真实 usage 优先于估算
+    # 真实 usage 优先于估算；输入按命中/未命中拆分透传
+    assert u.input_miss_tokens == 30 and u.input_hit_tokens == 10 and u.output_tokens == 12
+    assert u.input_tokens == 40  # 统计用总输入 = 命中 + 未命中
 
 
 def _ids(batches):

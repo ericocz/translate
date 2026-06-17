@@ -46,7 +46,27 @@ async def test_streams_content_and_usage():
     text = "".join(x for x in items if isinstance(x, str))
     usages = [x for x in items if isinstance(x, Usage)]
     assert text == "[[b1]] 你好"
+    # 无 hit/miss 拆分字段 → 全算未命中（input_tokens = miss + hit = 12）
     assert usages and usages[0].input_tokens == 12 and usages[0].output_tokens == 7
+    assert usages[0].input_miss_tokens == 12 and usages[0].input_hit_tokens == 0
+
+
+async def test_usage_splits_cache_hit_miss():
+    def _sse_split() -> bytes:
+        return (
+            'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+            'data: {"choices":[],"usage":{"prompt_tokens":12,"prompt_cache_hit_tokens":10,'
+            '"prompt_cache_miss_tokens":2,"completion_tokens":7}}\n\n'
+            "data: [DONE]\n\n"
+        ).encode()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=_sse_split())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        items = [x async for x in stream_content_deltas(client, "sk-test", [("b1", "Hi")])]
+    u = next(x for x in items if isinstance(x, Usage))
+    assert u.input_miss_tokens == 2 and u.input_hit_tokens == 10 and u.output_tokens == 7
 
 
 async def test_401_raises_auth():
