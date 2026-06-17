@@ -45,8 +45,8 @@ class TranslateRequest(BaseModel):
 
 # ---- 依赖（测试可覆盖）----
 def get_deepseek_stream():
-    """返回 (api_key, blocks) -> async iter[str] 的上游流函数。"""
-    return deepseek.stream_with_default_client
+    """返回 (api_key, blocks) -> async iter[str] 的上游流函数（官方主 + 火山备 failover）。"""
+    return deepseek.stream_with_failover
 
 
 async def get_daily_usage() -> AsyncIterator[DailyUsageRepo]:

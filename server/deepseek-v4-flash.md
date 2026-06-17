@@ -158,7 +158,9 @@ httpx 客户端用 `trust_env=False` 直连 `api.deepseek.com`（中国服务无
 **决策：上游 key 池暂缓**（原后端完善计划的 ③）。理由：
 - 单账号 2,500 并发对 flash 极高，现阶段（`translator.CONCURRENCY=4` + 少量用户）远撞不到，且能免费扩容——并发墙不是当前问题。
 - 单账号 + key 在 `server/.env`、已靠「绝不下发客户端 / 不入日志」控泄露，多 key 的管理价值也弱。
-- **要真正扩并发 / 容灾，必须「多账号」（N×2500 + 各自独立余额 + 账号级 failover）或「跨 provider（字节火山）」——规模化后再做。** 届时把 `upstream_keys` 表（admin 已有 CRUD、但**现未接入翻译调用**，`translate.py` 写死 `settings.deepseek_api_key` 单 key）接入：按账号池轮换 + 失败 failover。
+- **要真正扩并发 / 容灾，必须「多账号」（N×2500 + 各自独立余额 + 账号级 failover）或「跨 provider（字节火山）」。** 多账号池轮换仍待做（届时接入 admin 已有 CRUD 的 `upstream_keys` 表，`translate.py` 现写死 `settings.deepseek_api_key` 单 key）。
+
+**✅ 跨 provider failover 已实现**（2026-06-17，`deepseek.py` `Provider` + `stream_with_failover`）：官方 DeepSeek 主线，配齐 `volcengine_api_key`+`volcengine_model`（火山方舟 Ark，OpenAI 兼容端点 `volcengine_base_url`）才启用备线。**仅首 token 前失败才切源**，已吐内容再失败不换源（避免半句重来）。火山方舟 V4 Flash 命中价 ¥0.20/M（官方 ¥0.02 的 10×），且 `thinking:disabled` 顶层参数在 Ark 是否照收**未真机联调**——真接火山时校准。火山是罕见兜底，计费暂仍按官方三档价。
 
 ---
 

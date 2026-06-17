@@ -25,7 +25,8 @@
 6. **真实 usage**：请求带 `stream_options.include_usage`，取末块 `usage` 计 Token、缺失时 `estimate_tokens` 兜底；**只对服务端实际翻译的块记账**（命中本地缓存的块根本不到服务端）。
 7. **API Key 只在服务端 env**（`app/core/config.py`，绝不下发客户端、绝不入日志 / 事件）。**例外仅 BYOK**：买断用户自带 key 存其客户端、直连各 provider，平台 key 仍只在服务端。
 8. **DeepSeek 直连**：httpx `trust_env=False`（DeepSeek 是中国服务无需代理，绕开开发机个人 SOCKS 代理、省 socksio 依赖）。
-9. **应用层加密（可选）**：见 `X-Eph-Pub` 头则 ECDH(P-256)+HKDF 派生会话密钥（`app/core/crypto.py`，私钥在 env），解密 `ct` 原文 / 加密 `ct` 译文，及解密 auth 的 email/password。**只加密叶子字段**，SSE 信封与标记校验仍在明文上做；**非 E2E**（解密后才发模型）。无头＝明文路径（dev / 测试）。
+9. **跨 provider failover**（`stream_with_failover`）：官方 DeepSeek 主线，**配齐 `volcengine_api_key`+`volcengine_model` 才**启用火山方舟（Ark，OpenAI 兼容）备线。**仅在首 token 前失败才切源**（连接/非200/早期异常）；已吐内容再失败不换源（避免半句重来，交单批失败隔离 + 漏块下次重试）。同账号多 key 不解决容灾（账号级一起挂），故必须跨 provider。火山是罕见兜底、暂仍按官方价计费。
+10. **应用层加密（可选）**：见 `X-Eph-Pub` 头则 ECDH(P-256)+HKDF 派生会话密钥（`app/core/crypto.py`，私钥在 env），解密 `ct` 原文 / 加密 `ct` 译文，及解密 auth 的 email/password。**只加密叶子字段**，SSE 信封与标记校验仍在明文上做；**非 E2E**（解密后才发模型）。无头＝明文路径（dev / 测试）。
 
 ## 额度模型（商业化底座）
 
@@ -44,7 +45,7 @@ app/
   core/    config.py(Settings/env) · prompt.py(SYSTEM_PROMPT) · hashing.py(MODEL + 版本键 sha256)
            tokens.py(轻量 token 估算) · security.py(argon2 + JWT access/admin + refresh 哈希) · crypto.py(ECDH+HKDF+AES-GCM 会话加密)
   db/      base.py(engine/async_session/Base) · models.py(全部表)
-  services/ markers.py · block_splitter.py · deepseek.py(请求体 + SSE + Usage 捕获 + 错误分类)
+  services/ markers.py · block_splitter.py · deepseek.py(请求体 + SSE + Usage 捕获 + 错误分类 + Provider/stream_with_failover 官方主+火山备)
            translator.py(编排 → 事件流 Block/Done/Error/UsageEvent) · usage_repo.py(daily_usage 统计)
            credit_repo.py(额度账本【方案 B】：**余额＝某 owner 全部 `credit_txns.delta` 之和**（不存运行余额、无丢更新）；grant/deduct 只插流水、has_account=有过流水；user_owner / device_owner) · pricing.py(cost(miss,hit,out) = 三档成本价 ×SERVICE_FEE_RATE=1.3，返回**高精度元 Decimal、不量化**)
            auth.py · creem.py(Creem webhook HMAC 验签 + checkout.completed 解析) · redeem_repo.py(买断注册码幂等签发) · email.py(EmailSender 接口 + ResendEmailSender HTTP 驱动 + make_email_sender 工厂：配 resend_api_key+email_from 则真发、否则退化 LogEmailSender 占位不丢单) · yungouos.py(大陆充值：微信 nativePay 下单 + 签名/回调验签，签名=字段字典序+key+MD5大写)

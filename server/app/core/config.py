@@ -5,6 +5,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     deepseek_api_key: str = ""
+    # 跨 provider failover：火山方舟（Ark，OpenAI 兼容）作官方 DeepSeek 的备线。
+    # 三者都配齐才启用 failover，否则仅官方单线（纯加性休眠）。
+    volcengine_api_key: str = ""  # 火山方舟 Ark API Key；空＝failover 关闭、仅官方
+    volcengine_model: str = ""    # 火山方舟上 DeepSeek 模型/接入点 id（如 ep-xxx 或 deepseek-v3-xxx）
+    volcengine_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"  # Ark OpenAI 兼容端点
     database_url: str = "postgresql+asyncpg://imt:imt@localhost:5433/imt"
     jwt_secret: str = "dev-insecure-change-me"
     access_ttl_min: int = 30

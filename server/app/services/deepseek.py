@@ -1,11 +1,15 @@
 import json
+import logging
 from dataclasses import dataclass
 from typing import AsyncIterator
 
 import httpx
 
+from app.core.config import settings
 from app.core.hashing import MODEL
 from app.core.prompt import SYSTEM_PROMPT
+
+log = logging.getLogger("deepseek")
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -39,13 +43,24 @@ class DeepSeekError(Exception):
         super().__init__(message)
 
 
-def build_request_body(blocks: list[tuple[str, str]]) -> dict:
+@dataclass(frozen=True)
+class Provider:
+    """一路上游（OpenAI 兼容流式）。failover 时按列表顺序尝试。"""
+
+    name: str       # 日志用（不含 key）
+    url: str        # chat/completions 完整地址
+    api_key: str
+    model: str
+
+
+def build_request_body(blocks: list[tuple[str, str]], model: str = MODEL) -> dict:
     """稳定系统提示词前缀 + 关思考；变化的块列表放 user 消息。对应客户端铁律 1/4：
     - system 逐字节稳定 → 命中 DeepSeek 前缀缓存；
-    - thinking:disabled → V4 Flash 默认开思考，关掉后首 token 快约 3.5×、不产生 reasoning_tokens。"""
+    - thinking:disabled → V4 Flash 默认开思考，关掉后首 token 快约 3.5×、不产生 reasoning_tokens。
+    ⚠️ `thinking` 是 DeepSeek 顶层参数；火山方舟同托管 V4 Flash 多兼容，真实联调火山时若被拒再按 Ark 文档调整。"""
     user = "\n".join(f"[[{bid}]] {src}" for bid, src in blocks)
     return {
-        "model": MODEL,
+        "model": model,
         "stream": True,
         "stream_options": {"include_usage": True},
         "thinking": {"type": "disabled"},
@@ -59,26 +74,32 @@ def build_request_body(blocks: list[tuple[str, str]]) -> dict:
 
 
 async def stream_content_deltas(
-    client: httpx.AsyncClient, api_key: str, blocks: list[tuple[str, str]]
+    client: httpx.AsyncClient,
+    api_key: str,
+    blocks: list[tuple[str, str]],
+    *,
+    url: str = DEEPSEEK_URL,
+    model: str = MODEL,
 ) -> AsyncIterator[StreamItem]:
-    """调 DeepSeek 流式接口，逐个 yield delta.content 文本。错误按 network/api/auth 分类抛出。
+    """调上游流式接口（OpenAI 兼容），逐个 yield delta.content 文本。错误按 network/api/auth 分类抛出。
+    url/model 默认官方 DeepSeek；failover 时由 `stream_with_failover` 传入火山方舟。
 
     失败分类（对齐 lib/deepseek.ts）：
     - 401/403 → auth；其余 4xx/5xx → api；fetch/连接层异常 → network（多半是代理未连通）。
     """
-    body = build_request_body(blocks)
+    body = build_request_body(blocks, model=model)
     headers = {
         "Authorization": f"Bearer {api_key}",  # 绝不写日志
         "Content-Type": "application/json",
     }
     try:
-        async with client.stream("POST", DEEPSEEK_URL, json=body, headers=headers) as resp:
+        async with client.stream("POST", url, json=body, headers=headers) as resp:
             if resp.status_code in (401, 403):
-                raise DeepSeekError("auth", "DeepSeek API Key 无效或已过期")
+                raise DeepSeekError("auth", "上游 API Key 无效或已过期")
             if resp.status_code >= 400:
                 text = (await resp.aread()).decode("utf-8", "replace")
                 summary = " ".join(text[:200].split())
-                raise DeepSeekError("api", f"DeepSeek 接口报错 {resp.status_code}：{summary}")
+                raise DeepSeekError("api", f"上游接口报错 {resp.status_code}：{summary}")
             async for line in resp.aiter_lines():
                 if not line or line.startswith(":"):
                     continue
@@ -112,17 +133,58 @@ async def stream_content_deltas(
     except DeepSeekError:
         raise
     except httpx.HTTPError as e:
-        raise DeepSeekError("network", f"无法连通 DeepSeek：{e}") from e
+        raise DeepSeekError("network", f"无法连通上游：{e}") from e
 
 
-async def stream_with_default_client(
+def _providers(primary_api_key: str) -> list[Provider]:
+    """failover 优先级列表：官方 DeepSeek 主，火山方舟备（配齐 key+model 才加入）。"""
+    providers = [Provider("deepseek", DEEPSEEK_URL, primary_api_key, MODEL)]
+    if settings.volcengine_api_key and settings.volcengine_model:
+        providers.append(
+            Provider(
+                "volcengine",
+                f"{settings.volcengine_base_url.rstrip('/')}/chat/completions",
+                settings.volcengine_api_key,
+                settings.volcengine_model,
+            )
+        )
+    return providers
+
+
+async def stream_with_failover(
     api_key: str, blocks: list[tuple[str, str]]
 ) -> AsyncIterator[StreamItem]:
-    """生产用便捷包装：每次开一个 httpx client 调上游。
+    """生产用上游调用：官方 DeepSeek 主线，失败且**尚未吐出任何内容**时切火山方舟备线。
     签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。
 
-    trust_env=False：后端直连 api.deepseek.com（DeepSeek 是中国服务、无需代理），
-    避免误用开发机环境里的个人 SOCKS 代理（也省去 socksio 依赖）。"""
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), trust_env=False) as client:
-        async for item in stream_content_deltas(client, api_key, blocks):
-            yield item
+    切换规则：仅在某 provider 首 token 之前失败（连接 / 非 200 / 早期异常）才换下一路；
+    一旦已 yield 过内容再失败就直接抛（不能半句换源重来，交由单批失败隔离 + 漏块下次重试）。
+
+    trust_env=False：后端直连各上游（均中国服务、无需代理），避免误用开发机个人 SOCKS 代理。"""
+    providers = _providers(api_key)
+    last_error: DeepSeekError | None = None
+    for i, p in enumerate(providers):
+        yielded = False
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0, connect=10.0), trust_env=False
+            ) as client:
+                async for item in stream_content_deltas(
+                    client, p.api_key, blocks, url=p.url, model=p.model
+                ):
+                    yielded = True
+                    yield item
+            return  # 该路正常跑完
+        except DeepSeekError as e:
+            last_error = e
+            if yielded:
+                raise  # 已吐内容，不能换源重来
+            if i + 1 < len(providers):
+                log.warning("上游 %s 失败(%s)，切换备线", p.name, e.kind)
+                continue
+    if last_error is not None:
+        raise last_error
+
+
+# 兼容旧名（smoke 脚本等单线直连用）。
+stream_with_default_client = stream_with_failover
