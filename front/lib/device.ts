@@ -13,6 +13,17 @@ export async function getDeviceId(): Promise<string> {
   return id;
 }
 
+/** chrome.instanceID：清 storage 免疫的实例标识（须卸载重装才变），比 deviceId 难重置。
+ *  用作赠送 ¥2 的防薅幂等键——「清缓存换 deviceId 反复领」会被同一 instanceID 拦下。
+ *  取不到（API 失败 / 缺 gcm 权限）则返回空串，后端回退 deviceId 幂等。 */
+export async function getInstanceId(): Promise<string> {
+  try {
+    return await chrome.instanceID.getID();
+  } catch {
+    return '';
+  }
+}
+
 /** 用户本地时区的 YYYY-MM-DD（用本地 getFullYear/getMonth/getDate，不是 UTC）。 */
 export function localDateString(d: Date = new Date()): string {
   const y = d.getFullYear();

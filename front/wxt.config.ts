@@ -10,7 +10,8 @@ export default defineConfig({
     description: '把英文网页整页翻译成中文：原文先垫、流式逐块替换。',
     version: '0.1.0',
     // webNavigation：监听 SPA 同文档导航（pushState/replaceState），对新路由触发翻译。
-    permissions: ['storage', 'commands', 'webNavigation'],
+    // gcm：取 chrome.instanceID（清 storage 免疫的实例标识），用于赠送 ¥2 防薅幂等键。
+    permissions: ['storage', 'commands', 'webNavigation', 'gcm'],
     // 客户端不再直连 DeepSeek；后端 fetch 走 <all_urls>（含 http://localhost 开发后端）。
     host_permissions: ['<all_urls>'],
     // 默认（未开启）图标：青绿底白「A / 文 + aha 火花」满铺主图。已开启翻译时由

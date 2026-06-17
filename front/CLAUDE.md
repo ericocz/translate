@@ -45,7 +45,7 @@ entrypoints/
                         #   SPA 软导航重译 handleSpaNavigation；失败段收尾 finalizeJob + 段内重试 retryBlock
   background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号
-  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度提示 + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁 + 未买断挂「买断 $9.99」购买入口跳 Creem 静态 link)；
+  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度区(GiftBar 未登录领 ¥2/显余额) + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁 + 未买断挂「买断 $9.99」购买入口跳 Creem 静态 link)；
                         #   options 管白名单 + BYOK 配置卡(Byok.tsx)
 lib/
   api.ts          # translateViaBackend：调后端 /v1/translate 消费 SSE；带 deviceId/pageKey/Authorization
@@ -56,7 +56,8 @@ lib/
   local-cache.ts  # 本地译文缓存（IndexedDB）：内容寻址键含语言对；LRU 200MB / 90 天逐出
   translate-cached.ts # 本地优先编排：命中即回不发服务端，未命中发后端、校验通过写回；bypassCache=跳本地整批发（重试带上下文用）
   auth.ts         # token 持久化 + 注册 / 登录 / 登出 + access 静默刷新
-  device.ts       # 匿名 deviceId + 本地日期 + pageKeyFromUrl（cyrb53，URL 不出本机）
+  device.ts       # 匿名 deviceId + getInstanceId(chrome.instanceID，清 storage 免疫，赠送防薅用) + 本地日期 + pageKeyFromUrl（cyrb53，URL 不出本机）
+  grant.ts        # 领赠送 ¥2：POST /v1/grant/gift，带 X-Device-Id + X-Instance-Id（防薅）
   telemetry.ts    # 打点 / 错误上报（fire-and-forget，只带 host）
   sse.ts          # 纯 SSE 事件解析 createSseParser（跨 chunk 缓冲重扫）
   crypto.ts       # 应用层加密：ECDH(P-256)+HKDF+AES-GCM，钉死服务端公钥 / 会话级临时密钥

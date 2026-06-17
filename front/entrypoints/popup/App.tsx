@@ -5,16 +5,20 @@ import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
 import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
+import { claimGift } from '@/lib/grant';
 
-/** 当日免费用量；登录则 loggedIn=true（无限）；后端不可达时为 null。 */
+/** 额度信息（后端 /v1/usage）：balance=owner 余额 micro-¥、hasAccount=领过赠送/充过。 */
 interface UsageInfo {
   loggedIn: boolean;
-  used?: number;
-  limit?: number | null;
-  remaining?: number | null;
+  balance?: number; // micro-¥
+  hasAccount?: boolean;
   tokensToday?: number;
-  cap?: number | null;
   notice?: string | null;
+}
+
+/** micro-¥ → 「¥X.XX」展示。 */
+function yuan(micro: number | undefined): string {
+  return '¥' + ((micro ?? 0) / 1_000_000).toFixed(2);
 }
 
 interface PopupState {
@@ -144,6 +148,8 @@ export function Popup() {
 
       <AccountSection email={s.email} onChanged={() => void refresh()} />
 
+      <GiftBar usage={s.usage} onChanged={() => void refresh()} />
+
       <ByokSection onChanged={() => void refresh()} />
 
       {s.usage?.notice && (
@@ -217,8 +223,10 @@ export function Popup() {
         <span className="foot-hint">
           {s.usage
             ? s.usage.loggedIn
-              ? `已登录 · 今日 ${s.usage.tokensToday ?? 0}/${s.usage.cap ?? '∞'} token`
-              : `免费 ${s.usage.used}/${s.usage.limit} 页 · 登录后无限`
+              ? `已登录 · 余额 ${yuan(s.usage.balance)}`
+              : s.usage.hasAccount
+                ? `余额 ${yuan(s.usage.balance)}`
+                : '装好即领 ¥2 赠送额度'
             : s.enabled
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
               : '开启即整页翻译'}
@@ -274,7 +282,7 @@ function AccountSection({ email, onChanged }: { email: string | null; onChanged:
   if (!open) {
     return (
       <div className="acct">
-        <span className="acct-email">未登录 · 免费 3 页/天</span>
+        <span className="acct-email">未登录</span>
         <button className="link" onClick={() => setOpen(true)}>登录 / 注册</button>
       </div>
     );
@@ -315,6 +323,41 @@ function AccountSection({ email, onChanged }: { email: string | null; onChanged:
         </button>
         <button className="link" onClick={() => setOpen(false)}>收起</button>
       </div>
+    </div>
+  );
+}
+
+/** 额度条：未登录用户——没领过则「领取 ¥2」，领过则显余额。登录用户走充值、不在此领。 */
+function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (!usage || usage.loggedIn) return null;
+
+  if (usage.hasAccount) {
+    return (
+      <div className="byokbar">
+        <span className="byokbar-t">余额 {yuan(usage.balance)}</span>
+      </div>
+    );
+  }
+
+  const onClaim = async () => {
+    setErr(null);
+    setBusy(true);
+    const res = await claimGift();
+    setBusy(false);
+    if (res.ok) onChanged();
+    else setErr('领取失败，请重试');
+  };
+
+  return (
+    <div className="byokbar">
+      <span className="byokbar-t">新用户赠送 ¥2 翻译额度</span>
+      <button className="link" onClick={() => void onClaim()} disabled={busy}>
+        {busy ? '领取中…' : '领取 ¥2'}
+      </button>
+      {err && <span className="auth-err">{err}</span>}
     </div>
   );
 }

@@ -37,14 +37,17 @@ async def usage_endpoint(
 
 @router.post("/v1/grant/gift")
 async def grant_gift(request: Request, credits=Depends(get_credits)):
-    """领取赠送额度：按 deviceId 幂等发 ¥2（一设备一次，不需注册）。
-    幂等：idempotency_key=gift:d:{deviceId}，CreditTxn 唯一约束保证只发一次（重复领返回当前余额）。
-    指纹加固（instanceID + 服务端指纹双保险）留后续细化切片。"""
+    """领取赠送额度：发 ¥2，不需注册。额度发到 device owner（d:{deviceId}）。
+
+    防薅：幂等键优先用 X-Instance-Id（chrome.instanceID——**清 storage 免疫、须卸载重装才变**，
+    比客户端 deviceId 难重置），故「清缓存换 deviceId 反复领」会被同一 instanceID 的幂等键拦下。
+    缺 instanceID 才回退 deviceId 幂等（旧客户端 / 取不到 instanceID 的兜底）。
+    CreditTxn 的 idempotency_key 唯一约束保证只发一次（重复领返回当前余额）。"""
     device_id = request.headers.get("x-device-id", "")
     if not device_id:
         return {"ok": False, "error": "missing device id", "balance": 0}
+    instance_id = request.headers.get("x-instance-id", "").strip()
     owner = device_owner(device_id)
-    balance = await credits.grant(
-        owner, GIFT_AMOUNT_MICRO, kind="gift", idempotency_key=f"gift:{owner}"
-    )
+    idem = f"gift:inst:{instance_id}" if instance_id else f"gift:{owner}"
+    balance = await credits.grant(owner, GIFT_AMOUNT_MICRO, kind="gift", idempotency_key=idem)
     return {"ok": True, "balance": balance}
