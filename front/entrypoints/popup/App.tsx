@@ -332,7 +332,18 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  if (!usage || usage.loggedIn) return null;
+  if (!usage) return null;
+
+  if (usage.loggedIn) {
+    return (
+      <div className="byokbar">
+        <span className="byokbar-t">余额 {yuan(usage.balance)}</span>
+        <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
+          充值 ›
+        </button>
+      </div>
+    );
+  }
 
   if (usage.hasAccount) {
     return (

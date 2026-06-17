@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     creem_buyout_product_id: str = ""  # D-18 买断商品 id；空＝不校验商品（仅联调）
     resend_api_key: str = ""  # 买断码邮件发信（Resend Dashboard→API Keys）；空＝退化为日志占位、不丢单
     email_from: str = ""  # 发信地址，如 "秒懂翻译 <noreply@yourdomain>"；域名须在 Resend 验证过
+    yungouos_mch_id: str = ""  # 大陆充值（YunGouOS 微信支付）商户号；空＝充值不可用
+    yungouos_pay_key: str = ""  # YunGouOS 支付密钥（签名 / 回调验签）
+    public_base_url: str = ""  # 公网后端地址（YunGouOS notify 回调用），如 https://api.yourdomain；空＝充值不可用
 
 
 settings = Settings()
