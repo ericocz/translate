@@ -175,3 +175,52 @@ body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); }
   transition: border-color 0.15s ease, transform 0.12s ease;
 }
 .ghost:hover { border-color: var(--brand); transform: translateY(-1px); }
+
+/* —— BYOK 自带模型卡 —— */
+.byok-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.byok-toggle input { margin-top: 2px; accent-color: var(--brand); flex: none; }
+.byok-ack { color: #c0392b; }
+@media (prefers-color-scheme: dark) { .byok-ack { color: #ff8a7a; } }
+
+.byok-field { display: flex; flex-direction: column; gap: 5px; }
+.byok-field > label { font-size: 12px; font-weight: 600; color: var(--fg2); }
+.byok-field input,
+.byok-field select {
+  font: inherit;
+  font-size: 13.5px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  transition: border-color 0.15s ease;
+}
+.byok-field input:focus,
+.byok-field select:focus { outline: none; border-color: var(--brand); }
+.byok-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.byok-score {
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 9px 12px;
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.byok-score .muted { font-size: 11.5px; }
+.byok-score--good { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+.byok-score--fair { background: color-mix(in srgb, #d99100 16%, transparent); color: #a9730a; }
+.byok-score--poor { background: color-mix(in srgb, #c0392b 14%, transparent); color: #c0392b; }
+@media (prefers-color-scheme: dark) {
+  .byok-score--fair { color: #f0b542; }
+  .byok-score--poor { color: #ff8a7a; }
+}

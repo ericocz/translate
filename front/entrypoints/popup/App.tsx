@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
+import { ByokSection } from './Byok';
 import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
 import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
@@ -142,6 +143,8 @@ export function Popup() {
       <Brand />
 
       <AccountSection email={s.email} onChanged={() => void refresh()} />
+
+      <ByokSection onChanged={() => void refresh()} />
 
       {s.usage?.notice && (
         <div className="status">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getWhitelist, setWhitelist, getCacheEnabled, setCacheEnabled } from '@/lib/storage';
 import { cacheStats, clearCache } from '@/lib/local-cache';
+import { ByokCard } from './Byok';
 
 export function Options() {
   const [list, setList] = useState<string[]>([]);
@@ -173,6 +174,8 @@ export function Options() {
           </button>
         </div>
       </section>
+
+      <ByokCard />
     </div>
   );
 }
