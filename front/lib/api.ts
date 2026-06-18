@@ -26,7 +26,62 @@ export interface ApiClient {
   abort: () => void;
 }
 
-/** 调后端翻译一批块；返回可 abort 的 client，结果经 handlers 流式回调。 */
+/** 构建发往后端翻译端点的 fetch init（SSE 与非流式两条路共用：同样的鉴权头 / 加密 / body）。 */
+async function buildTranslateInit(
+  blocks: ApiBlock[],
+  pageKey: string,
+  signal: AbortSignal
+): Promise<RequestInit> {
+  let deviceId = 'unknown';
+  try {
+    deviceId = await getDeviceId();
+  } catch {
+    // storage 不可用时退化为匿名占位，不阻断翻译。
+  }
+
+  const accessToken = await getAccessToken();
+
+  // D-13：加密开启时把每块 source 换成密文 ct，并带客户端临时公钥头（服务端据此派生会话密钥）。
+  const useEnc = encryptionEnabled();
+  let bodyBlocks: unknown[] = blocks;
+  const extraHeaders: Record<string, string> = {};
+  if (useEnc) {
+    extraHeaders['X-Eph-Pub'] = await ephemeralPublicKey();
+    bodyBlocks = await Promise.all(
+      blocks.map(async (b) => ({ id: b.id, ct: await encryptField(b.source, `src:${b.id}`) }))
+    );
+  }
+
+  return {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Device-Id': deviceId,
+      ...extraHeaders,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ blocks: bodyBlocks, localDate: localDateString(), pageKey }),
+    signal,
+  };
+}
+
+/** 把一块（明文 translated 或密文 ct）回填给 handlers；密文异步解密，失败则丢弃（节点保持原文）。 */
+async function emitBlock(
+  obj: { id: string; translated?: string; ct?: string },
+  handlers: ApiHandlers
+): Promise<void> {
+  if (obj.ct !== undefined) {
+    try {
+      handlers.onBlock(obj.id, await decryptField(obj.ct, `dst:${obj.id}`));
+    } catch {
+      // 解密失败：丢弃该块，对应节点保持英文原样。
+    }
+  } else if (obj.translated !== undefined) {
+    handlers.onBlock(obj.id, obj.translated);
+  }
+}
+
+/** 调后端翻译一批块（正文路）：消费 SSE 逐块流式回调。返回可 abort 的 client。 */
 export function translateViaBackend(
   blocks: ApiBlock[],
   pageKey: string,
@@ -35,39 +90,12 @@ export function translateViaBackend(
   const controller = new AbortController();
 
   void (async () => {
-    let deviceId = 'unknown';
-    try {
-      deviceId = await getDeviceId();
-    } catch {
-      // storage 不可用时退化为匿名占位，不阻断翻译。
-    }
-
-    const accessToken = await getAccessToken();
-
-    // D-13：加密开启时把每块 source 换成密文 ct，并带客户端临时公钥头（服务端据此派生会话密钥）。
-    const useEnc = encryptionEnabled();
-    let bodyBlocks: unknown[] = blocks;
-    const extraHeaders: Record<string, string> = {};
-    if (useEnc) {
-      extraHeaders['X-Eph-Pub'] = await ephemeralPublicKey();
-      bodyBlocks = await Promise.all(
-        blocks.map(async (b) => ({ id: b.id, ct: await encryptField(b.source, `src:${b.id}`) }))
-      );
-    }
-
     let resp: Response;
     try {
-      resp = await fetch(`${BACKEND_URL}/v1/translate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-Id': deviceId,
-          ...extraHeaders,
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({ blocks: bodyBlocks, localDate: localDateString(), pageKey }),
-        signal: controller.signal,
-      });
+      resp = await fetch(
+        `${BACKEND_URL}/v1/translate`,
+        await buildTranslateInit(blocks, pageKey, controller.signal)
+      );
     } catch (e) {
       if (controller.signal.aborted) return;
       handlers.onError(classifyNetwork(e));
@@ -91,20 +119,8 @@ export function translateViaBackend(
       if (ev.event === 'block') {
         try {
           const obj = JSON.parse(ev.data) as { id: string; translated?: string; ct?: string };
-          if (obj.ct !== undefined) {
-            // 密文路径：异步解密后回填。块间无序无碍——各块按 id 独立定位。
-            pending.push(
-              (async () => {
-                try {
-                  handlers.onBlock(obj.id, await decryptField(obj.ct!, `dst:${obj.id}`));
-                } catch {
-                  // 解密失败：丢弃该块，对应节点保持英文原样。
-                }
-              })()
-            );
-          } else if (obj.translated !== undefined) {
-            handlers.onBlock(obj.id, obj.translated);
-          }
+          // 密文块异步解密后回填，块间无序无碍（各块按 id 独立定位）；收集 pending 确保 done 在其后。
+          pending.push(emitBlock(obj, handlers));
         } catch {
           // 单事件坏 JSON 不致命，跳过。
         }
@@ -115,7 +131,7 @@ export function translateViaBackend(
         settled = true;
         handlers.onError(parseFailure(ev.data));
       } else if (ev.event === 'quota') {
-        // 免费额度用尽：非失败，是引导（popup 用柔和样式 + 登录提示）。
+        // 额度不足：非失败，是引导（popup 用柔和样式 + 领赠送/充值/买断提示）。
         settled = true;
         handlers.onError(parseQuota(ev.data));
       }
@@ -144,6 +160,57 @@ export function translateViaBackend(
   return { abort: () => controller.abort() };
 }
 
+/** 调后端非流式端点 /v1/translate/batch（外框 / 重试路）：一次性收完 JSON，再逐块回调。
+ *  与 translateViaBackend 同形（{abort}），可直接作 translate-cached 的 deps.server 注入。
+ *  外框量小、重试是带上下文的小整批——都不需要流式首屏体感，少一条长连接、解析更简单。 */
+export function translateViaBackendHttp(
+  blocks: ApiBlock[],
+  pageKey: string,
+  handlers: ApiHandlers
+): ApiClient {
+  const controller = new AbortController();
+
+  void (async () => {
+    let resp: Response;
+    try {
+      resp = await fetch(
+        `${BACKEND_URL}/v1/translate/batch`,
+        await buildTranslateInit(blocks, pageKey, controller.signal)
+      );
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      handlers.onError(classifyNetwork(e));
+      return;
+    }
+
+    if (!resp.ok) {
+      const kind: FailureKind = resp.status === 401 || resp.status === 403 ? 'auth' : 'api';
+      handlers.onError({ kind, message: `后端报错 ${resp.status}` });
+      return;
+    }
+
+    let body: { blocks?: { id: string; translated?: string; ct?: string }[]; error?: unknown; quota?: unknown };
+    try {
+      body = await resp.json();
+    } catch {
+      if (controller.signal.aborted) return;
+      handlers.onError({ kind: 'api', message: '后端响应解析失败' });
+      return;
+    }
+    if (controller.signal.aborted) return;
+
+    // 先回填全部块（含密文异步解密），再据 quota/error 决定收尾——与 SSE 路「块在前、终态在后」一致。
+    await Promise.all((body.blocks ?? []).map((b) => emitBlock(b, handlers)));
+    if (controller.signal.aborted) return;
+
+    if (body.quota !== undefined) handlers.onError(parseQuota(JSON.stringify(body.quota)));
+    else if (body.error !== undefined) handlers.onError(parseFailure(JSON.stringify(body.error)));
+    else handlers.onDone();
+  })();
+
+  return { abort: () => controller.abort() };
+}
+
 function parseFailure(data: string): FailureInfo {
   try {
     const obj = JSON.parse(data) as { kind?: string; message?: string };
@@ -159,11 +226,13 @@ function parseFailure(data: string): FailureInfo {
 }
 
 function parseQuota(data: string): FailureInfo {
+  // 已无免费配额：零额度模型下「quota」=余额不足，引导领赠送 ¥2 / 充值 / 买断。
+  const fallback = '额度不足：可领取赠送额度、充值，或买断后用自己的模型';
   try {
     const obj = JSON.parse(data) as { message?: string };
-    return { kind: 'quota', message: obj.message ?? '今日免费额度已用完' };
+    return { kind: 'quota', message: obj.message ?? fallback };
   } catch {
-    return { kind: 'quota', message: '今日免费额度已用完' };
+    return { kind: 'quota', message: fallback };
   }
 }
 

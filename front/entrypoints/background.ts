@@ -4,8 +4,15 @@
 //  ③ 工具栏快捷键——翻译 / 取消翻译当前网站。
 // 不含任何翻译业务逻辑（都在后端 /v1/translate）。
 
-import { type ApiClient, type ApiHandlers } from '@/lib/api';
-import { translateWithCache } from '@/lib/translate-cached';
+import {
+  translateViaBackend,
+  translateViaBackendHttp,
+  type ApiBlock,
+  type ApiClient,
+  type ApiHandlers,
+} from '@/lib/api';
+import { translateWithCache, translateByRegion } from '@/lib/translate-cached';
+import { splitByTier } from '@/lib/regions';
 import { makeLocalServer } from '@/lib/local-engine/local-translator';
 import { runCompatTest } from '@/lib/local-engine/compat-test';
 import { writeLastStats } from '@/lib/local-engine/stats';
@@ -98,6 +105,9 @@ export default defineBackground(() => {
         }
 
         const byok = route.mode === 'byok';
+        // BYOK 不做区域分流：本地直连没有「正文 SSE 首屏」收益，分流反而①让降级率 stats 双触发、
+        // 后跑完的区域覆盖先跑完的（见 stats.writeLastStats）→ 降级率失真；②正文+外框各跑 concurrency=4
+        // → 对用户自己的 provider 最高 8 路并发，易撞 429。故 BYOK 整页一个 job、stats 算全页一次。
         const handlers: ApiHandlers = {
           onBlock: (id, translated) => send({ kind: 'block', id, translated }),
           onDone: () => {
@@ -116,18 +126,29 @@ export default defineBackground(() => {
             send({ kind: 'error', failure });
           },
         };
-        // BYOK：记录本次降级统计供 popup 柔提示。
-        const deps =
-          route.mode === 'byok'
-            ? { server: makeLocalServer(route.cfg, (s) => void writeLastStats(s)) }
-            : {};
-        const thisJob: ApiClient = translateWithCache(
-          msg.blocks,
-          pageKeyFromUrl(port.sender?.url),
-          handlers,
-          deps,
-          msg.bypassCache
-        );
+        // BYOK：自带模型 key 客户端直连各 provider（不分流式/非流式，统一本地引擎），
+        //   并记录本次降级统计供 popup 柔提示。localServer 建一次、两路复用（避免重复触发 stats 回调）。
+        const localServer =
+          route.mode === 'byok' ? makeLocalServer(route.cfg, (s) => void writeLastStats(s)) : null;
+        const pageKey = pageKeyFromUrl(port.sender?.url);
+        // 平台路径按传输分流：正文(stream=true)走 SSE 首屏速度，外框/重试(stream=false)走普通 HTTP。
+        // BYOK 则两路都走本地引擎、stream 参数被忽略。
+        const makeJob = (blocks: ApiBlock[], h: ApiHandlers, stream: boolean): ApiClient => {
+          const server = localServer ?? (stream ? translateViaBackend : translateViaBackendHttp);
+          return translateWithCache(blocks, pageKey, h, { server }, msg.bypassCache);
+        };
+        // BYOK：整页一个本地直连 job（不分流，见上）；stream 参数本地引擎忽略。
+        // 重试(bypassCache)：上下文段须整批同发以保上下文、不拆区域，走非流式 HTTP（非正文）。
+        // 常规平台路径：按结构拆正文/外框两路并发提交、正文优先（见 translateByRegion）。
+        let thisJob: ApiClient;
+        if (byok) {
+          thisJob = makeJob(msg.blocks, handlers, true);
+        } else if (msg.bypassCache) {
+          thisJob = makeJob(msg.blocks, handlers, false);
+        } else {
+          const { content, chrome } = splitByTier(msg.blocks);
+          thisJob = translateByRegion(content, chrome, handlers, makeJob);
+        }
         job = thisJob;
       })();
     });

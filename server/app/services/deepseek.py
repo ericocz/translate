@@ -57,7 +57,8 @@ def build_request_body(blocks: list[tuple[str, str]], model: str = MODEL) -> dic
     """稳定系统提示词前缀 + 关思考；变化的块列表放 user 消息。对应客户端铁律 1/4：
     - system 逐字节稳定 → 命中 DeepSeek 前缀缓存；
     - thinking:disabled → V4 Flash 默认开思考，关掉后首 token 快约 3.5×、不产生 reasoning_tokens。
-    ⚠️ `thinking` 是 DeepSeek 顶层参数；火山方舟同托管 V4 Flash 多兼容，真实联调火山时若被拒再按 Ark 文档调整。"""
+    `thinking` 是 DeepSeek 顶层参数；**已真机联调火山方舟**（model `deepseek-v4-flash-260425`、
+    OpenAI 兼容 /chat/completions）确认接受同一顶层 `thinking` 参数、不报 400、标记格式无损。"""
     user = "\n".join(f"[[{bid}]] {src}" for bid, src in blocks)
     return {
         "model": model,

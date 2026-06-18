@@ -2,6 +2,7 @@
 
 import type { ProviderConfig } from './local-engine/types';
 import type { CompatResult } from './local-engine/compat-test';
+import type { Tier } from './regions';
 
 export const PORT_NAME = 'translate-stream';
 
@@ -20,10 +21,11 @@ export type RuntimeResponseFor<M extends RuntimeRequest> = M extends ByokCompatT
   ? CompatResult
   : never;
 
-/** content -> background：开始翻译一批块。 */
+/** content -> background：开始翻译一批块。每块带结构层 tier（正文/外框），background 据此按区域
+ *  并发提交、正文优先；缺省视作正文。重试场景（bypassCache）不拆区域、整批同发以保上下文。 */
 export interface StartMsg {
   kind: 'start';
-  blocks: { id: string; source: string }[];
+  blocks: { id: string; source: string; tier?: Tier }[];
   /** 重试场景：跳过本地缓存，把整批（含上下文段）都发模型——否则上下文段命中本地缓存被直接回填、
    *  只有失败段被单独发服务端，就又失去了上下文。 */
   bypassCache?: boolean;

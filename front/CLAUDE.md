@@ -9,7 +9,7 @@
 衡量这插件好不好的唯一标准是它有多**隐形**——译文干净、不打扰，像这页本来就是中文写的。横幅 / 水印 / 进度条 / 骨架屏 / 闪烁都是向这个目标收税，加任何 UI 前先问它配不配。由此而来的产品决策：
 
 - **按域名激活、单一开关**：白名单内的站一打开就自动全页翻译；图标是唯一常驻接触点（用自身两态表达开 / 关，见 `lib/icon.ts`）。关掉即刻还原原文（原文常驻、瞬时）。**刻意无「临时翻译一次」入口**——只看一次的页面：加域名 → 读 → 关。
-- **整页全部可见文字都翻**，正文与界面（导航 / 按钮 / 页脚）一视同仁、不做正文识别；藏在属性里的（图片 `alt`、`placeholder`）暂不翻。
+- **整页全部可见文字都翻**，正文与界面（导航 / 按钮 / 页脚）在「翻不翻」上一视同仁；藏在属性里的（图片 `alt`、`placeholder`）暂不翻。**但在调度顺序上做结构识别**（见铁律 7）：正文区先翻、外框（导航/页眉/侧栏/页脚）后翻——为响应速度，刻意反转了早期「完全不做正文识别」的取舍。
 - **失败段静默保持原文 + 段内「重试翻译」文字按钮**：失败段（模型漏译 / 标记校验不过 / 部分失败）与「还没轮到」视觉无异（不报错、不空块）；译流结束后在该段**内部**追加一个极轻的「重试翻译」按钮（在 `[data-trans-id]` 子树内 → 抽取器天然跳过）。点击带**前后各 2 段上下文**重新请求（走 `bypassCache` 确保上下文真发给模型）。系统性失败（quota / auth）不挂按钮，交 popup 引导登录 / 充值。
 - **查看原文**：Ctrl/⌘+点击单段就地粘滞切换中↔英；整页看原文用快捷键 / popup 取消翻译此站（即刻还原、瞬时、无需重译）。
 - **出错说人话、分来源**：`errorKind` 区分「网络 / 代理未连通」与「模型接口报错」；`quota` 不是错误而是引导（柔和提示 + 登录 / 充值 CTA，不显示红色报错）。
@@ -24,16 +24,17 @@ TypeScript strict；Chrome **MV3**；[WXT](https://wxt.dev/)（基于 Vite，处
 2. **占位标记校验。** 内联样式以成对 `<g0>…</g0>` / 自闭合 `<x0/>` 标记承载，**styleMap 只在客户端**。收到译文先用 `markers.ts` 校验标记平衡 / 编号合法，再用 `rebuilder.ts` 重建；不通过则该块保持原文。`restoreSoleWrapper` 补回模型整对省略的「最外层唯一内联包装」（超链接坑，见经验库 #7）。
 3. **块 ID 稳定**（`data-trans-id`）：用于流式回填 / 切换定位。沉降补抽 / SPA 新路由用 `r{batch}.b{n}` **带点**前缀，故后端 SSE 切块正则须含 `.`。
 4. **代码不翻**：抽取跳过代码块；行内代码（如 `fetch()`）保持原样。
-5. **全部可见文字都翻**，按 DOM 顺序自上而下，不做正文识别 / 视口优先。
+5. **全部可见文字都翻**，按 DOM 顺序自上而下抽取。
 6. **原文先渲染**：加载即显完整原文，译文到达逐块淡入（短暂过渡，不硬切）。
+7. **结构感知调度（正文优先 + 传输分流）**：抽取时 `classifyTier`（`regions.ts`）按最近地标把每块分到正文(`main`/`article`) / 外框(`nav`/`header`/`footer`/`aside`)；background 据此**拆两路并发提交**、正文优先（chrome 等正文首段或兜底延时后再起）。**正文走 SSE**（流式逐块淡入、首屏「秒懂」）、**外框走普通 HTTP**（`/v1/translate/batch` 一次性返 JSON——量小、不在视线焦点，不值一条长连接）；**重试(bypassCache)同走非流式 HTTP**。**例外：纯外框页（content 为空，如导航/着陆页/仪表盘）外框升级走 SSE**——此时外框是用户唯一在看的内容，给回逐块淡入体感。由 `translateByRegion` 的 `makeJob(blocks,h,stream)` 第三参表达，platform 据此选 SSE/HTTP 客户端。**BYOK 不做区域分流**（整页一个本地直连 job、stream 参数忽略）：本地直连无 SSE 首屏收益，分流反而①令降级率 stats 双触发被覆盖失真、②正文+外框各 concurrency=4 → 对用户自己的 key 最高 8 路并发易撞 429。外框整组失败现与正文一致 onError 上报（popup 弹红+引导，不再静默吞）；两路各自**部分**失败块统一由 content 侧 finalizeJob 挂「重试翻译」。**为什么**：DOM 顶部多是导航，按纯 DOM 顺序翻会让用户在读的正文排在导航后才出；正文先翻才对得起「秒懂」。**这反转了早期「不做正文识别 / 视口优先」原则**——当年为「隐形」刻意不做，现为速度做。无地标的简单页全归正文＝退化回历史 DOM 顺序行为（零回归）。聚合与失败语义见 `translate-cached.ts` 的 `translateByRegion`。
 
 > 模型侧铁律（系统提示词逐字节稳定、关思考、真实 usage、API Key 不暴露）在 `../server`。扩展产物里**不含任何密钥**。
 
 ## 数据流
 
 1. **触发**：内容脚本判断当前域名是否在白名单，在则自动运行。SPA 同文档路由跳转由 service worker 的 `webNavigation.onHistoryStateUpdated` 通知 content（`handleSpaNavigation`，epoch 防串扰、seq 保证带前缀 id 唯一）。
-2. **抽取**：`extractor.ts` 用 `TreeWalker` 抽块级元素，生成 `<gN>/<xN>` 标记 + styleMap，存原文 HTML。
-3. **本地缓存优先 + 请求**：`background.ts`（service worker）经 `translate-cached.ts` 先查本地 IndexedDB（`local-cache.ts`）：命中块直接回填、**不发服务端**；未命中块才经 `api.ts` `translateViaBackend` POST `${BACKEND_URL}/v1/translate`（SSE），带 `X-Device-Id`、`pageKey`、`localDate`，登录则带 `Authorization`；校验通过的块写回本地。加密开启时（构建注入 `SERVER_PUBKEY`）source 经 `crypto.ts` 加密为 `ct`、带 `X-Eph-Pub` 头。**网络调用在 SW 发**，不受页面 CSP / CORS 限制。
+2. **抽取**：`extractor.ts` 用 `TreeWalker` 抽块级元素，生成 `<gN>/<xN>` 标记 + styleMap，存原文 HTML；每块经 `regions.ts` `classifyTier` 标上结构层（正文/外框）。
+3. **结构分区 + 本地缓存优先 + 请求**：`background.ts`（service worker）按 tier 拆两路、经 `translate-cached.ts` `translateByRegion` **并发提交、正文优先**；每路先查本地 IndexedDB（`local-cache.ts`）：命中块直接回填、**不发服务端**；未命中块才经 `api.ts` 发后端：正文 `translateViaBackend` POST `/v1/translate`（SSE），外框/重试 `translateViaBackendHttp` POST `/v1/translate/batch`（非流式 JSON）——均带 `X-Device-Id`、`pageKey`、`localDate`，登录则带 `Authorization`；校验通过的块写回本地。加密开启时（构建注入 `SERVER_PUBKEY`）source 经 `crypto.ts` 加密为 `ct`、带 `X-Eph-Pub` 头。**网络调用在 SW 发**，不受页面 CSP / CORS 限制。
 4. **流式回填**：后端发结构化 SSE 事件（`block {id,translated}` / `done` / `error` / `quota`）；`sse.ts createSseParser` 跨 chunk 累积解析；content 收 `block` → `restoreSoleWrapper` → 校验 → `rebuilder` 重建 → 淡入替换。
 5. **失败 / 配额**：`error` / `quota` 经 port 回 content，`errorKind` 透到 popup；`quota` 用柔和样式 + 登录引导，不报红错。
 
@@ -51,13 +52,14 @@ entrypoints/
   welcome/              # 首装引导页（welcome.html，整页标签）：三步上手 + 末尾领 ¥2（claimGift）；
                         #   领取门控浏览器标识——getInstanceId() 取不到('')则禁用领取、提示去设置充值
 lib/
-  api.ts          # translateViaBackend：调后端 /v1/translate 消费 SSE；带 deviceId/pageKey/Authorization
+  api.ts          # translateViaBackend：正文路，调 /v1/translate 消费 SSE；translateViaBackendHttp：外框/重试路，调 /v1/translate/batch 非流式收 JSON；二者同形(ApiClient)、共用 buildTranslateInit(鉴权头/加密/body)+emitBlock(密文解密回填)；带 deviceId/pageKey/Authorization
   local-engine/   # BYOK 本地翻译引擎（镜像后端 services/，跑在 SW）：types(ProviderConfig)/presets/
                   #   estimate-tokens(按码点对齐 Python)/block-splitter(搬运+容错)/prompt(zh+few-shot)/
                   #   providers(openai+anthropic)/local-translator(编排→ApiClient)/compat-test/key-vault(PIN)/stats
   redeem.ts       # 买断码激活：POST /v1/redeem/verify 验码绑设备 → 落地买断态
   local-cache.ts  # 本地译文缓存（IndexedDB）：内容寻址键含语言对；LRU 200MB / 90 天逐出
-  translate-cached.ts # 本地优先编排：命中即回不发服务端，未命中发后端、校验通过写回；bypassCache=跳本地整批发（重试带上下文用）
+  translate-cached.ts # 本地优先编排：命中即回不发服务端，未命中发后端、校验通过写回；bypassCache=跳本地整批发（重试带上下文用）；
+                  #   translateByRegion=正文/外框两路并发提交、正文优先 + 终态聚合（systemic 错上报/正文失败上报/chrome 非系统失败吞掉）
   auth.ts         # token 持久化 + 注册 / 登录 / 登出 + access 静默刷新
   device.ts       # 匿名 deviceId + getInstanceId(chrome.instanceID，清 storage 免疫，赠送防薅用) + 本地日期 + pageKeyFromUrl（cyrb53，URL 不出本机）
   grant.ts        # 领赠送 ¥2：POST /v1/grant/gift，带 X-Device-Id + X-Instance-Id（防薅）
@@ -66,6 +68,7 @@ lib/
   sse.ts          # 纯 SSE 事件解析 createSseParser（跨 chunk 缓冲重扫）
   crypto.ts       # 应用层加密：ECDH(P-256)+HKDF+AES-GCM，钉死服务端公钥 / 会话级临时密钥
   extractor.ts    # TreeWalker 抽块 + 生成 <gN>/<xN> 标记 + styleMap
+  regions.ts      # 结构分区 classifyTier（最近地标→正文/外框）+ splitByTier（拆两组，供按区域并发）
   markers.ts      # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
   storage.ts      # 白名单 / 设置（缓存开关）+ 买断态 / BYOK 配置 / resolveTranslateRoute(platform|byok|locked)
@@ -78,7 +81,7 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 
 ## 后端契约
 
-`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE)、`GET /v1/usage`、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/redeem/verify`（买断激活，带 `X-Device-Id`）、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
+`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE，正文)、`POST /v1/translate/batch`(非流式 JSON，外框/重试)、`GET /v1/usage`、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/redeem/verify`（买断激活，带 `X-Device-Id`）、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
 
 ## BYOK（自带模型 · 买断解锁）
 

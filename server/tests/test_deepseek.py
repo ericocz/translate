@@ -9,6 +9,7 @@ from app.services.deepseek import (
     build_request_body,
     stream_content_deltas,
 )
+from app.services.translator import OUTPUT_TOKEN_BUDGET
 
 
 def test_request_body_locks_in_invariants():
@@ -24,9 +25,9 @@ def test_request_body_locks_in_invariants():
 
 def test_request_body_sets_explicit_max_tokens():
     body = build_request_body([("b1", "hi")])
-    # 显式设 max_tokens，令「超长被截断」行为确定；须 ≥ translator 的 OUTPUT_TOKEN_BUDGET(6500)
+    # 显式设 max_tokens（截断硬顶），令「超长被截断」行为确定；须 ≥ translator 的 OUTPUT_TOKEN_BUDGET（装箱软上限）
     assert body["max_tokens"] == MAX_OUTPUT_TOKENS
-    assert MAX_OUTPUT_TOKENS >= 6500
+    assert MAX_OUTPUT_TOKENS >= OUTPUT_TOKEN_BUDGET
 
 
 def _sse(*contents: str) -> bytes:

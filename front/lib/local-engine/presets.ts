@@ -34,7 +34,8 @@ export const PRESETS: ProviderPreset[] = [
     format: 'openai',
     contextWindow: 1 * M,
     maxOutput: 384 * K,
-    batchBudget: 384000,
+    // 刻意 << maxOutput：切多箱并发 → 首屏快、墙钟≈全页÷并发（对齐后端 translator.OUTPUT_TOKEN_BUDGET）。
+    batchBudget: 1500,
     concurrency: 4,
     promptLang: 'zh',
     // 关思考靠这个字段、与 key 无关；不发则默认开思考 → temperature 失效、变慢变贵。

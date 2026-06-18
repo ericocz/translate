@@ -187,6 +187,70 @@ async def test_translate_encrypted_path(override, monkeypatch):
     assert crypto.decrypt(key, blocks[0]["ct"], "dst:b1") == "你好"
 
 
+async def test_batch_returns_blocks_json_not_sse(override):
+    # 非流式端点：一次性返 JSON {blocks:[...]}，不是 SSE。
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate/batch",
+            json={"blocks": [{"id": "b1", "source": "Hi"}, {"id": "b2", "source": "Yo"}]},
+            headers={"X-Device-Id": "dev1"},
+        )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    body = resp.json()
+    assert {"id": "b1", "translated": "你好"} in body["blocks"]
+    assert {"id": "b2", "translated": "你好"} in body["blocks"]
+    assert "error" not in body and "quota" not in body
+
+
+async def test_batch_deducts_credits(override):
+    # 非流式端点同样按实耗扣 credits（与 SSE 端共用 _translate_frames）。
+    fake = FakeCredits(balance=Decimal("10"))
+    app.dependency_overrides[get_credits] = lambda: fake
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate/batch",
+            json={"blocks": [{"id": "b1", "source": "Hi"}]},
+            headers={"X-Device-Id": "dev1"},
+        )
+    assert resp.status_code == 200
+    assert len(fake.deducted) == 1 and fake.deducted[0] > 0
+
+
+async def test_batch_no_balance_returns_quota(override):
+    # 无余额 → JSON 带 quota 字段、无 blocks，不翻。
+    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=0)
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate/batch",
+            json={"blocks": [{"id": "b1", "source": "Hi"}]},
+            headers={"X-Device-Id": "dev1"},
+        )
+    body = resp.json()
+    assert "quota" in body and not body["blocks"] and "error" not in body
+
+
+async def test_batch_encrypted_path(override, monkeypatch):
+    # 带 X-Eph-Pub：非流式端点也走 ct 收发，且能用同一密钥解出明文译文。
+    server_priv, eph_pub_b64, key = _enc_client()
+    monkeypatch.setattr("app.routers.translate._server_priv", server_priv)
+    ct_in = crypto.encrypt(key, "Hi", "src:b1")
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post(
+            "/v1/translate/batch",
+            json={"blocks": [{"id": "b1", "ct": ct_in}]},
+            headers={"X-Eph-Pub": eph_pub_b64, "X-Device-Id": "dev1"},
+        )
+    assert resp.status_code == 200
+    blocks = resp.json()["blocks"]
+    assert len(blocks) == 1 and "translated" not in blocks[0]
+    assert crypto.decrypt(key, blocks[0]["ct"], "dst:b1") == "你好"
+
+
 async def test_encrypted_bad_ciphertext_errors_not_500(override, monkeypatch):
     # 篡改/坏 ct（被劫持改包）→ 干净 error 事件，不是 500。enc_error 优先于额度门控。
     server_priv, eph_pub_b64, _key = _enc_client()

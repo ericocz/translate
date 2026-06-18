@@ -1,24 +1,15 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 
-from app.core.ratelimit import SlidingWindowCounter, classify, client_ip
+from app.core.ratelimit import RateLimitMiddleware, SlidingWindowCounter
 from app.routers import admin, auth, billing, recharge, redeem, telemetry, translate, usage
 
 app = FastAPI(title="Immersive Translate Backend")
 
+# IP 级滑动窗口限流（高阈值 DDoS 闸）。用纯 ASGI 中间件而非 @app.middleware("http")：
+# 后者的 BaseHTTPMiddleware 会把并发长流式响应里的一条 cancel 掉（区域并发翻译两条 SSE 必中），
+# 详见 RateLimitMiddleware 文档。
 _limiter = SlidingWindowCounter()
-
-
-@app.middleware("http")
-async def rate_limit(request: Request, call_next):
-    """IP 级滑动窗口限流（高阈值 DDoS 闸）。测试经 ASGITransport 无 client → 跳过、不影响用例。"""
-    if request.client is not None:
-        rule = classify(request.url.path)
-        if rule is not None:
-            ip = client_ip(request.headers.get("x-forwarded-for"), request.client.host)
-            if not _limiter.allow(f"{ip}:{request.url.path}", rule):
-                return JSONResponse(status_code=429, content={"error": "请求过于频繁，请稍后再试"})
-    return await call_next(request)
+app.add_middleware(RateLimitMiddleware, limiter=_limiter)
 
 
 app.include_router(translate.router)

@@ -7,6 +7,7 @@
 // - failedIds: 翻译失败 / 校验失败的块 id
 
 import { extractBlocks } from '@/lib/extractor';
+import { classifyTier, type Tier } from '@/lib/regions';
 import { validateMarkers, restoreSoleWrapper, stripMarkers } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
 import { isDomainEnabled, onSettingsChanged } from '@/lib/storage';
@@ -29,6 +30,8 @@ interface BlockRecord {
   id: string;
   root: HTMLElement;
   source: string;
+  /** 结构层：正文(content) / 外框(chrome)，供 background 按区域并发提交、正文优先。 */
+  tier: Tier;
   styleMap: Map<number, Element>;
   originalHTML: string;
   translatedFrag: DocumentFragment | null;
@@ -165,24 +168,26 @@ export default defineContentScript({
      *     故用全局单调批次号 state.seq 加前缀：batch 0 用裸 id（首屏），≥1 用 r{batch}. 前缀，
      *     保证跨轮次、跨路由唯一（同时改写元素的 data-trans-id），records 唯一、Ctrl+点击查找正确。
      */
-    function extractInto(): { id: string; source: string }[] {
+    function extractInto(): { id: string; source: string; tier: Tier }[] {
       const batch = state.seq++;
       const { blocks, rootById } = extractBlocks(document.body);
-      const fresh: { id: string; source: string }[] = [];
+      const fresh: { id: string; source: string; tier: Tier }[] = [];
       for (const b of blocks) {
         const root = rootById.get(b.id)!;
         const uid = batch === 0 ? b.id : `r${batch}.${b.id}`;
         if (uid !== b.id) root.dataset['transId'] = uid;
+        const tier = classifyTier(root); // 正文(main/article) vs 外框(nav/header/footer/aside)
         state.records.set(uid, {
           id: uid,
           root,
           source: b.source,
+          tier,
           styleMap: b.styleMap,
           originalHTML: root.innerHTML,
           translatedFrag: null,
           status: 'pending',
         });
-        fresh.push({ id: uid, source: b.source });
+        fresh.push({ id: uid, source: b.source, tier });
       }
       return fresh;
     }
@@ -272,7 +277,7 @@ export default defineContentScript({
     }
 
     function openPortAndStart(
-      payload: { id: string; source: string }[],
+      payload: { id: string; source: string; tier?: Tier }[],
       opts?: { bypassCache?: boolean }
     ) {
       port?.disconnect();
@@ -378,7 +383,7 @@ export default defineContentScript({
       if (idx < 0) return; // 记录已被 SPA 清掉
       const from = Math.max(0, idx - RETRY_CONTEXT);
       const to = Math.min(ordered.length, idx + RETRY_CONTEXT + 1);
-      const payload = ordered.slice(from, to).map((r) => ({ id: r.id, source: r.source }));
+      const payload = ordered.slice(from, to).map((r) => ({ id: r.id, source: r.source, tier: r.tier }));
       state.running = true;
       openPortAndStart(payload, { bypassCache: true });
     }

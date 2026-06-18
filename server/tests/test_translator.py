@@ -103,7 +103,31 @@ def test_batch_single_oversized_block_alone():
     assert _ids(batch_by_token_budget(blocks, 10)) == [["b1"], ["b2"], ["b3"]]
 
 
-async def test_normal_page_is_single_request():
+async def test_blocks_stream_incrementally_not_buffered():
+    # 回归守卫：切出一块即入队回送，绝不「整批流完再统一回送」——后者会让译文一次性涌出
+    #（实测体感「一下子全部翻译完」）。这里在上游流还没结束时就应能取到首块。
+    import asyncio
+
+    release = asyncio.Event()
+
+    async def ds(api_key, blocks):
+        yield "[[b1]] 译一 [[b2]] "  # b1 已可切出（b2 标记到达）
+        await release.wait()           # 卡住上游，模拟流未结束
+        yield "译二"
+
+    gen = translate(
+        [SourceBlock("b1", "one"), SourceBlock("b2", "two")],
+        deepseek_stream=ds, api_key="k",
+    )
+    first = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+    assert isinstance(first, BlockEvent) and first.id == "b1"  # 上游未结束就拿到首块
+    release.set()
+    rest = [ev async for ev in gen]
+    assert BlockEvent("b2", "译二") in rest
+
+
+async def test_small_page_single_batch():
+    # 小页（总估算 < OUTPUT_TOKEN_BUDGET）仍只装一箱、只发一次——本就快，无需切。
     sent_batches: list[list[str]] = []
 
     async def deepseek(api_key, blocks):
@@ -111,8 +135,24 @@ async def test_normal_page_is_single_request():
         for bid, _ in blocks:
             yield f"[[{bid}]] 译"
 
-    # 30 个普通短块（远小于 OUTPUT_TOKEN_BUDGET）→ 必须只装一箱、只发一次
     blocks = [SourceBlock(f"b{i}", f"hello world {i}") for i in range(30)]
     await drain(translate(blocks, deepseek_stream=deepseek, api_key="k"))
     assert len(sent_batches) == 1
     assert len(sent_batches[0]) == 30
+
+
+async def test_large_page_splits_into_parallel_batches():
+    # 长页（总估算 >> 预算）按预算切多箱并发跑（响应速度优化）；每块仍各自回填、不丢块。
+    sent_batches: list[list[str]] = []
+
+    async def deepseek(api_key, blocks):
+        sent_batches.append([bid for bid, _ in blocks])
+        for bid, _ in blocks:
+            yield f"[[{bid}]] 译"
+
+    # 每块 source 各不相同（避免去重合并）、约 250 token → 40 块 ~10000 token >> 1500
+    blocks = [SourceBlock(f"b{i}", "word " * 200 + f"uniq{i}") for i in range(40)]
+    evs = await drain(translate(blocks, deepseek_stream=deepseek, api_key="k"))
+    assert len(sent_batches) > 1  # 切了多箱
+    got_ids = {ev.id for ev in evs if isinstance(ev, BlockEvent)}
+    assert got_ids == {f"b{i}" for i in range(40)}  # 40 块全部回填

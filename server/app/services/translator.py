@@ -4,12 +4,20 @@ from typing import AsyncIterator, Callable
 
 from app.core.tokens import estimate_tokens
 from app.services.block_splitter import BlockSplitter
-from app.services.deepseek import MAX_OUTPUT_TOKENS, Usage
+from app.services.deepseek import Usage
 from app.services.markers import allowed_ids_from_source, validate_markers
 
-# 单请求「估算输出 token」预算：装箱上限。校准为 = deepseek.MAX_OUTPUT_TOKENS（384000，V4 Flash 输出上限），
-# 即对任何现实网页都装一箱、全文单次请求（D-12）；仅当整页估算输出超模型上限才分片（≈25 万词，网页不可达）。
-OUTPUT_TOKEN_BUDGET = MAX_OUTPUT_TOKENS
+# 单请求「估算输出 token」装箱软上限：整页按此切多箱、有限并发跑（见下 CONCURRENCY）。
+# 刻意 << deepseek.MAX_OUTPUT_TOKENS（384000）——后者是单请求截断硬顶（防爆），这里是「为响应速度切多批」的软上限。
+# 为什么不再「全文单请求」（原 D-12 已反转）：一个巨请求 = 巨 prompt 预填 + 整页输出串行生成 →
+#   首屏要干等数秒、墙钟≈全页输出 token 顺序生成。切成多个 ~BUDGET 小批并发后：
+#   · 首批（页面顶部）秒级回 → 体感「秒懂」；· 墙钟≈全页 ÷ 并发数（长页约 4× 提速）；
+#   · 短生成比一次性生成两万 token 更不易漏块/截断（可靠性反升）。
+# 取值权衡：太小→请求数多 + 跨块上下文碎（一致性略降）；太大→退化回串行慢。1500≈数段，留足局部上下文；
+# 跨段术语一致性靠逐字节稳定的系统提示词钉死，受切批影响很小。
+# 成本几乎不变：每批重发的系统提示词走前缀缓存命中价（1/50），原文每块仍只发一次，输出 token 总量不变。
+# 小页（整页估算 < BUDGET）仍只装一箱（本就快，无需切）。
+OUTPUT_TOKEN_BUDGET = 1500
 CONCURRENCY = 4
 
 
@@ -126,7 +134,20 @@ async def translate(
         nonlocal success, last_error, used_miss, used_hit, used_out
         async with sem:
             collected: list[tuple[str, str]] = []
-            splitter = BlockSplitter(lambda i, t: collected.append((i, t)))
+
+            # 切出一块即刻入队广播——这是「逐块流式」的关键：BlockSplitter 在流中识别出完整块
+            # 就回调，这里立即 put_nowait 到合流队列、客户端随即收到该块。
+            # ⚠️ 绝不能改回「回调只 append、整批流完再统一入队」：那会让整批译文在批末一次性涌出
+            #（实测回归：12 块全挤在 6.4s 末尾 2ms 内到达，体感「一下子全部翻译完」）。queue 无界，put_nowait 不阻塞。
+            def on_block(rep_id: str, translated: str) -> None:
+                collected.append((rep_id, translated))
+                source = rep_source.get(rep_id)
+                if source is None:
+                    return  # 模型乱编 id：忽略
+                for bid in by_source[source]:
+                    queue.put_nowait(BlockEvent(bid, translated))
+
+            splitter = BlockSplitter(on_block)
             batch_usage: Usage | None = None
             try:
                 async for item in deepseek_stream(api_key, batch):
@@ -138,14 +159,13 @@ async def translate(
             except Exception as e:  # DeepSeekError 等：单批失败不打断其余
                 last_error = ErrorEvent(getattr(e, "kind", "unknown"), getattr(e, "message", str(e)))
                 return
+            # 批末统计：成功块计数 + 本地估算兜底用量（入队广播已在 on_block 即时完成）。
             est_in = 0
             est_out = 0
             for rep_id, translated in collected:
                 source = rep_source.get(rep_id)
                 if source is None:
                     continue  # 模型乱编 id：忽略
-                for bid in by_source[source]:
-                    await queue.put(BlockEvent(bid, translated))
                 if validate_markers(translated, allowed_ids_from_source(source)).ok:
                     success += 1
                 est_in += estimate_tokens(source)

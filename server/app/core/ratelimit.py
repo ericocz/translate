@@ -12,6 +12,9 @@
 import time
 from dataclasses import dataclass
 
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
+
 
 @dataclass(frozen=True)
 class Rule:
@@ -82,3 +85,40 @@ class SlidingWindowCounter:
         dead = [k for k, (_, _, s) in self._buckets.items() if now - s >= 7200]
         for k in dead:
             del self._buckets[k]
+
+
+class RateLimitMiddleware:
+    """IP 级限流中间件——**纯 ASGI**（非 BaseHTTPMiddleware）。
+
+    为什么不用 `@app.middleware("http")`：那是 Starlette 的 BaseHTTPMiddleware，会用 anyio
+    task group + 内存流把响应包一层。对**长流式响应**有已知缺陷：一条 SSE 与其他请求并发在途时，
+    会把这条流式响应 cancel 成 CancelledError → 客户端收 500。**区域并发翻译正好踩中**——同一页面
+    正文走 SSE(/v1/translate) 与外框走非流式(/v1/translate/batch) 并发同发，那条 SSE 必被打成 500
+    （单发恒正常；历史上外框也曾走 SSE，两条 SSE 更必中）。纯 ASGI 中间件只在放行前查限流、之后原样
+    透传 scope/receive/send、绝不碰响应体，故流式与并发都安全。
+    """
+
+    def __init__(self, app: ASGIApp, limiter: SlidingWindowCounter) -> None:
+        self.app = app
+        self.limiter = limiter
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path: str = scope["path"]
+        rule = classify(path)
+        client = scope.get("client")
+        # 测试经 ASGITransport 无 client → 跳过限流（不影响用例），与旧中间件行为一致。
+        if rule is not None and client is not None:
+            xff: str | None = None
+            for k, v in scope.get("headers", []):
+                if k == b"x-forwarded-for":
+                    xff = v.decode("latin-1")
+                    break
+            ip = client_ip(xff, client[0])
+            if not self.limiter.allow(f"{ip}:{path}", rule):
+                resp = JSONResponse(status_code=429, content={"error": "请求过于频繁，请稍后再试"})
+                await resp(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
