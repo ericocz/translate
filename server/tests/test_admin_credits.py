@@ -7,7 +7,7 @@ from app.core.security import create_admin_token, hash_password
 from app.db.base import async_session
 from app.db.models import Admin
 from app.main import app
-from app.services.credit_repo import CreditRepo, user_owner
+from app.services.credit_repo import BUCKET_RECHARGE_USD, CreditRepo, user_owner
 
 
 async def _admin_token(db_session):
@@ -28,11 +28,35 @@ async def test_admin_grants_and_accumulates(db_session):
     async with _client() as c:
         r1 = await c.post("/admin/credits/grant", headers=h, json={"userId": 42, "amount": "5"})
         r2 = await c.post("/admin/credits/grant", headers=h, json={"userId": 42, "amount": "3"})
-    assert r1.json() == {"ok": True, "owner": "u:42", "amount": 5.0, "balance": 5.0}
+    assert r1.json() == {"ok": True, "owner": "u:42", "bucket": "recharge_cny", "amount": 5.0, "balance": 5.0}
     assert r2.json()["balance"] == 8.0
-    # 跨 session 落库可见
+    # 跨 session 落库可见（默认充值人民币桶）
     async with async_session() as s:
-        assert await CreditRepo(s).get_balance(user_owner(42)) == Decimal("8")
+        assert await CreditRepo(s).get_balance(user_owner(42), "recharge_cny") == Decimal("8")
+
+
+async def test_admin_grant_targets_usd_bucket(db_session):
+    tok = await _admin_token(db_session)
+    h = {"Authorization": f"Bearer {tok}"}
+    async with _client() as c:
+        r = await c.post(
+            "/admin/credits/grant",
+            headers=h,
+            json={"userId": 50, "amount": "9.9", "bucket": "recharge_usd"},
+        )
+    assert r.json()["bucket"] == "recharge_usd" and r.json()["balance"] == 9.9
+    async with async_session() as s:
+        assert await CreditRepo(s).get_balance(user_owner(50), BUCKET_RECHARGE_USD) == Decimal("9.9")
+
+
+async def test_admin_grant_bad_bucket_rejected(db_session):
+    tok = await _admin_token(db_session)
+    h = {"Authorization": f"Bearer {tok}"}
+    async with _client() as c:
+        r = await c.post(
+            "/admin/credits/grant", headers=h, json={"userId": 1, "amount": "5", "bucket": "bogus"}
+        )
+    assert r.status_code == 400
 
 
 async def test_admin_grant_idempotent_with_ref(db_session):

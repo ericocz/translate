@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.db.base import async_session
 from app.routers.deps import current_user_optional
 from app.services import yungouos
-from app.services.credit_repo import CreditRepo, user_owner
+from app.services.credit_repo import BUCKET_RECHARGE_CNY, CreditRepo, user_owner
 
 router = APIRouter()
 log = logging.getLogger("recharge")
@@ -93,6 +93,7 @@ async def recharge_notify(request: Request):
             user_owner(user_id),
             paid_yuan,
             kind="grant",
+            bucket=BUCKET_RECHARGE_CNY,  # 大陆微信充值 → 人民币桶
             idempotency_key=f"recharge:{out_trade_no}",  # 重投/并发只入账一次
         )
     return PlainTextResponse("SUCCESS")

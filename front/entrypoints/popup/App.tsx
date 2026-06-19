@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
-import { ByokSection } from './Byok';
 import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
 import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 import { claimGift } from '@/lib/grant';
 
-/** 额度信息（后端 /v1/usage）：balance=owner 余额（元）、hasAccount=领过赠送/充过。 */
+/** 额度信息（后端 /v1/usage）：三桶余额（giftCny/cny 单位元、usd 单位美元）+ hasAccount。 */
 interface UsageInfo {
   loggedIn: boolean;
-  balance?: number; // 元
+  giftCny?: number; // 赠送·人民币（元）
+  cny?: number;     // 充值·人民币（元）
+  usd?: number;     // 充值·美元（$）
   hasAccount?: boolean;
   tokensToday?: number;
   notice?: string | null;
 }
 
-/** 余额（元）→ 「¥X.XX」展示。 */
-function yuan(amount: number | undefined): string {
-  return '¥' + (amount ?? 0).toFixed(2);
+/** 各桶 >0 才展示：赠送余额优先、人民币、美元分开列。返回如 ["赠送 ¥1.80", "$9.90"]。 */
+function balanceParts(u: UsageInfo): string[] {
+  const parts: string[] = [];
+  if ((u.giftCny ?? 0) > 0) parts.push('赠送 ¥' + u.giftCny!.toFixed(2));
+  if ((u.cny ?? 0) > 0) parts.push('¥' + u.cny!.toFixed(2));
+  if ((u.usd ?? 0) > 0) parts.push('$' + u.usd!.toFixed(2));
+  return parts;
 }
 
 interface PopupState {
@@ -150,8 +155,6 @@ export function Popup() {
 
       <GiftBar usage={s.usage} onChanged={() => void refresh()} />
 
-      <ByokSection onChanged={() => void refresh()} />
-
       {s.usage?.notice && (
         <div className="status">
           <span className="dot dot--off" />
@@ -222,10 +225,10 @@ export function Popup() {
       <div className="foot">
         <span className="foot-hint">
           {s.usage
-            ? s.usage.loggedIn
-              ? `已登录 · 余额 ${yuan(s.usage.balance)}`
+            ? balanceParts(s.usage).length > 0
+              ? `${s.usage.loggedIn ? '已登录 · ' : ''}余额 ${balanceParts(s.usage).join(' · ')}`
               : s.usage.hasAccount
-                ? `余额 ${yuan(s.usage.balance)}`
+                ? '额度已用完，去充值'
                 : '装好即领 ¥2 赠送额度'
             : s.enabled
               ? (err ? '关掉再开可整页重译' : '自动翻译已开启')
@@ -327,17 +330,18 @@ function AccountSection({ email, onChanged }: { email: string | null; onChanged:
   );
 }
 
-/** 额度条：未登录用户——没领过则「领取 ¥2」，领过则显余额。登录用户走充值、不在此领。 */
+/** 额度条：登录用户显分桶余额 + 充值入口；未登录没领过则「领取 ¥2」，领过则显余额。 */
 function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   if (!usage) return null;
+  const parts = balanceParts(usage);
 
   if (usage.loggedIn) {
     return (
       <div className="byokbar">
-        <span className="byokbar-t">余额 {yuan(usage.balance)}</span>
+        <span className="byokbar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
         <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
           充值 ›
         </button>
@@ -348,7 +352,12 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
   if (usage.hasAccount) {
     return (
       <div className="byokbar">
-        <span className="byokbar-t">余额 {yuan(usage.balance)}</span>
+        <span className="byokbar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
+        {parts.length === 0 && (
+          <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
+            充值 ›
+          </button>
+        )}
       </div>
     );
   }

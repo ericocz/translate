@@ -18,7 +18,7 @@ from app.db.models import (
     UpstreamKey,
     User,
 )
-from app.services.credit_repo import CreditRepo, user_owner
+from app.services.credit_repo import BUCKET_PRIORITY, BUCKET_RECHARGE_CNY, CreditRepo, user_owner
 
 router = APIRouter(prefix="/admin")
 
@@ -90,7 +90,7 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
     ids = [u.id for u in rows]
     # 批量取当日用量与额度余额（按 user_id 归集），避免逐用户 N+1 查询。
     usage_by_user: dict[int, DailyUsage] = {}
-    balance_by_user: dict[int, int] = {}
+    bal_by_user: dict[int, dict[str, float]] = {}
     if ids:
         usage_rows = (
             await session.execute(
@@ -101,21 +101,26 @@ async def users(session: AsyncSession = Depends(get_session), _: int = Depends(a
         ).scalars()
         usage_by_user = {du.user_id: du for du in usage_rows}
         owner_to_id = {f"u:{i}": i for i in ids}
-        # 余额＝账本流水加总（方案 B）：按 owner 聚合 SUM(delta)。
+        # 余额＝账本流水加总（方案 B），分桶聚合（多币种不可混加）：按 (owner, bucket) 聚合 SUM(delta)。
         bal_rows = await session.execute(
-            select(CreditTxn.owner, func.sum(CreditTxn.delta))
+            select(CreditTxn.owner, CreditTxn.bucket, func.sum(CreditTxn.delta))
             .where(CreditTxn.owner.in_(list(owner_to_id)))
-            .group_by(CreditTxn.owner)
+            .group_by(CreditTxn.owner, CreditTxn.bucket)
         )
-        balance_by_user = {owner_to_id[owner]: total for owner, total in bal_rows}
+        for owner, bucket, total in bal_rows:
+            bal_by_user.setdefault(owner_to_id[owner], {})[bucket] = float(total)
     out = []
     for u in rows:
         du = usage_by_user.get(u.id)
+        b = bal_by_user.get(u.id, {})
         out.append({
             "id": u.id,
             "email": u.email,
             "tokensToday": int((du.input_tokens + du.output_tokens) if du else 0),
-            "balance": float(balance_by_user.get(u.id, 0)),  # 元
+            # 分桶余额（giftCny/cny 单位元、usd 单位美元）。
+            "giftCny": b.get("gift_cny", 0.0),
+            "cny": b.get("recharge_cny", 0.0),
+            "usd": b.get("recharge_usd", 0.0),
             "createdAt": u.created_at.isoformat() if u.created_at else None,
         })
     return out
@@ -211,7 +216,8 @@ async def patch_key(
 class CreditAdjustIn(BaseModel):
     userId: int | None = None  # 注册用户 → owner=u:{userId}
     owner: str | None = None   # 直接指定 owner（u:{id} | d:{deviceId}），与 userId 二选一
-    amount: Decimal            # 元，正=补发/赠送，负=扣回/纠正
+    amount: Decimal            # 桶币种单位，正=补发/赠送，负=扣回/纠正
+    bucket: str = BUCKET_RECHARGE_CNY  # 调哪个桶：gift_cny|recharge_cny|recharge_usd（默认充值人民币）
     note: str | None = None    # 备注（留痕，记入流水 kind 之外暂不落库）
     ref: str | None = None     # 提供则作幂等键 admin:{ref}，防重复提交双发
 
@@ -222,15 +228,19 @@ async def admin_grant_credits(
     session: AsyncSession = Depends(get_session),
     _: int = Depends(admin_required),
 ):
-    """手动给某 owner 调额度（元）：正数补发、负数扣回。
+    """手动给某 owner 调指定桶额度：正数补发、负数扣回（单位＝桶币种）。
     幂等：带 ref 时同一 ref 重复提交只入账一次（防误点双发）。"""
     owner = body.owner or (user_owner(body.userId) if body.userId is not None else None)
     if not owner:
         raise HTTPException(status_code=400, detail="需指定 userId 或 owner")
+    if body.bucket not in BUCKET_PRIORITY:
+        raise HTTPException(status_code=400, detail="bucket 非法")
     amount = body.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     if amount == 0:
         raise HTTPException(status_code=400, detail="amount 不能为 0")
     kind = "refund" if amount < 0 else "admin_grant"
     idem = f"admin:{body.ref}" if body.ref else None
-    balance = await CreditRepo(session).grant(owner, amount, kind=kind, idempotency_key=idem)
-    return {"ok": True, "owner": owner, "amount": float(amount), "balance": float(balance)}
+    balance = await CreditRepo(session).grant(
+        owner, amount, kind=kind, bucket=body.bucket, idempotency_key=idem
+    )
+    return {"ok": True, "owner": owner, "bucket": body.bucket, "amount": float(amount), "balance": float(balance)}

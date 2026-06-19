@@ -26,8 +26,15 @@ export async function createRecharge(tier: string): Promise<RechargeOrder> {
   }
 }
 
-/** 当前登录用户余额（元）；未登录或失败返回 null。用于充值后轮询到账。 */
-export async function fetchBalance(): Promise<number | null> {
+/** 当前登录用户分桶余额（giftCny/cny 元、usd 美元）。 */
+export interface Balances {
+  giftCny: number;
+  cny: number;
+  usd: number;
+}
+
+/** 当前登录用户分桶余额；未登录或失败返回 null。用于充值后轮询到账（任一桶变大即到账）。 */
+export async function fetchBalances(): Promise<Balances | null> {
   const token = await getAccessToken();
   if (!token) return null;
   try {
@@ -35,8 +42,8 @@ export async function fetchBalance(): Promise<number | null> {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return null;
-    const d = (await r.json()) as { balance?: number };
-    return typeof d.balance === 'number' ? d.balance : null;
+    const d = (await r.json()) as Partial<Balances>;
+    return { giftCny: d.giftCny ?? 0, cny: d.cny ?? 0, usd: d.usd ?? 0 };
   } catch {
     return null;
   }

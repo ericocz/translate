@@ -26,7 +26,7 @@ TypeScript strict；Chrome **MV3**；[WXT](https://wxt.dev/)（基于 Vite，处
 4. **代码不翻**：抽取跳过代码块；行内代码（如 `fetch()`）保持原样。
 5. **全部可见文字都翻**，按 DOM 顺序自上而下抽取。
 6. **原文先渲染**：加载即显完整原文，译文到达逐块淡入（短暂过渡，不硬切）。
-7. **结构感知调度（正文优先 + 传输分流）**：抽取时 `classifyTier`（`regions.ts`）按最近地标把每块分到正文(`main`/`article`) / 外框(`nav`/`header`/`footer`/`aside`)；background 据此**拆两路并发提交**、正文优先（chrome 等正文首段或兜底延时后再起）。**正文走 SSE**（流式逐块淡入、首屏「秒懂」）、**外框走普通 HTTP**（`/v1/translate/batch` 一次性返 JSON——量小、不在视线焦点，不值一条长连接）；**重试(bypassCache)同走非流式 HTTP**。**例外：纯外框页（content 为空，如导航/着陆页/仪表盘）外框升级走 SSE**——此时外框是用户唯一在看的内容，给回逐块淡入体感。由 `translateByRegion` 的 `makeJob(blocks,h,stream)` 第三参表达，platform 据此选 SSE/HTTP 客户端。**BYOK 不做区域分流**（整页一个本地直连 job、stream 参数忽略）：本地直连无 SSE 首屏收益，分流反而①令降级率 stats 双触发被覆盖失真、②正文+外框各 concurrency=4 → 对用户自己的 key 最高 8 路并发易撞 429。外框整组失败现与正文一致 onError 上报（popup 弹红+引导，不再静默吞）；两路各自**部分**失败块统一由 content 侧 finalizeJob 挂「重试翻译」。**为什么**：DOM 顶部多是导航，按纯 DOM 顺序翻会让用户在读的正文排在导航后才出；正文先翻才对得起「秒懂」。**这反转了早期「不做正文识别 / 视口优先」原则**——当年为「隐形」刻意不做，现为速度做。无地标的简单页全归正文＝退化回历史 DOM 顺序行为（零回归）。聚合与失败语义见 `translate-cached.ts` 的 `translateByRegion`。
+7. **结构感知调度（正文优先 + 传输分流）**：抽取时 `classifyTier`（`regions.ts`）按最近地标把每块分到正文(`main`/`article`) / 外框(`nav`/`header`/`footer`/`aside`)；background 据此**拆两路并发提交**、正文优先（chrome 等正文首段或兜底延时后再起）。**正文走 SSE**（流式逐块淡入、首屏「秒懂」）、**外框走普通 HTTP**（`/v1/translate/batch` 一次性返 JSON——量小、不在视线焦点，不值一条长连接）；**重试(bypassCache)同走非流式 HTTP**。**例外：纯外框页（content 为空，如导航/着陆页/仪表盘）外框升级走 SSE**——此时外框是用户唯一在看的内容，给回逐块淡入体感。由 `translateByRegion` 的 `makeJob(blocks,h,stream)` 第三参表达，background 据此选 SSE/HTTP 客户端。外框整组失败现与正文一致 onError 上报（popup 弹红+引导，不再静默吞）；两路各自**部分**失败块统一由 content 侧 finalizeJob 挂「重试翻译」。**为什么**：DOM 顶部多是导航，按纯 DOM 顺序翻会让用户在读的正文排在导航后才出；正文先翻才对得起「秒懂」。**这反转了早期「不做正文识别 / 视口优先」原则**——当年为「隐形」刻意不做，现为速度做。无地标的简单页全归正文＝退化回历史 DOM 顺序行为（零回归）。聚合与失败语义见 `translate-cached.ts` 的 `translateByRegion`。
 
 > 模型侧铁律（系统提示词逐字节稳定、关思考、真实 usage、API Key 不暴露）在 `../server`。扩展产物里**不含任何密钥**。
 
@@ -47,23 +47,19 @@ entrypoints/
   background.ts         # service worker：port 适配 → 经 translate-cached 调后端；图标两态；webNavigation 软导航监听；埋点；
                         #   onInstalled(reason='install') 打开引导页 welcome.html（更新/重启不弹）
   dom-compat.content.ts # MAIN world / document_start：补丁 removeChild/insertBefore 防崩溃 + 发 hydration 就绪信号
-  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度区(GiftBar 未登录领 ¥2/显余额、登录显余额+充值入口跳 options) + 翻译按钮 + BYOK 区(Byok.tsx 激活/角标/解锁 + 未买断挂「买断 $9.99」购买入口跳 Creem 静态 link)；
-                        #   options 管白名单 + 充值卡(Recharge.tsx 登录选档位→微信扫码二维码→轮询到账) + BYOK 配置卡(Byok.tsx)
+  popup/  options/      # React「素 Quiet」：popup 账号区 + 额度区(GiftBar 未登录领 ¥2/显分桶余额、登录显分桶余额+充值入口跳 options) + 翻译按钮；
+                        #   options 管白名单 + 充值卡(Recharge.tsx 登录后：微信扫码档位/¥桶 + Creem $9.9/$桶；轮询到账)
   welcome/              # 首装引导页（welcome.html，整页标签）：三步上手 + 末尾领 ¥2（claimGift）；
                         #   领取门控浏览器标识——getInstanceId() 取不到('')则禁用领取、提示去设置充值
 lib/
   api.ts          # translateViaBackend：正文路，调 /v1/translate 消费 SSE；translateViaBackendHttp：外框/重试路，调 /v1/translate/batch 非流式收 JSON；二者同形(ApiClient)、共用 buildTranslateInit(鉴权头/加密/body)+emitBlock(密文解密回填)；带 deviceId/pageKey/Authorization
-  local-engine/   # BYOK 本地翻译引擎（镜像后端 services/，跑在 SW）：types(ProviderConfig)/presets/
-                  #   estimate-tokens(按码点对齐 Python)/block-splitter(搬运+容错)/prompt(zh+few-shot)/
-                  #   providers(openai+anthropic)/local-translator(编排→ApiClient)/compat-test/key-vault(PIN)/stats
-  redeem.ts       # 买断码激活：POST /v1/redeem/verify 验码绑设备 → 落地买断态
   local-cache.ts  # 本地译文缓存（IndexedDB）：内容寻址键含语言对；LRU 200MB / 90 天逐出
   translate-cached.ts # 本地优先编排：命中即回不发服务端，未命中发后端、校验通过写回；bypassCache=跳本地整批发（重试带上下文用）；
                   #   translateByRegion=正文/外框两路并发提交、正文优先 + 终态聚合（systemic 错上报/正文失败上报/chrome 非系统失败吞掉）
   auth.ts         # token 持久化 + 注册 / 登录 / 登出 + access 静默刷新
   device.ts       # 匿名 deviceId + getInstanceId(chrome.instanceID，清 storage 免疫，赠送防薅用) + 本地日期 + pageKeyFromUrl（cyrb53，URL 不出本机）
   grant.ts        # 领赠送 ¥2：POST /v1/grant/gift，带 X-Device-Id + X-Instance-Id（防薅）
-  recharge.ts     # 充值（须登录）：POST /v1/recharge/create 选档位拿二维码 + fetchBalance 轮询到账
+  recharge.ts     # 充值（须登录）：POST /v1/recharge/create 选微信档位拿二维码 + fetchBalances（分桶）轮询到账
   telemetry.ts    # 打点 / 错误上报（fire-and-forget，只带 host）
   sse.ts          # 纯 SSE 事件解析 createSseParser（跨 chunk 缓冲重扫）
   crypto.ts       # 应用层加密：ECDH(P-256)+HKDF+AES-GCM，钉死服务端公钥 / 会话级临时密钥
@@ -71,9 +67,9 @@ lib/
   regions.ts      # 结构分区 classifyTier（最近地标→正文/外框）+ splitByTier（拆两组，供按区域并发）
   markers.ts      # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
-  storage.ts      # 白名单 / 设置（缓存开关）+ 买断态 / BYOK 配置 / resolveTranslateRoute(platform|byok|locked)
+  storage.ts      # 白名单 / 设置（缓存开关）薄封装
   icon.ts         # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
-  config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）+ BUYOUT_URL（Creem 买断 link，空＝popup 不显购买入口）唯一读取处，构建期由 .env 的 WXT_* 注入
+  config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）+ CREEM_RECHARGE_URL（Creem 充值 link，空＝options 不显美元充值入口）唯一读取处，构建期由 .env 的 WXT_* 注入
   messages.ts     # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
   types.ts        # 共享类型（FailureKind 含 'quota'）
 design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4 态 × 4 尺寸
@@ -81,22 +77,18 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 
 ## 后端契约
 
-`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE，正文)、`POST /v1/translate/batch`(非流式 JSON，外框/重试)、`GET /v1/usage`、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/redeem/verify`（买断激活，带 `X-Device-Id`）、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
+`BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE，正文)、`POST /v1/translate/batch`(非流式 JSON，外框/重试)、`GET /v1/usage`(返分桶余额 giftCny/cny/usd)、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/grant/gift`、`POST /v1/recharge/create`(微信充值)、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
 
-## BYOK（自带模型 · 买断解锁）
+## 计费 / 充值（统一走平台 key）
 
-买断 $9.99 = 解锁 **BYOK**：买断用户配置「自己的模型 + key（含本地模型）」，翻译由 **SW 直连该 provider**，**不经后端、不计费、平台零成本**（与平台 key 路径互斥，由模式开关二选一）。设计与全部决策原在 `BYOK-第二批方案.md`（已落地删除），权威落于此。
+翻译统一走平台后端 key、统一计费——**已取消买断与 BYOK（2026-06-19）**：原买断 $9.99 解锁的「自带模型客户端直连」整套（`lib/local-engine/`、`Byok.tsx`、`redeem.ts`、`storage.resolveTranslateRoute`、`config.BUYOUT_URL`、金标向量 `test-vectors/` 与 `.test-local-engine.mjs`）全部删除。
 
-**核心对等**：BYOK 下 SW 接管「后端的角色」——与后端一样**只处理带 `<gN>` 标记的文本、不碰 styleMap**。复用 content 侧 `extractor`/`markers`/`rebuilder` 不变；新增的是 `lib/local-engine/`（镜像后端 `services/`，全 TS、跑在 SW）。
+**额度三桶 + 充值（详见 `../server/CLAUDE.md` 额度模型）**：余额分 `giftCny`（赠送·人民币）/ `cny`（充值·人民币）/ `usd`（充值·美元）三桶，扣费优先级 `赠送 → 人民币 → 美元`、按桶币种计价不换汇。前端只展示与引导：
 
-- **核心抽象 `ProviderConfig`**（`local-engine/types.ts`）：把「提示词适配 + 上下文差异」两个难题收敛到一份配置，**加新模型 = 加一行 `presets.ts`，不改代码**；provider 专有差异全塞 `extraBody`（如 DeepSeek 关思考 `{thinking:{type:'disabled'}}`）。
-- **唯二适配器**（`providers.ts`）：`openai`（DeepSeek/OpenAI/Kimi/GLM/本地 Ollama）+ `anthropic`（Claude）。`local-translator.ts` 镜像后端 `translate()`（去重→token 装箱→有限并发→切块→标记校验→逐块回调），**产出与 `translateViaBackend` 同形的 `ApiClient`**，故直接当 `translate-cached` 的 `deps.server` 注入——**本地缓存层对 BYOK / 平台两路都生效**。
-- **双端一致性（防漂移铁律）**：`prompt` / `block-splitter` / `estimate-tokens` + 标记协议变成「Python 一份、TS 一份」。`estimate-tokens.ts` 须**按码点计数**对齐 Python（扩展 B 字符 UTF-16 占 2 码元会破坏对齐）。**金标向量** `test-vectors/local-engine.json` 由后端生成，前端 `.test-local-engine.mjs` 与后端 `tests/test_golden_vectors.py` 共读同一组 expected，改协议未同步即失败。
-- **路由三态**（`storage.resolveTranslateRoute`）：`platform`（默认/未买断/未启用）/ `byok`（直连）/ `locked`（key 已 PIN 加密但 session 无解锁明文 → background 直接发 `auth` 错引导去 popup 输 PIN，不发任何请求）。
-- **key 安全（§E）**：key 存 `storage.local`、**永不上传**。可选 **PIN 加密**（`key-vault.ts`：PBKDF2→AES-GCM，密文存 local、解锁明文放 `storage.session` 内存态、关浏览器即失需重新解锁）。本地模型可无 key。
-- **质量中档五件套**：提示词 few-shot 钉死占位符协议（`prompt.ts` zh 版与后端 `SYSTEM_PROMPT` 逐字一致 + 正反例）；`block-splitter` 容错（全角 `［［`、夹空格 `[ [` 归一化）；**兼容性自检**（`compat-test.ts`：固定占位符块跑一遍算标记保留率 → 好/中/差，options「测试兼容性」按钮，**必须在 SW 跑**绕 CORS，走 `byok-compat-test` runtime 消息）；**降级率反馈**（翻译统计 success/total 存 `storage.session`，popup 降级率 >30% 柔提示）；评分「差」**软拦**（需勾选「仍要启用」才能开）。
-- **权限**：BYOK 直连用户任意 endpoint（含 `http://localhost`）由现有 `host_permissions: <all_urls>`（翻译任意站点本就需要）覆盖，**无需额外申请**；将来若收窄 `<all_urls>` 再走 `optional_host_permissions` 运行时申请。
-- **UI**：options「自带模型」卡（买断后显：启用开关 / 预设·custom / 字段 / 测试兼容性 / PIN）；popup（未买断=激活码入口 → `/v1/redeem/verify`；已买断=模式角标 + locked 时 PIN 解锁 + 降级柔提示）。
+- **赠送 ¥2**：popup GiftBar / welcome 页 `claimGift`（`/v1/grant/gift`，instanceID 防薅）。
+- **微信充值（人民币桶）**：options `Recharge.tsx` 选档位 ¥10/30/68 → `/v1/recharge/create` 拿二维码 → 轮询 `fetchBalances` 到账。
+- **Creem 充值（美元桶，$9.9）**：options `Recharge.tsx` 跳 `CREEM_RECHARGE_URL`（Creem 静态 payment link，`WXT_CREEM_RECHARGE_URL` 注入）外开支付；**须用注册邮箱付款**（webhook 凭邮箱匹配账户入账），回页后轮询美元桶到账。
+- **余额展示**：popup `balanceParts` / options `balanceText` —— 各桶 >0 才列（如「赠送 ¥1.80 · $9.90」），赠送用光即不再显示「赠送余额」。
 
 ## 已知坑（详见经验库《[../翻译问题记录.md](../翻译问题记录.md)》）
 

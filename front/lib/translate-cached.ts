@@ -55,7 +55,7 @@ export function translateWithCache(
   deps: Partial<CacheDeps> = {},
   bypassCache = false
 ): ApiClient {
-  // 只覆盖关心的依赖（如 BYOK 仅换 server），其余取默认实现。
+  // 只覆盖关心的依赖（如仅换 server 客户端），其余取默认实现。
   const d: CacheDeps = { ...defaultDeps, ...deps };
   let inner: ApiClient | null = null;
   let aborted = false;
@@ -125,8 +125,8 @@ export function translateWithCache(
 /**
  * 按结构区域并发翻译：正文(content) 与外框(chrome) 各起一条独立 job，正文优先。
  * **传输分流**：正文走 SSE（流式逐块淡入、首屏「秒懂」），外框走普通 HTTP（量小、不在视线焦点，
- * 不值一条长连接）——由 makeJob 的 stream 参数表达（content=true / chrome=false），具体 server 实现由
- * background 注入（platform 选 SSE/HTTP 客户端；BYOK 两路都用本地直连引擎、stream 参数被忽略）。
+ * 不值一条长连接）——由 makeJob 的 stream 参数表达（content=true / chrome=false），具体 server 客户端
+ * 由 background 注入（SSE / HTTP）。
  * 上层（background→content）只见「一个 job、一个 done/error」，finalizeJob/重试/SPA 均无需改动。
  *
  * 优先级：正文 job 立即起；chrome 由「正文首段已回填」**或正文 settle**（onDone/onError）放行

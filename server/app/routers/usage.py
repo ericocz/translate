@@ -5,11 +5,17 @@ from fastapi import APIRouter, Depends, Request
 
 from app.routers.deps import current_user_optional
 from app.routers.translate import get_credits, get_daily_usage
-from app.services.credit_repo import device_owner, user_owner
+from app.services.credit_repo import (
+    BUCKET_GIFT_CNY,
+    BUCKET_RECHARGE_CNY,
+    BUCKET_RECHARGE_USD,
+    device_owner,
+    user_owner,
+)
 
 router = APIRouter()
 
-GIFT_AMOUNT = Decimal("2")  # 赠送额度 ¥2（元）
+GIFT_AMOUNT = Decimal("2")  # 赠送额度 ¥2（元，进 gift_cny 桶）
 
 
 @router.get("/v1/usage")
@@ -20,18 +26,23 @@ async def usage_endpoint(
     daily=Depends(get_daily_usage),
     user_id: int | None = Depends(current_user_optional),
 ):
-    """popup 用：返回额度账户余额（owner = 登录 u:{id} 或设备 d:{deviceId}）+ 登录态。
-    hasAccount=是否领过赠送/充过（前端据此决定是否显示「领取赠送」）。"""
+    """popup 用：返回额度三桶余额（owner = 登录 u:{id} 或设备 d:{deviceId}）+ 登录态。
+    hasAccount=是否领过赠送/充过（前端据此决定是否显示「领取赠送」）。
+
+    分桶展示（前端按需显示）：giftCny=赠送·人民币、cny=充值·人民币、usd=充值·美元；
+    各桶 >0 才展示（赠送用光即不再显示「赠送余额」）。"""
     local_date = localDate or date.today().isoformat()
     device_id = request.headers.get("x-device-id", "")
     owner = user_owner(user_id) if user_id is not None else (device_owner(device_id) if device_id else None)
-    # 余额＝账本流水加总（方案 B）；hasAccount＝有过流水。前端展示 round 2 位。
-    balance = await credits.get_balance(owner) if owner else Decimal("0")
+    bals = await credits.get_balances(owner) if owner else None
     has_account = await credits.has_account(owner) if owner else False
     out = {
         "loggedIn": user_id is not None,
-        "balance": float(balance),  # 元（前端 toFixed(2) 展示）
         "hasAccount": has_account,
+        # 三桶余额（桶币种原生单位；前端 round 2 位，>0 才展示对应余额）。
+        "giftCny": float(bals[BUCKET_GIFT_CNY]) if bals else 0.0,
+        "cny": float(bals[BUCKET_RECHARGE_CNY]) if bals else 0.0,
+        "usd": float(bals[BUCKET_RECHARGE_USD]) if bals else 0.0,
     }
     if user_id is not None:
         out["tokensToday"] = await daily.tokens_today(user_id, local_date)
@@ -52,5 +63,7 @@ async def grant_gift(request: Request, credits=Depends(get_credits)):
     instance_id = request.headers.get("x-instance-id", "").strip()
     owner = device_owner(device_id)
     idem = f"gift:inst:{instance_id}" if instance_id else f"gift:{owner}"
-    balance = await credits.grant(owner, GIFT_AMOUNT, kind="gift", idempotency_key=idem)
+    balance = await credits.grant(
+        owner, GIFT_AMOUNT, kind="gift", bucket=BUCKET_GIFT_CNY, idempotency_key=idem
+    )
     return {"ok": True, "balance": float(balance)}

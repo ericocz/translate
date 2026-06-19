@@ -26,16 +26,22 @@ async def fake_stream(api_key, blocks):
 
 
 class FakeCredits:
-    """额度账户 mock：按 owner 存单一余额，记录扣费。"""
+    """额度账户 mock：单一桶余额，记录扣费 (amount, bucket)。
+    默认充值人民币桶；balance>0 即作活跃桶。"""
 
-    def __init__(self, balance=Decimal("10")):
+    def __init__(self, balance=Decimal("10"), bucket="recharge_cny", currency="CNY"):
         self.balance = balance
+        self.bucket = bucket
+        self.currency = currency
         self.deducted: list[Decimal] = []
 
-    async def get_balance(self, owner):
+    async def get_balance(self, owner, bucket=None):
         return self.balance
 
-    async def deduct(self, owner, amount, kind="deduct"):
+    async def active_bucket(self, owner):
+        return (self.bucket, self.currency) if self.balance > 0 else None
+
+    async def deduct(self, owner, amount, bucket="recharge_cny", kind="deduct"):
         self.deducted.append(amount)
         self.balance -= amount
         return self.balance
@@ -129,6 +135,27 @@ async def test_deducts_on_translate(override):
     assert "block" in kinds and "done" in kinds
     # 扣费链路在 UsageEvent 时执行一次、按真实成本扣（方案 B 高精度，金额 > 0）。
     assert len(fake.deducted) == 1 and fake.deducted[0] > 0
+
+
+async def _translate_once(fake) -> None:
+    app.dependency_overrides[get_credits] = lambda: fake
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        await c.post(
+            "/v1/translate",
+            json={"blocks": [{"id": "b1", "source": "Hello world this is a test"}]},
+            headers={"X-Device-Id": "dev1"},
+        )
+
+
+async def test_usd_bucket_deducts_usd_pricing(override):
+    # 美元桶按美元三档价扣（同一份 token，$ 成本 < ¥ 成本，约 1/7）——证明按桶币种计价、不走汇率。
+    cny = FakeCredits(balance=Decimal("10"), bucket="recharge_cny", currency="CNY")
+    usd = FakeCredits(balance=Decimal("10"), bucket="recharge_usd", currency="USD")
+    await _translate_once(cny)
+    await _translate_once(usd)
+    assert cny.deducted and usd.deducted
+    assert usd.deducted[0] < cny.deducted[0]  # 美元计价更小（不是按汇率换算人民币成本）
 
 
 async def test_logged_in_records_daily_usage(override):

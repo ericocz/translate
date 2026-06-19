@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getWhitelist, setWhitelist, getCacheEnabled, setCacheEnabled } from '@/lib/storage';
 import { cacheStats, clearCache } from '@/lib/local-cache';
-import { ByokCard } from './Byok';
 import { RechargeCard } from './Recharge';
 
 export function Options() {
@@ -177,8 +176,6 @@ export function Options() {
       </section>
 
       <RechargeCard />
-
-      <ByokCard />
     </div>
   );
 }

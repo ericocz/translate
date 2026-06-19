@@ -34,14 +34,9 @@
 | deepseek-v4-pro | $0.003625 | $0.435 | $0.87 |
 
 - **cache-hit 输入是 cache-miss 的 1/50**（$0.0028 vs $0.14）——这是「稳定前缀命中缓存」值得追求的直接经济动因，见 §4。
-- 人民币换算 ≈ 输入 **¥1/M**、输出 **¥2/M**（按 ~7 汇率，cache-miss 口径）。本项目 `pricing.py` 即按此**成本价透传**扣用户 credits：
-
-  ```python
-  MICRO_YUAN_PER_INPUT_TOKEN = 1   # micro-¥(1e-6 元)/token
-  MICRO_YUAN_PER_OUTPUT_TOKEN = 2
-  ```
-
-  要加毛利就调大这两个常数。目前未对 cache-hit / miss 分档计价（需 usage 带缓存命中拆分，后续细化）。
+- 人民币换算 ≈ 输入 **¥1/M**、输出 **¥2/M**（按 ~7.14 汇率，与美元三档自洽）。
+- **本项目按桶币种透传两套官方定价、×1.3 服务费扣 credits**（`pricing.py`）：人民币桶用 `cost_cny`（¥ 三档：miss 0.000001 / hit 0.00000002 / out 0.000002 元每 token），美元桶用 `cost_usd`（$ 三档：miss 0.00000014 / hit 0.0000000028 / out 0.00000028 美元每 token）。**多币种分桶扣费规则见 [`CLAUDE.md`](CLAUDE.md) 额度模型**——美元充值（Creem）按美元价扣，人民币（赠送 / 微信充值）按人民币价扣，**不做汇率换算**。已按 `prompt_cache_hit/miss_tokens` 分 cache-hit/miss 三档计价。
+- 要加毛利改 `SERVICE_FEE_RATE`（当前 1.3）；官方调价时同步 `pricing.py` 的 ¥ / $ 两套常数。
 
 ---
 

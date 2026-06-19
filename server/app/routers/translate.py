@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -22,7 +22,7 @@ from app.services.translator import (
 )
 from app.services.usage_repo import DailyUsageRepo
 from app.services.credit_repo import CreditRepo, device_owner, user_owner
-from app.services.pricing import cost
+from app.services.pricing import cost_for
 
 router = APIRouter()
 
@@ -72,7 +72,8 @@ class _Prepared:
     enc_key: bytes | None
     enc_error: str | None
     owner: str | None
-    balance: Any
+    bucket: str | None       # 本次扣费桶（优先级最高且 >0），None=无任何余额
+    currency: str | None     # 该桶币种（CNY/USD），决定三档价用 ¥ 还是 $
     no_credit: bool
     local_date: str
 
@@ -98,11 +99,13 @@ async def _prepare(req: TranslateRequest, request: Request, credits, user_id: in
         blocks = [SourceBlock(b.id, b.source or "") for b in req.blocks]
 
     # 统一额度门控（走平台 key 的翻译）：owner = 注册用户 u:{id} 或未注册设备 d:{deviceId}。
-    # 无 owner（既未登录又无 deviceId）或余额≤0 → 发 quota、不翻。BYOK 客户端直连不经此端点。
+    # 按优先级取扣费桶（赠送¥ → 充值¥ → 充值$）；无 owner 或三桶全空 → 发 quota、不翻。
+    # 本次请求内桶固定一次（避免请求内跨桶切换的分摊复杂）：用该桶币种三档价扣该桶，不做汇率换算。
     owner = user_owner(user_id) if user_id is not None else (device_owner(device_id) if device_id else None)
-    balance = await credits.get_balance(owner) if owner else 0
-    no_credit = owner is None or balance <= 0
-    return _Prepared(blocks, enc_key, enc_error, owner, balance, no_credit, local_date)
+    active = await credits.active_bucket(owner) if owner else None
+    bucket, currency = active if active else (None, None)
+    no_credit = active is None
+    return _Prepared(blocks, enc_key, enc_error, owner, bucket, currency, no_credit, local_date)
 
 
 async def _translate_frames(
@@ -121,7 +124,7 @@ async def _translate_frames(
         yield "error", {"kind": "api", "message": prep.enc_error}
         return
     if prep.no_credit:
-        yield "quota", {"message": _NO_CREDIT_MSG, "balance": float(prep.balance)}
+        yield "quota", {"message": _NO_CREDIT_MSG, "balance": 0}
         return
     async for ev in translate(
         prep.blocks,
@@ -134,8 +137,12 @@ async def _translate_frames(
             else:
                 yield "block", {"id": ev.id, "translated": ev.translated}
         elif isinstance(ev, UsageEvent):
-            # 按实耗扣 owner 额度（成本价 ×1.3）。登录用户另记 daily_usage 作统计。
-            await credits.deduct(prep.owner, cost(ev.input_miss_tokens, ev.input_hit_tokens, ev.output_tokens))
+            # 按实耗扣 owner 当前桶额度：用该桶币种三档价（¥ 或 $）×1.3。登录用户另记 daily_usage 作统计。
+            await credits.deduct(
+                prep.owner,
+                cost_for(prep.currency, ev.input_miss_tokens, ev.input_hit_tokens, ev.output_tokens),
+                bucket=prep.bucket,
+            )
             if user_id is not None:
                 await daily.add(user_id, prep.local_date, ev.input_tokens, ev.output_tokens, pages=1)
         elif isinstance(ev, DoneEvent):

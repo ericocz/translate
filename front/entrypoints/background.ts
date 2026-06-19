@@ -13,18 +13,14 @@ import {
 } from '@/lib/api';
 import { translateWithCache, translateByRegion } from '@/lib/translate-cached';
 import { splitByTier } from '@/lib/regions';
-import { makeLocalServer } from '@/lib/local-engine/local-translator';
-import { runCompatTest } from '@/lib/local-engine/compat-test';
-import { writeLastStats } from '@/lib/local-engine/stats';
 import { pageKeyFromUrl } from '@/lib/device';
 import { track, reportError } from '@/lib/telemetry';
-import { isDomainEnabled, setDomainEnabled, onSettingsChanged, resolveTranslateRoute } from '@/lib/storage';
+import { isDomainEnabled, setDomainEnabled, onSettingsChanged } from '@/lib/storage';
 import {
   PORT_NAME,
   type BgToContent,
   type ContentToBg,
   type SpaNavigatedMsg,
-  type RuntimeRequest,
 } from '@/lib/messages';
 import { setTabIcon, hostOf } from '@/lib/icon';
 
@@ -61,9 +57,6 @@ export default defineBackground(() => {
     if (port.name !== PORT_NAME) return;
     const domain = hostOf(port.sender?.url);
     let job: ApiClient | null = null;
-    // generation 守卫：BYOK 路由解析是异步的（查 storage），cancel/新 start 可能抢在解析前到达；
-    // 每次 start/cancel 自增，解析回来后若 gen 已变则丢弃这一轮，避免起一个无法被 cancel 的孤儿 job。
-    let gen = 0;
 
     const send = (msg: BgToContent) => {
       try {
@@ -75,98 +68,53 @@ export default defineBackground(() => {
 
     port.onMessage.addListener((msg: ContentToBg) => {
       if (msg.kind === 'cancel') {
-        gen++;
         job?.abort();
         job = null;
         return;
       }
       if (msg.kind !== 'start') return;
 
-      const myGen = ++gen;
       job?.abort(); // 新请求到来：先中止上一轮
       job = null;
       const startedAt = Date.now();
       track('translate_start', domain ?? null, { blocks: msg.blocks.length });
 
-      void (async () => {
-        // 解析路由：BYOK 生效则把 server 换成本地直连引擎；platform 走平台后端（deps 空 = 默认）；
-        // locked = 自带 key 已 PIN 加密但未解锁，直接引导用户去 popup 输 PIN，不发任何请求。
-        // 本地缓存层对 byok / platform 两条路径都生效（见 translate-cached）。
-        const route = await resolveTranslateRoute().catch(() => ({ mode: 'platform' as const }));
-        if (myGen !== gen) return; // 解析期间被 cancel / 新请求取代：作废本轮
-
-        if (route.mode === 'locked') {
-          track('translate_error', domain ?? null, { kind: 'auth', byok: 1 });
-          send({
-            kind: 'error',
-            failure: { kind: 'auth', message: '自带模型 key 已加密，请点扩展图标输入 PIN 解锁后再翻译。' },
-          });
-          return;
-        }
-
-        const byok = route.mode === 'byok';
-        // BYOK 不做区域分流：本地直连没有「正文 SSE 首屏」收益，分流反而①让降级率 stats 双触发、
-        // 后跑完的区域覆盖先跑完的（见 stats.writeLastStats）→ 降级率失真；②正文+外框各跑 concurrency=4
-        // → 对用户自己的 provider 最高 8 路并发，易撞 429。故 BYOK 整页一个 job、stats 算全页一次。
-        const handlers: ApiHandlers = {
-          onBlock: (id, translated) => send({ kind: 'block', id, translated }),
-          onDone: () => {
-            if (job === thisJob) job = null;
-            track('translate_done', domain ?? null, {
-              blocks: msg.blocks.length,
-              ms: Date.now() - startedAt,
-              byok: byok ? 1 : 0,
-            });
-            send({ kind: 'done' });
-          },
-          onError: (failure) => {
-            if (job === thisJob) job = null;
-            track('translate_error', domain ?? null, { kind: failure.kind, byok: byok ? 1 : 0 });
-            reportError(failure.kind, failure.message, { host: domain ?? null });
-            send({ kind: 'error', failure });
-          },
-        };
-        // BYOK：自带模型 key 客户端直连各 provider（不分流式/非流式，统一本地引擎），
-        //   并记录本次降级统计供 popup 柔提示。localServer 建一次、两路复用（避免重复触发 stats 回调）。
-        const localServer =
-          route.mode === 'byok' ? makeLocalServer(route.cfg, (s) => void writeLastStats(s)) : null;
-        const pageKey = pageKeyFromUrl(port.sender?.url);
-        // 平台路径按传输分流：正文(stream=true)走 SSE 首屏速度，外框/重试(stream=false)走普通 HTTP。
-        // BYOK 则两路都走本地引擎、stream 参数被忽略。
-        const makeJob = (blocks: ApiBlock[], h: ApiHandlers, stream: boolean): ApiClient => {
-          const server = localServer ?? (stream ? translateViaBackend : translateViaBackendHttp);
-          return translateWithCache(blocks, pageKey, h, { server }, msg.bypassCache);
-        };
-        // BYOK：整页一个本地直连 job（不分流，见上）；stream 参数本地引擎忽略。
-        // 重试(bypassCache)：上下文段须整批同发以保上下文、不拆区域，走非流式 HTTP（非正文）。
-        // 常规平台路径：按结构拆正文/外框两路并发提交、正文优先（见 translateByRegion）。
-        let thisJob: ApiClient;
-        if (byok) {
-          thisJob = makeJob(msg.blocks, handlers, true);
-        } else if (msg.bypassCache) {
-          thisJob = makeJob(msg.blocks, handlers, false);
-        } else {
-          const { content, chrome } = splitByTier(msg.blocks);
-          thisJob = translateByRegion(content, chrome, handlers, makeJob);
-        }
-        job = thisJob;
-      })();
+      const handlers: ApiHandlers = {
+        onBlock: (id, translated) => send({ kind: 'block', id, translated }),
+        onDone: () => {
+          if (job === thisJob) job = null;
+          track('translate_done', domain ?? null, { blocks: msg.blocks.length, ms: Date.now() - startedAt });
+          send({ kind: 'done' });
+        },
+        onError: (failure) => {
+          if (job === thisJob) job = null;
+          track('translate_error', domain ?? null, { kind: failure.kind });
+          reportError(failure.kind, failure.message, { host: domain ?? null });
+          send({ kind: 'error', failure });
+        },
+      };
+      const pageKey = pageKeyFromUrl(port.sender?.url);
+      // 传输分流：正文(stream=true)走 SSE 首屏速度，外框/重试(stream=false)走普通 HTTP。
+      const makeJob = (blocks: ApiBlock[], h: ApiHandlers, stream: boolean): ApiClient => {
+        const server = stream ? translateViaBackend : translateViaBackendHttp;
+        return translateWithCache(blocks, pageKey, h, { server }, msg.bypassCache);
+      };
+      // 重试(bypassCache)：上下文段须整批同发以保上下文、不拆区域，走非流式 HTTP（非正文）。
+      // 常规路径：按结构拆正文/外框两路并发提交、正文优先（见 translateByRegion）。
+      let thisJob: ApiClient;
+      if (msg.bypassCache) {
+        thisJob = makeJob(msg.blocks, handlers, false);
+      } else {
+        const { content, chrome } = splitByTier(msg.blocks);
+        thisJob = translateByRegion(content, chrome, handlers, makeJob);
+      }
+      job = thisJob;
     });
 
     port.onDisconnect.addListener(() => {
-      gen++;
       job?.abort();
       job = null;
     });
-  });
-
-  // ---- ①b BYOK 兼容性自检：options 发来 provider 配置，在 SW 里跑（fetch 绕 CORS），回测评结果 ----
-  chrome.runtime.onMessage.addListener((msg: RuntimeRequest, _sender, sendResponse) => {
-    if (msg?.kind === 'byok-compat-test') {
-      void runCompatTest(msg.cfg).then(sendResponse);
-      return true; // 异步回包：保持消息通道开启
-    }
-    return undefined;
   });
 
   // ---- ② 工具栏快捷键：翻译 / 取消翻译当前网站（与 popup 主按钮同一路径） ----

@@ -6,8 +6,25 @@ interface U {
   id: number;
   email: string;
   tokensToday: number;
-  balance: number; // 元
+  giftCny: number;  // 赠送·人民币（元）
+  cny: number;      // 充值·人民币（元）
+  usd: number;      // 充值·美元（$）
   createdAt: string | null;
+}
+
+const BUCKETS: Record<string, string> = {
+  gift_cny: '赠送·人民币',
+  recharge_cny: '充值·人民币',
+  recharge_usd: '充值·美元',
+};
+
+/** 三桶余额展示：各 >0 才列。 */
+function balanceText(u: U): string {
+  const parts: string[] = [];
+  if (u.giftCny > 0) parts.push('赠送 ¥' + u.giftCny.toFixed(2));
+  if (u.cny > 0) parts.push('¥' + u.cny.toFixed(2));
+  if (u.usd > 0) parts.push('$' + u.usd.toFixed(2));
+  return parts.length ? parts.join(' · ') : '0';
 }
 
 export default function Users() {
@@ -18,9 +35,18 @@ export default function Users() {
     load();
   }, []);
 
-  // 手动调额度（客服补单 / 退款纠正）：正数补发、负数扣回。
+  // 手动调额度（客服补单 / 退款纠正）：选桶 + 正补发 / 负扣回（单位＝桶币种）。
   const adjust = async (u: U) => {
-    const input = window.prompt(`给 ${u.email} 调额度（元，正补发 / 负扣回）：`, '');
+    const bucket = window.prompt(
+      `给 ${u.email} 调哪个桶？输入：gift_cny / recharge_cny / recharge_usd`,
+      'recharge_cny'
+    );
+    if (bucket === null || !(bucket in BUCKETS)) {
+      if (bucket !== null) window.alert('桶名非法');
+      return;
+    }
+    const unit = bucket === 'recharge_usd' ? '$' : '¥';
+    const input = window.prompt(`调「${BUCKETS[bucket]}」额度（${unit}，正补发 / 负扣回）：`, '');
     if (input === null || input.trim() === '') return;
     const amount = Number(input);
     if (!Number.isFinite(amount) || amount === 0) {
@@ -28,11 +54,11 @@ export default function Users() {
       return;
     }
     try {
-      const r = await api<{ balance: number }>('/admin/credits/grant', {
+      const r = await api<{ bucket: string; balance: number }>('/admin/credits/grant', {
         method: 'POST',
-        body: JSON.stringify({ userId: u.id, amount: String(amount) }),
+        body: JSON.stringify({ userId: u.id, amount: String(amount), bucket }),
       });
-      window.alert(`已调整，${u.email} 当前余额 ¥${r.balance.toFixed(2)}`);
+      window.alert(`已调整，${u.email} 「${BUCKETS[bucket]}」当前余额 ${unit}${r.balance.toFixed(2)}`);
       load();
     } catch (e) {
       window.alert(`失败：${e instanceof Error ? e.message : e}`);
@@ -59,7 +85,7 @@ export default function Users() {
               <td>{u.id}</td>
               <td>{u.email}</td>
               <td>{u.tokensToday}</td>
-              <td>¥{u.balance.toFixed(2)}</td>
+              <td>{balanceText(u)}</td>
               <td>{u.createdAt?.slice(0, 10) ?? ''}</td>
               <td>
                 <button onClick={() => adjust(u)}>调额度</button>

@@ -7,5 +7,6 @@ export const BACKEND_URL = (import.meta.env.WXT_BACKEND_URL ?? 'http://localhost
 // D-13 应用层加密：服务端静态公钥（base64 未压缩点）。构建期注入；空＝明文（dev）。公钥可公开。
 export const SERVER_PUBKEY = (import.meta.env.WXT_SERVER_PUBKEY ?? '').trim();
 
-// D-18 买断购买页（Creem 静态 payment link）。构建期由 WXT_BUYOUT_URL 注入；空＝不显示购买入口（dev）。
-export const BUYOUT_URL = (import.meta.env.WXT_BUYOUT_URL ?? '').trim();
+// 海外充值页（Creem 静态 payment link，$9.9 充值美元额度）。构建期由 WXT_CREEM_RECHARGE_URL 注入；
+// 空＝不显示美元充值入口（dev）。须用注册邮箱付款，webhook 凭邮箱匹配账户入账（见 server billing）。
+export const CREEM_RECHARGE_URL = (import.meta.env.WXT_CREEM_RECHARGE_URL ?? '').trim();

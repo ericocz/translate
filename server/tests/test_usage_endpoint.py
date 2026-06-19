@@ -1,5 +1,4 @@
 from decimal import Decimal
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -11,27 +10,33 @@ from app.routers.translate import get_credits, get_daily_usage
 
 
 class FakeCredits:
-    def __init__(self, balance=Decimal("0"), has_account=False):
-        self._balance = balance
+    def __init__(self, balances=None, has_account=False):
+        # 三桶余额 dict（桶币种原生单位）。
+        self._b = {"gift_cny": Decimal("0"), "recharge_cny": Decimal("0"), "recharge_usd": Decimal("0")}
+        if balances:
+            self._b.update(balances)
         self._has = has_account
         self.granted_keys = []  # 收到的 idempotency_key（验防薅幂等键来源）
         self._used = set()  # 模拟真实幂等：同 key 只入账一次
 
-    async def get_balance(self, owner):
-        return self._balance
+    async def get_balance(self, owner, bucket=None):
+        return sum(self._b.values()) if bucket is None else self._b[bucket]
+
+    async def get_balances(self, owner):
+        return dict(self._b)
 
     async def has_account(self, owner):
         return self._has
 
-    async def grant(self, owner, amount, kind="grant", idempotency_key=None):
+    async def grant(self, owner, amount, kind="grant", bucket="recharge_cny", idempotency_key=None):
         self.granted_keys.append(idempotency_key)
         if idempotency_key is not None and idempotency_key in self._used:
-            return self._balance  # 已入账，幂等返回当前余额（不重复发）
+            return self._b[bucket]  # 已入账，幂等返回当前桶余额（不重复发）
         if idempotency_key is not None:
             self._used.add(idempotency_key)
         self._has = True
-        self._balance += amount
-        return self._balance
+        self._b[bucket] += amount
+        return self._b[bucket]
 
 
 class FakeDailyUsage:
@@ -41,7 +46,9 @@ class FakeDailyUsage:
 
 @pytest.fixture
 def override_usage():
-    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=Decimal("1.5"), has_account=True)
+    app.dependency_overrides[get_credits] = lambda: FakeCredits(
+        balances={"recharge_cny": Decimal("1.5")}, has_account=True
+    )
     app.dependency_overrides[get_daily_usage] = lambda: FakeDailyUsage()
     yield
     app.dependency_overrides.clear()
@@ -52,15 +59,19 @@ async def test_usage_anon_returns_balance(override_usage):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         resp = await c.get("/v1/usage", headers={"X-Device-Id": "dev1"})
     assert resp.status_code == 200
-    assert resp.json() == {"loggedIn": False, "balance": 1.5, "hasAccount": True}
+    assert resp.json() == {
+        "loggedIn": False, "hasAccount": True, "giftCny": 0.0, "cny": 1.5, "usd": 0.0,
+    }
 
 
 async def test_usage_no_account_zero_balance(override_usage):
-    app.dependency_overrides[get_credits] = lambda: FakeCredits(balance=0, has_account=False)
+    app.dependency_overrides[get_credits] = lambda: FakeCredits(has_account=False)
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         resp = await c.get("/v1/usage", headers={"X-Device-Id": "dev1"})
-    assert resp.json() == {"loggedIn": False, "balance": 0, "hasAccount": False}
+    assert resp.json() == {
+        "loggedIn": False, "hasAccount": False, "giftCny": 0.0, "cny": 0.0, "usd": 0.0,
+    }
 
 
 async def test_usage_logged_in_returns_tokens(override_usage):
@@ -72,8 +83,10 @@ async def test_usage_logged_in_returns_tokens(override_usage):
         assert resp.status_code == 200
         assert resp.json() == {
             "loggedIn": True,
-            "balance": 1.5,
             "hasAccount": True,
+            "giftCny": 0.0,
+            "cny": 1.5,
+            "usd": 0.0,
             "tokensToday": 1234,
         }
     finally:

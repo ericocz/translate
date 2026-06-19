@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -108,63 +108,26 @@ class Session(Base):
     )
 
 
-# 买断产品策略默认（D-06，非部署开关）——单一来源，model 列默认与 RedeemCodeRepo.issue 共用，避免漂移。
-BUYOUT_PRODUCT = "buyout"
-BUYOUT_MAX_DEVICES = 5
-
-
-class RedeemCode(Base):
-    """买断注册码：一张码 = 一次买断（BYOK 终身，激活时绑 ≤max_devices 台，绑定逻辑在激活端点/另计划）。
-    source_ref 唯一 → 同一支付订单 webhook 重投只签发一张（幂等）。"""
-
-    __tablename__ = "redeem_codes"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
-    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    product: Mapped[str] = mapped_column(String(32), default=BUYOUT_PRODUCT, nullable=False)
-    source: Mapped[str] = mapped_column(String(16), nullable=False)  # creem|yungouos
-    source_ref: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)  # 订单 id，幂等键
-    max_devices: Mapped[int] = mapped_column(Integer, default=BUYOUT_MAX_DEVICES, nullable=False)
-    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active|revoked
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
 class CreditTxn(Base):
     """额度流水（唯一真相）：发放(grant/gift/admin_grant) / 扣减(deduct) / 退款(refund)。
-    **余额＝某 owner 全部 delta 之和**（方案 B，不存运行余额）；展示层 round 2 位。
-    delta 高精度元（NUMERIC(18,10)）以精确承载按 token 三档计价的亚分级成本。
+    **某桶余额＝该 owner + bucket 全部 delta 之和**（方案 B，不存运行余额）；展示层 round 2 位。
+
+    多币种分桶（bucket）：`gift_cny`（赠送·人民币）/ `recharge_cny`（充值·人民币）/
+    `recharge_usd`（充值·美元）。扣费按固定优先级只动单一桶、用该桶币种三档价计（见 credit_repo），
+    **不做汇率换算**：人民币桶 delta 单位元、美元桶 delta 单位美元。
+    delta 高精度（NUMERIC(18,10)）以精确承载按 token 三档计价的亚分级成本。
     idempotency_key 唯一 → webhook 重投/并发只入账一次（DB 约束兜底）。"""
 
     __tablename__ = "credit_txns"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     owner: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    delta: Mapped[Decimal] = mapped_column(Numeric(18, 10), nullable=False)  # +发放 / -扣减（元）
+    bucket: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="recharge_cny"
+    )  # gift_cny|recharge_cny|recharge_usd
+    delta: Mapped[Decimal] = mapped_column(Numeric(18, 10), nullable=False)  # +发放 / -扣减（桶币种原生单位）
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # grant|gift|deduct|refund|admin_grant
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class RedeemActivation(Base):
-    """买断码激活绑定的设备：一行 = 一个 code 在一台设备上激活。
-    唯一 (code_id, device_id) → 同设备重复激活幂等；每 code 至多 max_devices 行。"""
-
-    __tablename__ = "redeem_activations"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    code_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("redeem_codes.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    activated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint("code_id", "device_id", name="uq_redeem_activation_code_device"),
     )

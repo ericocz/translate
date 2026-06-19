@@ -1,25 +1,8 @@
 // content ↔ background ↔ popup 之间的消息协议。
 
-import type { ProviderConfig } from './local-engine/types';
-import type { CompatResult } from './local-engine/compat-test';
 import type { Tier } from './regions';
 
 export const PORT_NAME = 'translate-stream';
-
-// ---------- options/popup → background（chrome.runtime.sendMessage）----------
-// BYOK 兼容性自检必须在 background(SW) 跑：SW 的 fetch 有 host_permissions、绕开 CORS；
-// options/popup 页面直接 fetch 各 provider 会被 CORS 拒。
-
-/** 跑兼容性自检：用固定占位符块测所选 provider 的标记保留率。回 CompatResult。 */
-export interface ByokCompatTestMsg {
-  kind: 'byok-compat-test';
-  cfg: ProviderConfig;
-}
-
-export type RuntimeRequest = ByokCompatTestMsg;
-export type RuntimeResponseFor<M extends RuntimeRequest> = M extends ByokCompatTestMsg
-  ? CompatResult
-  : never;
 
 /** content -> background：开始翻译一批块。每块带结构层 tier（正文/外框），background 据此按区域
  *  并发提交、正文优先；缺省视作正文。重试场景（bypassCache）不拆区域、整批同发以保上下文。 */

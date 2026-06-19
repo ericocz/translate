@@ -16,7 +16,7 @@ app/
   globals.css       # 全局样式（素净、青绿强调，与扩展同色系）
   login/page.tsx    # 'use client'：邮箱密码 → POST /admin/login → 存 token → 跳 /
   page.tsx          # 概览：/admin/stats（用户 / 翻译 / 错误 / Token 卡片 + Top 域名）
-  users/page.tsx    # /admin/users（邮箱 / 今日 token / 余额 / 注册）
+  users/page.tsx    # /admin/users（邮箱 / 今日 token / 三桶余额 giftCny·cny·usd / 注册；调额度可选桶）
   logs/page.tsx     # /admin/errors（时间 / 类型 / 消息 / 用户）
   keys/page.tsx     # /admin/keys（label / 脱敏 key / 状态 + 添加 + 启停 PATCH）
 lib/api.ts          # API 封装：localStorage 存 imt_admin_token、自动带 Authorization；401 清 token 跳 /login；
@@ -31,7 +31,7 @@ lib/api.ts          # API 封装：localStorage 存 imt_admin_token、自动带 
 
 ## 后端契约
 
-`GET /admin/stats` · `GET /admin/users` · `GET /admin/errors` · `GET /admin/events` · `GET|POST /admin/keys` · `PATCH /admin/keys/{id}` · `POST /admin/login` · `POST /admin/credits/grant`（users 页「调额度」按钮：`userId`+`amount`（元，正补发 / 负扣回）→ 复用后端 `CreditRepo.grant`）。**上游 Key 全程脱敏**：列表 / 创建只回 `masked`（末 4 位），绝不回完整 key。改协议须同步 `../server/app/routers/admin.py`。
+`GET /admin/stats` · `GET /admin/users` · `GET /admin/errors` · `GET /admin/events` · `GET|POST /admin/keys` · `PATCH /admin/keys/{id}` · `POST /admin/login` · `POST /admin/credits/grant`（users 页「调额度」按钮：`userId`+`amount`（桶币种单位，正补发 / 负扣回）+ `bucket`（gift_cny|recharge_cny|recharge_usd，默认 recharge_cny）→ 复用后端 `CreditRepo.grant`）。**上游 Key 全程脱敏**：列表 / 创建只回 `masked`（末 4 位），绝不回完整 key。改协议须同步 `../server/app/routers/admin.py`。
 
 ## 命令与注意
 
