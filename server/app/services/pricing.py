@@ -14,8 +14,8 @@ USD_PER_INPUT_MISS_TOKEN = Decimal("0.00000014")   # 输入·未命中 $0.14 / 1
 USD_PER_INPUT_HIT_TOKEN = Decimal("0.0000000028")  # 输入·命中  $0.0028 / 1M（≈未命中 1/50）
 USD_PER_OUTPUT_TOKEN = Decimal("0.00000028")       # 输出       $0.28 / 1M
 
-# 平台服务费：成本价 ×1.3（+30%）。走平台 key 翻译的唯一持续盈利来源。要调利润改这里。
-SERVICE_FEE_RATE = Decimal("1.3")
+# 平台服务费：成本价 ×2（+100%）。走平台 key 翻译的唯一持续盈利来源。要调利润改这里。
+SERVICE_FEE_RATE = Decimal("2")
 
 
 def cost_cny(input_miss_tokens: int, input_hit_tokens: int, output_tokens: int) -> Decimal:

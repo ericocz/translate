@@ -16,8 +16,8 @@ from app.services.credit_repo import BUCKET_RECHARGE_CNY, CreditRepo, user_owner
 router = APIRouter()
 log = logging.getLogger("recharge")
 
-# 充值档位（元）→ credits 按 1:1 入账。平台盈利在翻译 ×1.3、不在充值加价。
-TIERS = {"10": 10, "30": 30, "68": 68}
+# 充值档位（元）→ credits 按 1:1 入账。平台盈利在翻译 ×2、不在充值加价。
+TIERS = {"1": 1, "5": 5, "10": 10, "50": 50}
 PRODUCT_BODY = "秒懂翻译额度充值"
 
 

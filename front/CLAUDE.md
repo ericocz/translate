@@ -86,7 +86,7 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 **额度三桶 + 充值（详见 `../server/CLAUDE.md` 额度模型）**：余额分 `giftCny`（赠送·人民币）/ `cny`（充值·人民币）/ `usd`（充值·美元）三桶，扣费优先级 `赠送 → 人民币 → 美元`、按桶币种计价不换汇。前端只展示与引导：
 
 - **赠送 ¥2**：popup GiftBar / welcome 页 `claimGift`（`/v1/grant/gift`，instanceID 防薅）。
-- **微信充值（人民币桶）**：options `Recharge.tsx` 选档位 ¥10/30/68 → `/v1/recharge/create` 拿二维码 → 轮询 `fetchBalances` 到账。
+- **微信充值（人民币桶）**：options `Recharge.tsx` 选档位 ¥1/5/10/50 → `/v1/recharge/create` 拿二维码 → 轮询 `fetchBalances` 到账。
 - **Creem 充值（美元桶，$9.9）**：options `Recharge.tsx` 跳 `CREEM_RECHARGE_URL`（Creem 静态 payment link，`WXT_CREEM_RECHARGE_URL` 注入）外开支付；**须用注册邮箱付款**（webhook 凭邮箱匹配账户入账），回页后轮询美元桶到账。
 - **余额展示**：popup `balanceParts` / options `balanceText` —— 各桶 >0 才列（如「赠送 ¥1.80 · $9.90」），赠送用光即不再显示「赠送余额」。
 

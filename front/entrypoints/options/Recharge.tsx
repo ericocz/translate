@@ -3,7 +3,7 @@ import { getEmail } from '@/lib/auth';
 import { createRecharge, fetchBalances, type Balances, type RechargeOrder } from '@/lib/recharge';
 import { CREEM_RECHARGE_URL } from '@/lib/config';
 
-const TIERS = ['10', '30', '68'];
+const TIERS = ['1', '5', '10', '50'];
 
 /** 余额各桶 >0 才展示：如「赠送 ¥1.80 · ¥10.00 · $9.90」。 */
 function balanceText(b: Balances): string {
