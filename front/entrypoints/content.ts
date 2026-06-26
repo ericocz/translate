@@ -1,17 +1,25 @@
-// content script：抽取、原文先垫、流式回填、Ctrl+点击、整页翻面、白名单关闭→还原。
+// content script：抽取、原文先垫、流式回填、整页翻面、白名单关闭→还原，
+// 以及三套主动快捷键交互（Ctrl+X 整页开关 / Ctrl+悬停整段 / Ctrl+划词气泡）。
 //
 // 状态：
-// - blocks: 已抽取的块（id → 原始 HTML 字符串 + styleMap + 根节点）
+// - records: 已抽取的块（id → 原始 HTML 字符串 + styleMap + 根节点）
 // - mode: 'en' | 'zh'（整页当前显示语言）
 // - perBlockMode: id → 'en' | 'zh'，Ctrl+点击产生的局部覆盖
-// - failedIds: 翻译失败 / 校验失败的块 id
+// - bilingual: 双语对照——译文「追加」在原文下方而非「替换」原文（默认关＝隐形替换模式）
+// - siteEnabled: 此站点「自动整页翻译」（白名单态）的本地镜像，用于幂等判断开/关转换
+//
+// 快捷键交互（均以 Ctrl/⌘ 为修饰）：
+// - Ctrl+X：开/关「此站点自动整页翻译」（= 增删白名单，复用 onSettingsChanged 翻译/还原）
+// - Ctrl+悬停某段（无选区）：按需翻译光标所在段落
+// - 选中文字后按 Ctrl：选区旁浮动气泡显示译文（优先级高于整段）
+// - Ctrl+点击某段：就地切换该段 原文↔译文
 
-import { extractBlocks } from '@/lib/extractor';
+import { extractBlocks, extractElement } from '@/lib/extractor';
 import { classifyTier, type Tier } from '@/lib/regions';
 import { validateMarkers, restoreSoleWrapper, stripMarkers } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
-import { isDomainEnabled, onSettingsChanged } from '@/lib/storage';
-import type { FailureKind } from '@/lib/types';
+import { isDomainEnabled, setDomainEnabled, onSettingsChanged, getBilingual } from '@/lib/storage';
+import type { FailureInfo, FailureKind } from '@/lib/types';
 import {
   PORT_NAME,
   type BgToContent,
@@ -26,6 +34,10 @@ const RETRY_LABEL = '重试翻译';
 const RETRY_BUSY = '重试中…';
 const RETRY_CONTEXT = 2; // 重试时连带的上下文段数（目标段前后各 RETRY_CONTEXT 段一起发模型）
 
+// 段落级元素（Ctrl+悬停整段时，从光标元素向上找的「段」边界）。
+const PARAGRAPH_SELECTOR =
+  'p,li,h1,h2,h3,h4,h5,h6,blockquote,dd,dt,figcaption,td,th,summary,caption';
+
 interface BlockRecord {
   id: string;
   root: HTMLElement;
@@ -38,6 +50,10 @@ interface BlockRecord {
   status: 'pending' | 'done' | 'failed';
   /** 失败段内追加的「重试翻译」文字按钮（仅失败块有）。 */
   retryBtn?: HTMLElement | null;
+  /** 双语模式下追加在原文末尾的译文节点（仅双语模式有；替换模式为 null）。 */
+  bilingualNode?: HTMLElement | null;
+  /** 当前 DOM 呈现形态，供双语↔替换就地切换时判断是否需先还原原文。 */
+  rendered?: 'original' | 'replace' | 'bilingual';
 }
 
 export default defineContentScript({
@@ -52,29 +68,40 @@ export default defineContentScript({
       records: Map<string, BlockRecord>;
       mode: 'en' | 'zh';
       perBlockMode: Map<string, 'en' | 'zh'>;
+      /** 双语对照：译文追加在原文下方而非替换原文。开站前读 storage 初始化，可由 popup 就地切换。 */
+      bilingual: boolean;
+      /** 此站点「自动整页翻译」（白名单态）的本地镜像，用于幂等判断开/关转换。 */
+      siteEnabled: boolean;
       running: boolean;
       /** 翻译轮次代号：每次 runTranslation 自增；在途的旧沉降循环据此自我作废（SPA 连续跳转时）。 */
       epoch: number;
       /** 全局单调抽取批次号：保证跨路由、跨沉降轮次的 data-trans-id 唯一（batch 0 用裸 id，≥1 加 r 前缀）。 */
       seq: number;
+      /** 按需（悬停/划词）翻译的自增计数，给临时块 id 用，避免与整页 b/r 前缀相撞。 */
+      adhoc: number;
       lastError?: string;
       lastErrorKind?: FailureKind;
     } = {
       records: new Map(),
       mode: 'en',
       perBlockMode: new Map(),
+      bilingual: false,
+      siteEnabled: false,
       running: false,
       epoch: 0,
       seq: 0,
+      adhoc: 0,
     };
 
     injectStyle();
+    state.bilingual = await getBilingual();
 
     let port: chrome.runtime.Port | null = null;
     // SPA 路由去重：同一 path+search 不重复重译（Next.js 等会对同地址发 replaceState / 滚动恢复）。
     let lastRouteKey = location.pathname + location.search;
 
     const enabled = await isDomainEnabled(domain);
+    state.siteEnabled = enabled;
     if (enabled) {
       // 等 hydration 完成再开译，避免在 React hydrate 期间改 DOM 触发 #418；
       // 也让抽取发生在页面完全渲染后，块集更稳定（缓存命中更一致）。
@@ -82,15 +109,17 @@ export default defineContentScript({
       await runTranslation();
     }
 
-    // 监听白名单变化：关掉则立即还原英文。
+    // 监听设置变化：白名单开/关（仅真切换时）→ 翻译/还原；双语开关变化 → 就地重排（无需重译）。
+    // 用 siteEnabled 镜像判断「转换」而非每次都翻/还原——否则在「仅靠悬停按需翻译」的非白名单页上，
+    // 任何无关设置变化（缓存/目标语言等）都会把悬停译文整页清掉。
     onSettingsChanged(async () => {
       const nowEnabled = await isDomainEnabled(domain);
-      if (!nowEnabled) {
-        cancelStream();
-        restoreAllEnglish();
-        state.mode = 'en';
-      } else if (state.records.size === 0) {
-        await runTranslation();
+      await applySiteEnabled(nowEnabled);
+      // 双语对照开关就地切换：已译块不重发服务端，仅改 DOM 呈现（替换↔追加）。允许非白名单页（悬停态）也切。
+      const nowBilingual = await getBilingual();
+      if (nowBilingual !== state.bilingual) {
+        state.bilingual = nowBilingual;
+        if (state.mode === 'zh') rerenderAll();
       }
     });
 
@@ -102,13 +131,9 @@ export default defineContentScript({
           return;
         }
         if (msg.kind === 'toggle-site') {
-          if (!msg.enabled) {
-            cancelStream();
-            restoreAllEnglish();
-            state.mode = 'en';
-          } else if (state.records.size === 0) {
-            await runTranslation();
-          }
+          // popup 主按钮已先写白名单（触发 onSettingsChanged → applySiteEnabled，幂等不会重复翻译）；
+          // 此路径也兼容 TargetLangRow 的「关再开」就地重译（不改白名单，靠显式 enabled 转换）。
+          await applySiteEnabled(msg.enabled);
           sendResponse(buildStatusReply());
           return;
         }
@@ -146,6 +171,46 @@ export default defineContentScript({
       true
     );
 
+    // Ctrl+X：开/关此站点自动整页翻译（增删白名单）；Ctrl（有选区）：划词翻译。
+    document.addEventListener(
+      'keydown',
+      (ev) => {
+        if (ev.repeat) return; // 按住不放的自动重复忽略，避免反复触发
+        if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'x' || ev.key === 'X')) {
+          // 焦点在可编辑控件里 → 让浏览器原生「剪切」生效，不抢。
+          if (isEditable(document.activeElement)) return;
+          ev.preventDefault();
+          void toggleWholeSite();
+          return;
+        }
+        // 「选中后按住 Ctrl 即译」：按下 Ctrl/⌘ 且当前有选区文字 → 划词翻译（优先级 > 整段）。
+        if (ev.key === 'Control' || ev.key === 'Meta') {
+          const sel = window.getSelection();
+          const text = sel && !sel.isCollapsed ? sel.toString().trim() : '';
+          if (text) translateSelection(sel!, text);
+        }
+      },
+      true
+    );
+
+    // Ctrl+悬停整段：按住 Ctrl/⌘ 移动鼠标、且无选区时，按需翻译光标所在段落。
+    let lastHoverTs = 0;
+    document.addEventListener(
+      'mousemove',
+      (ev) => {
+        if (!(ev.ctrlKey || ev.metaKey)) return;
+        // 选区优先：有选中文字时不做整段（划词优先级更高）。
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+        const now = Date.now();
+        if (now - lastHoverTs < 120) return; // 轻节流
+        lastHoverTs = now;
+        const target = ev.target as HTMLElement | null;
+        if (target) maybeTranslateParagraph(target);
+      },
+      true
+    );
+
     function buildStatusReply(): StatusReply {
       const reply: StatusReply = { running: state.running };
       if (state.lastError) reply.error = state.lastError;
@@ -159,6 +224,26 @@ export default defineContentScript({
         reply.total = total;
       }
       return reply;
+    }
+
+    /** 幂等地开/关「此站点自动整页翻译」：仅在状态真切换时翻译/还原（避免无关设置变化重复触发）。 */
+    async function applySiteEnabled(nextEnabled: boolean): Promise<void> {
+      if (nextEnabled === state.siteEnabled) return;
+      state.siteEnabled = nextEnabled;
+      if (nextEnabled) {
+        // 整页翻译（runTranslation 只抽取未认领块，已悬停译好的段会被保留）。
+        await runTranslation();
+      } else {
+        cancelStream();
+        restoreAllEnglish();
+        state.mode = 'en';
+      }
+    }
+
+    /** Ctrl+X：翻转白名单；后续翻译/还原由 onSettingsChanged → applySiteEnabled 接手。 */
+    async function toggleWholeSite(): Promise<void> {
+      const now = await isDomainEnabled(domain);
+      await setDomainEnabled(domain, !now);
     }
 
     /**
@@ -429,18 +514,229 @@ export default defineContentScript({
       // 若整页处于"看英文"模式或该块被局部锁为英文，则不刷 DOM。
       if (state.mode !== 'zh') return;
       if (state.perBlockMode.get(id) === 'en') return;
-      replaceWithFadeIn(rec.root, frag.cloneNode(true) as DocumentFragment);
+      // 双语：把译文追加在原文下方；替换：用译文换掉原文（默认隐形模式）。
+      if (state.bilingual) showBilingual(rec);
+      else showReplace(rec);
+    }
+
+    /** 替换模式：用译文整体换掉原文（清掉可能残留的双语追加节点）。 */
+    function showReplace(rec: BlockRecord) {
+      if (!rec.translatedFrag) return;
+      removeBilingualNode(rec);
+      replaceWithFadeIn(rec.root, rec.translatedFrag.cloneNode(true) as DocumentFragment);
+      rec.rendered = 'replace';
+    }
+
+    /**
+     * 双语模式：原文保留、把译文追加到块根末尾。
+     * 追加节点在 [data-trans-id] 子树内 → 抽取器天然跳过、绝不被二次送翻；关站/还原走
+     * originalHTML 重置 innerHTML 时随之消失。若该块此前处于替换态（root 当前是译文），
+     * 先还原原文再追加。inline 块（导航链接等）译文同行追加、块级块则换行追加。
+     */
+    function showBilingual(rec: BlockRecord) {
+      if (!rec.translatedFrag) return;
+      if (rec.rendered === 'replace') {
+        replaceRaw(rec.root, rec.originalHTML); // 替换态先还原原文
+        rec.retryBtn = null;
+      }
+      removeBilingualNode(rec);
+      const inline = isInlineDisplay(rec.root);
+      const node = document.createElement('span');
+      node.className = inline ? 'imt-bi imt-bi--inline' : 'imt-bi';
+      node.appendChild(rec.translatedFrag.cloneNode(true) as DocumentFragment);
+      node.classList.add(FADE_CLASS);
+      rec.root.appendChild(node);
+      rec.bilingualNode = node;
+      rec.rendered = 'bilingual';
+    }
+
+    /** 还原本块为纯原文（移除双语追加节点 / 译文替换）。 */
+    function showOriginal(rec: BlockRecord) {
+      replaceRaw(rec.root, rec.originalHTML);
+      rec.bilingualNode = null;
+      rec.retryBtn = null; // originalHTML 重置已抹掉重试按钮
+      rec.rendered = 'original';
+    }
+
+    function removeBilingualNode(rec: BlockRecord) {
+      rec.bilingualNode?.remove();
+      rec.bilingualNode = null;
+    }
+
+    /** 双语 / 替换开关就地切换：对所有已译且未被局部锁英文的块按当前模式重排。 */
+    function rerenderAll() {
+      for (const rec of state.records.values()) {
+        if (rec.status !== 'done' || !rec.translatedFrag) continue;
+        if (state.perBlockMode.get(rec.id) === 'en') continue;
+        if (state.bilingual) showBilingual(rec);
+        else showReplace(rec);
+      }
     }
 
     function toggleSingle(rec: BlockRecord) {
       const cur = state.perBlockMode.get(rec.id) ?? state.mode;
       const next = cur === 'zh' ? 'en' : 'zh';
       state.perBlockMode.set(rec.id, next);
+      // en＝纯原文（双语模式即隐去该块译文）；zh＝按当前模式呈现译文（双语追加 / 替换换文）。
       if (next === 'en') {
-        replaceRaw(rec.root, rec.originalHTML);
+        showOriginal(rec);
       } else if (rec.translatedFrag) {
-        replaceWithFadeIn(rec.root, rec.translatedFrag.cloneNode(true) as DocumentFragment);
+        if (state.bilingual) showBilingual(rec);
+        else showReplace(rec);
       }
+    }
+
+    /**
+     * 独立翻译任务：开一条自有 port、互不取消（不动共享 `port`）。
+     * 供按需场景（Ctrl+悬停整段、Ctrl+划词）用——连续悬停多段时各段任务并行、谁也不取消谁，
+     * 与整页的 superseded 语义解耦。
+     */
+    function startIndependentJob(
+      payload: { id: string; source: string; tier?: Tier }[],
+      handlers: {
+        onBlock: (id: string, t: string) => void;
+        onDone?: () => void;
+        onError?: (f: FailureInfo) => void;
+      }
+    ): chrome.runtime.Port {
+      const p = chrome.runtime.connect({ name: PORT_NAME });
+      p.onMessage.addListener((msg: BgToContent) => {
+        if (msg.kind === 'block') {
+          handlers.onBlock(msg.id, msg.translated);
+        } else if (msg.kind === 'done') {
+          handlers.onDone?.();
+          try { p.disconnect(); } catch { /* 已断开 */ }
+        } else if (msg.kind === 'error') {
+          handlers.onError?.(msg.failure);
+          try { p.disconnect(); } catch { /* 已断开 */ }
+        }
+      });
+      const startMsg: ContentToBg = { kind: 'start', blocks: payload };
+      p.postMessage(startMsg);
+      return p;
+    }
+
+    /** Ctrl+悬停整段：抽取并翻译光标所在段落（仅未认领的段；已译/在译/含已认领子块的段跳过）。 */
+    function maybeTranslateParagraph(target: HTMLElement): void {
+      const root = paragraphRootOf(target);
+      if (!root) return;
+      // 已被认领（整页抽取或之前悬停过），或内部已有认领块（避免与已译子块重叠）：跳过。
+      if (root.closest('[data-trans-id]') || root.querySelector('[data-trans-id]')) return;
+      const id = 'h' + state.adhoc++;
+      const block = extractElement(root, id); // 成功会给 root 写 data-trans-id（防重复触发）
+      if (!block) return;
+      const tier = classifyTier(root);
+      state.records.set(id, {
+        id,
+        root,
+        source: block.source,
+        tier,
+        styleMap: block.styleMap,
+        originalHTML: root.innerHTML,
+        translatedFrag: null,
+        status: 'pending',
+      });
+      state.mode = 'zh'; // 让 applyBlock 实际渲染（按需翻译时整页可能尚未开启）
+      startIndependentJob([{ id, source: block.source, tier }], {
+        onBlock: (bid, t) => applyBlock(bid, t),
+        onDone: () => finalizeJob([id]),
+        onError: (f) => {
+          // 系统性（额度/鉴权）交 popup 引导、不挂按钮；其余给该段挂「重试翻译」。
+          if (f.kind === 'quota' || f.kind === 'auth') {
+            const rec = state.records.get(id);
+            if (rec) rec.status = 'failed';
+          } else {
+            finalizeJob([id]);
+          }
+        },
+      });
+    }
+
+    // ---------------- 划词翻译（浮动气泡） ----------------
+
+    let bubbleEl: HTMLElement | null = null;
+    let bubbleSelText = ''; // 当前气泡对应的选区文字，去重避免按住 Ctrl 反复触发
+    let bubbleJob: chrome.runtime.Port | null = null;
+
+    function translateSelection(sel: Selection, text: string): void {
+      if (text === bubbleSelText && bubbleEl) return; // 同一选区已在译/已显示
+      if (text.length > 1200) return; // 过长选区不当「划词」处理
+      bubbleSelText = text;
+      let rect: DOMRect | null = null;
+      try {
+        rect = sel.getRangeAt(0).getBoundingClientRect();
+      } catch {
+        rect = null;
+      }
+      if (!rect) return;
+      showBubble(rect, '翻译中…', false);
+      bubbleJob?.disconnect();
+      const id = 's' + state.adhoc++;
+      bubbleJob = startIndependentJob([{ id, source: text, tier: 'content' }], {
+        onBlock: (_bid, t) => {
+          if (bubbleSelText !== text) return; // 选区已变，丢弃迟到结果
+          // 划词源是纯文本、无占位标记；译文照理也无标记，保险起见 strip 一次取纯文本。
+          updateBubble(stripMarkers(t).trim() || t, false);
+        },
+        onError: (f) => {
+          if (bubbleSelText !== text) return;
+          updateBubble(f.kind === 'quota' || f.kind === 'auth' ? f.message : '翻译失败', true);
+        },
+      });
+    }
+
+    function showBubble(rect: DOMRect, content: string, isError: boolean): void {
+      if (!bubbleEl) {
+        bubbleEl = document.createElement('div');
+        bubbleEl.className = 'imt-sel-bubble';
+        bubbleEl.setAttribute('data-imt-skip', '1'); // 让悬停/抽取都跳过它
+        document.documentElement.appendChild(bubbleEl);
+        // 关闭交互：点击别处 / 滚动 / Esc 即收起。
+        document.addEventListener('mousedown', onDocMouseDown, true);
+        window.addEventListener('scroll', hideBubble, true);
+        document.addEventListener('keydown', onBubbleKey, true);
+      }
+      updateBubble(content, isError);
+      // 定位在选区下方，夹取在视口内；放不下则翻到选区上方。
+      const margin = 8;
+      bubbleEl.style.maxWidth = Math.min(360, window.innerWidth - margin * 2) + 'px';
+      const bw = bubbleEl.offsetWidth;
+      const bh = bubbleEl.offsetHeight;
+      let left = rect.left;
+      let top = rect.bottom + 6;
+      if (left + bw > window.innerWidth - margin) left = window.innerWidth - margin - bw;
+      if (left < margin) left = margin;
+      if (top + bh > window.innerHeight - margin) top = rect.top - bh - 6;
+      if (top < margin) top = margin;
+      bubbleEl.style.left = left + 'px';
+      bubbleEl.style.top = top + 'px';
+    }
+
+    function updateBubble(content: string, isError: boolean): void {
+      if (!bubbleEl) return;
+      bubbleEl.textContent = content;
+      bubbleEl.classList.toggle('imt-sel-bubble--err', isError);
+    }
+
+    function hideBubble(): void {
+      bubbleJob?.disconnect();
+      bubbleJob = null;
+      bubbleSelText = '';
+      if (!bubbleEl) return;
+      bubbleEl.remove();
+      bubbleEl = null;
+      document.removeEventListener('mousedown', onDocMouseDown, true);
+      window.removeEventListener('scroll', hideBubble, true);
+      document.removeEventListener('keydown', onBubbleKey, true);
+    }
+
+    function onDocMouseDown(ev: MouseEvent): void {
+      if (bubbleEl && ev.target instanceof Node && bubbleEl.contains(ev.target)) return;
+      hideBubble();
+    }
+
+    function onBubbleKey(ev: KeyboardEvent): void {
+      if (ev.key === 'Escape') hideBubble();
     }
 
     function restoreAllEnglish() {
@@ -451,6 +747,7 @@ export default defineContentScript({
       state.records.clear();
       state.perBlockMode.clear();
       state.seq = 0; // 全清后下次翻译从裸 id（batch 0）重新开始
+      hideBubble();
     }
   },
 });
@@ -459,6 +756,38 @@ export default defineContentScript({
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 焦点是否落在可编辑控件（输入框 / textarea / contenteditable）——Ctrl+X 此时让位原生剪切。 */
+function isEditable(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return el instanceof HTMLElement && el.isContentEditable;
+}
+
+/**
+ * 从光标命中的元素向上找「段落级」根：优先最近的硬块（p/li/h1~6/td 等），否则退到最近的
+ * 含直接文字的容器。命中浮动气泡 / 已声明跳过的子树则返回 null。
+ */
+function paragraphRootOf(el: HTMLElement): HTMLElement | null {
+  if (el.closest('[data-imt-skip]')) return null;
+  const hard = el.closest<HTMLElement>(PARAGRAPH_SELECTOR);
+  if (hard) return hard;
+  let cur: HTMLElement | null = el;
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    if (hasOwnText(cur)) return cur;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+/** 元素是否有非空的直接文本子节点。 */
+function hasOwnText(el: Element): boolean {
+  for (const n of Array.from(el.childNodes)) {
+    if (n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim()) return true;
+  }
+  return false;
 }
 
 /**
@@ -501,6 +830,26 @@ function injectStyle() {
     }
     .imt-retry-btn:hover { text-decoration: underline; opacity: 1; }
     .imt-retry-btn[disabled] { cursor: default; opacity: 0.5; text-decoration: none; }
+    /* 双语对照：译文追加在原文下方（块级）或同行其后（inline）。
+       极轻青绿左缘做「这是译文」的安静标识——继承字色/字号，不喧宾夺主。 */
+    .imt-bi {
+      display: block; margin-top: 0.18em; padding-left: 0.5em;
+      border-left: 2px solid rgba(2, 172, 177, 0.35);
+    }
+    .imt-bi--inline {
+      display: inline; margin: 0 0 0 0.4em; padding: 0;
+      border-left: 0; opacity: 0.92;
+    }
+    /* 划词翻译浮动气泡：暗底浅字，固定定位、最高层级，自身不被悬停/抽取波及。 */
+    .imt-sel-bubble {
+      position: fixed; z-index: 2147483647; max-width: 360px;
+      padding: 8px 11px; border-radius: 9px;
+      background: #1f2022; color: #f4f4f5;
+      font: 400 13px/1.5 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      box-shadow: 0 6px 22px -6px rgba(0, 0, 0, 0.45);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .imt-sel-bubble--err { color: #ffb4a8; }
   `;
   document.documentElement.appendChild(s);
 }
@@ -515,6 +864,12 @@ function replaceWithFadeIn(target: HTMLElement, frag: DocumentFragment) {
 
 function replaceRaw(target: HTMLElement, html: string) {
   target.innerHTML = html;
+}
+
+/** 块根是否 inline 呈现：决定双语译文同行追加（导航链接等）还是换行追加（正文段落）。 */
+function isInlineDisplay(el: HTMLElement): boolean {
+  const d = getComputedStyle(el).display;
+  return d === 'inline' || d === 'inline-block' || d === 'inline-flex';
 }
 
 /**

@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek V4 Flash · 全部支持语言（英→中对照）</title>
+<style>
+  :root{
+    --teal:#02acb1; --teal-d:#018a8e; --teal-l:#e6f7f7;
+    --ink:#1a2526; --ink-2:#566566; --line:#e3e8e8; --bg:#fafbfb; --card:#fff;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:32px 20px 80px}
+
+  header.top{margin-bottom:8px}
+  .badge{display:inline-block;font-size:12px;font-weight:600;color:var(--teal-d);background:var(--teal-l);
+    padding:3px 10px;border-radius:20px;letter-spacing:.3px}
+  h1{font-size:28px;margin:14px 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--ink-2);font-size:15px;max-width:880px}
+  .sub b{color:var(--ink)}
+
+  section{margin-top:36px}
+  h2{font-size:17px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  h2::before{content:"";width:4px;height:17px;background:var(--teal);border-radius:2px;display:inline-block;flex-shrink:0}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+
+  /* 统计行 */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  .stat-u{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat-u .v{font-size:26px;font-weight:700;color:var(--teal-d)}
+  .stat-u .k{font-size:12px;color:var(--ink-2);margin-top:4px}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead{position:sticky;top:0;z-index:2}
+  th{
+    background:var(--teal);color:#fff;font-size:11.5px;font-weight:600;
+    padding:10px 12px;text-align:left;white-space:nowrap;
+    letter-spacing:.3px;
+  }
+  th:first-child{border-radius:10px 0 0 0}
+  th:last-child{border-radius:0 10px 0 0}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:hover td{background:var(--teal-l)}
+  td:nth-child(2){font-weight:600;color:var(--ink)}
+  td:nth-child(5){font-size:11px;color:var(--ink-2);font-family:"SF Mono","Menlo","Consolas",monospace}
+  td:nth-child(6){font-size:11px;color:var(--ink-2)}
+
+  /* 区域分隔行 */
+  tr.section td{
+    background:var(--bg);font-size:11.5px;font-weight:700;color:var(--teal-d);
+    padding:8px 12px;border-bottom:2px solid var(--teal);letter-spacing:.4px;
+  }
+  tr.section:hover td{background:var(--bg)}
+
+  .tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px}
+  .tag.high{background:#d4edda;color:#155724}
+  .tag.mid{background:#e6f7f7;color:#018a8e}
+  .tag.low{background:#fdf3ea;color:#c9621a}
+
+  .foot{margin-top:40px;font-size:12px;color:var(--ink-2);text-align:center;line-height:1.8}
+  .foot a{color:var(--teal-d);text-decoration:none}
+  .foot a:hover{text-decoration:underline}
+
+  @media(max-width:768px){
+    .stats-row{grid-template-columns:1fr 1fr}
+    table{font-size:12px}
+    td,th{padding:7px 8px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="badge">DeepSeek V4 Flash</span>
+    <h1>全部支持语言列表（英→中对照）</h1>
+    <p class="sub">
+      DeepSeek V4 Flash 支持 <b>111 种语言</b>的互译。以下整理自模型评测、Apple App Store 应用列表、MachineTranslate.org 及实测验证，含<b>英文名、中文名、本地化名称、ISO 639-1 代码</b>。
+    </p>
+  </header>
+
+  <!-- 核心指标 -->
+  <section>
+    <h2>能力概览</h2>
+    <div class="stats-row">
+      <div class="stat-u"><div class="v">111</div><div class="k">语言总数</div></div>
+      <div class="stat-u"><div class="v">16</div><div class="k">语系 / 区域</div></div>
+      <div class="stat-u"><div class="v">12,210</div><div class="k">理论互译对（含方向）</div></div>
+      <div class="stat-u"><div class="v">95 种</div><div class="k">有 ISO 639-1 代码</div></div>
+    </div>
+  </section>
+
+  <!-- 完整语言表 -->
+  <section>
+    <h2>全部 111 种语言（按区域分组）</h2>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="max-height:80vh;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28px">#</th>
+            <th>英文名</th>
+            <th>中文名</th>
+            <th>本地化名称</th>
+            <th>ISO 639-1</th>
+            <th>语系</th>
+          </tr>
+        </thead>
+        <tbody>
+
+<!-- ====== 东亚 (5) ====== -->
+<tr class="section"><td colspan="6">🌏 东亚 East Asia (8)</td></tr>
+<tr><td>1</td><td>Chinese (Simplified)</td><td>中文（简体）</td><td>中文（简体）</td><td>zh</td><td>汉藏语系</td></tr>
+<tr><td>2</td><td>Chinese (Traditional, Taiwan)</td><td>中文（台湾繁体）</td><td>中文（臺灣繁體）</td><td>zh-TW</td><td>汉藏语系</td></tr>
+<tr><td>3</td><td>Chinese (Traditional, Hong Kong)</td><td>中文（香港繁体）</td><td>中文（香港繁體）</td><td>zh-HK</td><td>汉藏语系</td></tr>
+<tr><td>4</td><td>Tibetan</td><td>藏语</td><td>བོད་སྐད།</td><td>bo</td><td>汉藏语系</td></tr>
+<tr><td>5</td><td>Uyghur</td><td>维吾尔语</td><td>ئۇيغۇرچە / Uyghurche</td><td>ug</td><td>突厥语系</td></tr>
+<tr><td>6</td><td>Japanese</td><td>日语</td><td>日本語</td><td>ja</td><td>日本语系</td></tr>
+<tr><td>7</td><td>Korean</td><td>韩语 / 朝鲜语</td><td>한국어 / 조선어</td><td>ko</td><td>朝鲜语系</td></tr>
+<tr><td>8</td><td>Mongolian</td><td>蒙古语</td><td>Монгол хэл / ᠮᠣᠩᠭᠣᠯ ᠬᠡᠯᠡ</td><td>mn</td><td>蒙古语系</td></tr>
+
+<!-- ====== 东南亚 (10) ====== -->
+<tr class="section"><td colspan="6">🌏 东南亚 Southeast Asia</td></tr>
+<tr><td>9</td><td>Vietnamese</td><td>越南语</td><td>Tiếng Việt</td><td>vi</td><td>南亚语系</td></tr>
+<tr><td>10</td><td>Thai</td><td>泰语</td><td>ภาษาไทย</td><td>th</td><td>壮侗语系</td></tr>
+<tr><td>11</td><td>Indonesian</td><td>印度尼西亚语</td><td>Bahasa Indonesia</td><td>id</td><td>南岛语系</td></tr>
+<tr><td>12</td><td>Malay</td><td>马来语</td><td>Bahasa Melayu</td><td>ms</td><td>南岛语系</td></tr>
+<tr><td>13</td><td>Filipino / Tagalog</td><td>菲律宾语 / 他加禄语</td><td>Filipino / Tagalog</td><td>tl</td><td>南岛语系</td></tr>
+<tr><td>14</td><td>Lao</td><td>老挝语</td><td>ພາສາລາວ</td><td>lo</td><td>壮侗语系</td></tr>
+<tr><td>15</td><td>Khmer</td><td>高棉语 / 柬埔寨语</td><td>ភាសាខ្មែរ</td><td>km</td><td>南亚语系</td></tr>
+<tr><td>16</td><td>Burmese</td><td>缅甸语</td><td>မြန်မာစာ</td><td>my</td><td>汉藏语系</td></tr>
+<tr><td>17</td><td>Javanese</td><td>爪哇语</td><td>Basa Jawa / ꦧꦱꦗꦮ</td><td>jv</td><td>南岛语系</td></tr>
+<tr><td>18</td><td>Sundanese</td><td>巽他语</td><td>Basa Sunda / ᮘᮞ ᮞᮥᮔ᮪ᮓ</td><td>su</td><td>南岛语系</td></tr>
+
+<!-- ====== 南亚 (16) ====== -->
+<tr class="section"><td colspan="6">🌏 南亚 South Asia</td></tr>
+<tr><td>19</td><td>Hindi</td><td>印地语</td><td>हिन्दी</td><td>hi</td><td>印欧语系</td></tr>
+<tr><td>20</td><td>Bengali</td><td>孟加拉语</td><td>বাংলা</td><td>bn</td><td>印欧语系</td></tr>
+<tr><td>21</td><td>Punjabi</td><td>旁遮普语</td><td>ਪੰਜਾਬੀ / پنجابی</td><td>pa</td><td>印欧语系</td></tr>
+<tr><td>22</td><td>Tamil</td><td>泰米尔语</td><td>தமிழ்</td><td>ta</td><td>达罗毗荼语系</td></tr>
+<tr><td>23</td><td>Telugu</td><td>泰卢固语</td><td>తెలుగు</td><td>te</td><td>达罗毗荼语系</td></tr>
+<tr><td>24</td><td>Marathi</td><td>马拉地语</td><td>मराठी</td><td>mr</td><td>印欧语系</td></tr>
+<tr><td>25</td><td>Gujarati</td><td>古吉拉特语</td><td>ગુજરાતી</td><td>gu</td><td>印欧语系</td></tr>
+<tr><td>26</td><td>Kannada</td><td>卡纳达语</td><td>ಕನ್ನಡ</td><td>kn</td><td>达罗毗荼语系</td></tr>
+<tr><td>27</td><td>Malayalam</td><td>马拉雅拉姆语</td><td>മലയാളം</td><td>ml</td><td>达罗毗荼语系</td></tr>
+<tr><td>28</td><td>Urdu</td><td>乌尔都语</td><td>اردو</td><td>ur</td><td>印欧语系</td></tr>
+<tr><td>29</td><td>Nepali</td><td>尼泊尔语</td><td>नेपाली</td><td>ne</td><td>印欧语系</td></tr>
+<tr><td>30</td><td>Sinhala</td><td>僧伽罗语</td><td>සිංහල</td><td>si</td><td>印欧语系</td></tr>
+<tr><td>31</td><td>Odia (Oriya)</td><td>奥里亚语</td><td>ଓଡ଼ିଆ</td><td>or</td><td>印欧语系</td></tr>
+<tr><td>32</td><td>Assamese</td><td>阿萨姆语</td><td>অসমীয়া</td><td>as</td><td>印欧语系</td></tr>
+<tr><td>33</td><td>Sanskrit</td><td>梵语</td><td>संस्कृतम्</td><td>sa</td><td>印欧语系</td></tr>
+<tr><td>34</td><td>Sindhi</td><td>信德语</td><td>سنڌي / सिन्धी</td><td>sd</td><td>印欧语系</td></tr>
+
+<!-- ====== 西欧 (8) ====== -->
+<tr class="section"><td colspan="6">🌍 西欧 Western Europe (12)</td></tr>
+<tr><td>35</td><td>English (US)</td><td>英语（美国）</td><td>English (US)</td><td>en-US</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>36</td><td>English (UK)</td><td>英语（英国）</td><td>English (UK)</td><td>en-GB</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>37</td><td>English (Australian)</td><td>英语（澳大利亚）</td><td>English (AU)</td><td>en-AU</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>38</td><td>English (Canadian)</td><td>英语（加拿大）</td><td>English (CA)</td><td>en-CA</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>39</td><td>English (Indian)</td><td>英语（印度）</td><td>English (IN)</td><td>en-IN</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>40</td><td>English (New Zealand)</td><td>英语（新西兰）</td><td>English (NZ)</td><td>en-NZ</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>41</td><td>English (South African)</td><td>英语（南非）</td><td>English (ZA)</td><td>en-ZA</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>42</td><td>French</td><td>法语</td><td>Français</td><td>fr</td><td>印欧语系·罗曼</td></tr>
+<tr><td>43</td><td>German</td><td>德语</td><td>Deutsch</td><td>de</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>44</td><td>Dutch</td><td>荷兰语</td><td>Nederlands</td><td>nl</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>45</td><td>Irish</td><td>爱尔兰语</td><td>Gaeilge</td><td>ga</td><td>印欧语系·凯尔特</td></tr>
+<tr><td>46</td><td>Welsh</td><td>威尔士语</td><td>Cymraeg</td><td>cy</td><td>印欧语系·凯尔特</td></tr>
+<tr><td>47</td><td>Scottish Gaelic</td><td>苏格兰盖尔语</td><td>Gàidhlig</td><td>gd</td><td>印欧语系·凯尔特</td></tr>
+<tr><td>48</td><td>Frisian</td><td>弗里斯兰语</td><td>Frysk</td><td>fy</td><td>印欧语系·日耳曼</td></tr>
+
+<!-- ====== 南欧 / 拉丁 (9) ====== -->
+<tr class="section"><td colspan="6">🌍 南欧 / 拉丁语族 Southern & Latin Europe</td></tr>
+<tr><td>49</td><td>Spanish</td><td>西班牙语</td><td>Español</td><td>es</td><td>印欧语系·罗曼</td></tr>
+<tr><td>50</td><td>Portuguese</td><td>葡萄牙语</td><td>Português</td><td>pt</td><td>印欧语系·罗曼</td></tr>
+<tr><td>51</td><td>Italian</td><td>意大利语</td><td>Italiano</td><td>it</td><td>印欧语系·罗曼</td></tr>
+<tr><td>52</td><td>Romanian</td><td>罗马尼亚语</td><td>Română</td><td>ro</td><td>印欧语系·罗曼</td></tr>
+<tr><td>53</td><td>Catalan</td><td>加泰罗尼亚语</td><td>Català</td><td>ca</td><td>印欧语系·罗曼</td></tr>
+<tr><td>54</td><td>Galician</td><td>加利西亚语</td><td>Galego</td><td>gl</td><td>印欧语系·罗曼</td></tr>
+<tr><td>55</td><td>Occitan</td><td>奥克语</td><td>Occitan / Lenga d'òc</td><td>oc</td><td>印欧语系·罗曼</td></tr>
+<tr><td>56</td><td>Corsican</td><td>科西嘉语</td><td>Corsu</td><td>co</td><td>印欧语系·罗曼</td></tr>
+<tr><td>57</td><td>Latin</td><td>拉丁语</td><td>Latina</td><td>la</td><td>印欧语系·罗曼</td></tr>
+
+<!-- ====== 北欧 (7) ====== -->
+<tr class="section"><td colspan="6">🌍 北欧 Nordic Region</td></tr>
+<tr><td>58</td><td>Swedish</td><td>瑞典语</td><td>Svenska</td><td>sv</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>59</td><td>Danish</td><td>丹麦语</td><td>Dansk</td><td>da</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>60</td><td>Norwegian (Bokmål)</td><td>挪威语</td><td>Norsk (Bokmål)</td><td>no</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>61</td><td>Finnish</td><td>芬兰语</td><td>Suomi</td><td>fi</td><td>乌拉尔语系</td></tr>
+<tr><td>62</td><td>Icelandic</td><td>冰岛语</td><td>Íslenska</td><td>is</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>63</td><td>Faroese</td><td>法罗语</td><td>Føroyskt</td><td>fo</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>64</td><td>Northern Sami</td><td>北萨米语</td><td>Davvisámegiella</td><td>se</td><td>乌拉尔语系</td></tr>
+
+<!-- ====== 东欧 / 斯拉夫 (13) ====== -->
+<tr class="section"><td colspan="6">🌍 东欧 / 斯拉夫语族 Eastern Europe & Slavic</td></tr>
+<tr><td>65</td><td>Russian</td><td>俄语</td><td>Русский</td><td>ru</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>66</td><td>Polish</td><td>波兰语</td><td>Polski</td><td>pl</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>67</td><td>Ukrainian</td><td>乌克兰语</td><td>Українська</td><td>uk</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>68</td><td>Czech</td><td>捷克语</td><td>Čeština</td><td>cs</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>69</td><td>Slovak</td><td>斯洛伐克语</td><td>Slovenčina</td><td>sk</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>70</td><td>Serbian</td><td>塞尔维亚语</td><td>Српски / Srpski</td><td>sr</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>71</td><td>Croatian</td><td>克罗地亚语</td><td>Hrvatski</td><td>hr</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>72</td><td>Bulgarian</td><td>保加利亚语</td><td>Български</td><td>bg</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>73</td><td>Slovenian</td><td>斯洛文尼亚语</td><td>Slovenščina</td><td>sl</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>74</td><td>Macedonian</td><td>马其顿语</td><td>Македонски</td><td>mk</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>75</td><td>Belarusian</td><td>白俄罗斯语</td><td>Беларуская</td><td>be</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>76</td><td>Bosnian</td><td>波斯尼亚语</td><td>Bosanski</td><td>bs</td><td>印欧语系·斯拉夫</td></tr>
+<tr><td>77</td><td>Montenegrin</td><td>黑山语</td><td>Crnogorski / Црногорски</td><td>—</td><td>印欧语系·斯拉夫</td></tr>
+
+<!-- ====== 波罗的海 (3) ====== -->
+<tr class="section"><td colspan="6">🌍 波罗的海 Baltic Region</td></tr>
+<tr><td>78</td><td>Lithuanian</td><td>立陶宛语</td><td>Lietuvių</td><td>lt</td><td>印欧语系·波罗的</td></tr>
+<tr><td>79</td><td>Latvian</td><td>拉脱维亚语</td><td>Latviešu</td><td>lv</td><td>印欧语系·波罗的</td></tr>
+<tr><td>80</td><td>Estonian</td><td>爱沙尼亚语</td><td>Eesti</td><td>et</td><td>乌拉尔语系</td></tr>
+
+<!-- ====== 中东 (7) ====== -->
+<tr class="section"><td colspan="6">🌍 中东 Middle East</td></tr>
+<tr><td>81</td><td>Arabic</td><td>阿拉伯语</td><td>العربية</td><td>ar</td><td>亚非语系·闪米特</td></tr>
+<tr><td>82</td><td>Hebrew</td><td>希伯来语</td><td>עברית</td><td>he</td><td>亚非语系·闪米特</td></tr>
+<tr><td>83</td><td>Persian (Farsi)</td><td>波斯语</td><td>فارسی</td><td>fa</td><td>印欧语系·伊朗</td></tr>
+<tr><td>84</td><td>Kurdish (Kurmanji)</td><td>库尔德语</td><td>Kurdî / کوردی</td><td>ku</td><td>印欧语系·伊朗</td></tr>
+<tr><td>85</td><td>Pashto</td><td>普什图语</td><td>پښتو</td><td>ps</td><td>印欧语系·伊朗</td></tr>
+<tr><td>86</td><td>Turkish</td><td>土耳其语</td><td>Türkçe</td><td>tr</td><td>突厥语系</td></tr>
+<tr><td>87</td><td>Maltese</td><td>马耳他语</td><td>Malti</td><td>mt</td><td>亚非语系·闪米特</td></tr>
+
+<!-- ====== 高加索 / 中亚 (8) ====== -->
+<tr class="section"><td colspan="6">🌍 高加索 & 中亚 Caucasus & Central Asia</td></tr>
+<tr><td>88</td><td>Armenian</td><td>亚美尼亚语</td><td>Հայերեն</td><td>hy</td><td>印欧语系</td></tr>
+<tr><td>89</td><td>Georgian</td><td>格鲁吉亚语</td><td>ქართული</td><td>ka</td><td>南高加索语系</td></tr>
+<tr><td>90</td><td>Azerbaijani</td><td>阿塞拜疆语</td><td>Azərbaycan dili</td><td>az</td><td>突厥语系</td></tr>
+<tr><td>91</td><td>Kazakh</td><td>哈萨克语</td><td>Қазақ тілі / Qazaq tılı</td><td>kk</td><td>突厥语系</td></tr>
+<tr><td>92</td><td>Kyrgyz</td><td>吉尔吉斯语</td><td>Кыргызча / قىرعىزچا</td><td>ky</td><td>突厥语系</td></tr>
+<tr><td>93</td><td>Uzbek</td><td>乌兹别克语</td><td>O'zbek tili / Ўзбек тили</td><td>uz</td><td>突厥语系</td></tr>
+<tr><td>94</td><td>Tajik</td><td>塔吉克语</td><td>Тоҷикӣ / تاجیکی</td><td>tg</td><td>印欧语系·伊朗</td></tr>
+<tr><td>95</td><td>Turkmen</td><td>土库曼语</td><td>Türkmençe / Түркменче</td><td>tk</td><td>突厥语系</td></tr>
+
+<!-- ====== 东非 / 非洲 (10) ====== -->
+<tr class="section"><td colspan="6">🌍 非洲 Africa</td></tr>
+<tr><td>96</td><td>Swahili</td><td>斯瓦希里语</td><td>Kiswahili</td><td>sw</td><td>尼日尔-刚果语系</td></tr>
+<tr><td>97</td><td>Afrikaans</td><td>南非荷兰语 / 阿非利卡语</td><td>Afrikaans</td><td>af</td><td>印欧语系·日耳曼</td></tr>
+<tr><td>98</td><td>Amharic</td><td>阿姆哈拉语</td><td>አማርኛ</td><td>am</td><td>亚非语系·闪米特</td></tr>
+<tr><td>99</td><td>Somali</td><td>索马里语</td><td>Soomaali / 𐒈𐒝𐒑𐒛𐒐𐒘</td><td>so</td><td>亚非语系·库施特</td></tr>
+<tr><td>100</td><td>Yoruba</td><td>约鲁巴语</td><td>Yorùbá</td><td>yo</td><td>尼日尔-刚果语系</td></tr>
+<tr><td>101</td><td>Igbo</td><td>伊博语</td><td>Igbo / Ásụ̀sụ́ Ìgbò</td><td>ig</td><td>尼日尔-刚果语系</td></tr>
+<tr><td>102</td><td>Hausa</td><td>豪萨语</td><td>Hausa / هَرْشَن هَوْسَ</td><td>ha</td><td>亚非语系·乍得</td></tr>
+<tr><td>103</td><td>Zulu</td><td>祖鲁语</td><td>isiZulu</td><td>zu</td><td>尼日尔-刚果语系</td></tr>
+<tr><td>104</td><td>Xhosa</td><td>科萨语</td><td>isiXhosa</td><td>xh</td><td>尼日尔-刚果语系</td></tr>
+<tr><td>111</td><td>Shona</td><td>绍纳语</td><td>chiShona</td><td>sn</td><td>尼日尔-刚果语系</td></tr>
+
+<!-- ====== 其他欧洲 (5) ====== -->
+<tr class="section"><td colspan="6">🌍 其他欧洲 Other European</td></tr>
+<tr><td>106</td><td>Greek</td><td>希腊语</td><td>Ελληνικά</td><td>el</td><td>印欧语系·希腊</td></tr>
+<tr><td>107</td><td>Hungarian</td><td>匈牙利语</td><td>Magyar</td><td>hu</td><td>乌拉尔语系</td></tr>
+<tr><td>108</td><td>Albanian</td><td>阿尔巴尼亚语</td><td>Shqip</td><td>sq</td><td>印欧语系</td></tr>
+<tr><td>109</td><td>Basque</td><td>巴斯克语</td><td>Euskara</td><td>eu</td><td>孤立语系</td></tr>
+<tr><td>110</td><td>Luxembourgish</td><td>卢森堡语</td><td>Lëtzebuergesch</td><td>lb</td><td>印欧语系·日耳曼</td></tr>
+
+<!-- ====== 人工 / 辅助语言 (1) ====== -->
+<tr class="section"><td colspan="6">🌐 人工语言 Constructed Languages</td></tr>
+<tr><td>111</td><td>Esperanto</td><td>世界语</td><td>Esperanto</td><td>eo</td><td>人工语言</td></tr>
+
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 语系统计 -->
+  <section>
+    <h2>按语系统计</h2>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;font-size:13px">
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>印欧语系</b> · 57 种<span style="color:var(--ink-2)">（日耳曼 12 · 罗曼 11 · 斯拉夫 13 · 印度-伊朗 14 · 波罗的 2 · 凯尔特 3 · 希腊 1 · 阿尔巴尼亚 1）</span></div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>尼日尔-刚果语系</b> · 6 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>亚非语系</b> · 6 种<span style="color:var(--ink-2)">（闪米特 4 · 库施特 1 · 乍得 1）</span></div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>突厥语系</b> · 6 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>南岛语系</b> · 4 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>达罗毗荼语系</b> · 4 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>乌拉尔语系</b> · 3 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>汉藏语系</b> · 2 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>壮侗语系</b> · 2 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>南亚语系</b> · 2 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>日本语系</b> · 1 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>朝鲜语系</b> · 1 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>蒙古语系</b> · 1 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>南高加索语系</b> · 1 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>孤立语系</b> · 1 种</div>
+        <div style="padding:8px 12px;background:var(--bg);border-radius:8px"><b>人工语言</b> · 1 种</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    语言列表综合整理自 DeepSeek V3/V4 系列模型评测、<a href="https://apps.apple.com/app/deepseek-ai-assistant/id6737597349" target="_blank">Apple App Store 官方列表</a>、
+    <a href="https://machinetranslate.org/deepseek" target="_blank">MachineTranslate.org</a> 及开源社区验证。<br>
+    部分低资源语言（如奥克语、科西嘉语、萨米语）翻译质量逊于主流语言，但模型可识别并处理。<br>
+    生成于 2026-06-20 · 秒懂翻译 / aha translate 内部参考
+  </div>
+
+</div>
+</body>
+</html>

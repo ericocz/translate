@@ -7,7 +7,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.hashing import MODEL
-from app.core.prompt import SYSTEM_PROMPT
+from app.core.prompt import system_prompt
 
 log = logging.getLogger("deepseek")
 
@@ -53,9 +53,9 @@ class Provider:
     model: str
 
 
-def build_request_body(blocks: list[tuple[str, str]], model: str = MODEL) -> dict:
+def build_request_body(blocks: list[tuple[str, str]], model: str = MODEL, target: str = "zh") -> dict:
     """稳定系统提示词前缀 + 关思考；变化的块列表放 user 消息。对应客户端铁律 1/4：
-    - system 逐字节稳定 → 命中 DeepSeek 前缀缓存；
+    - system **按目标语言**逐字节稳定（同一目标语言前缀完全一致）→ 命中 DeepSeek 前缀缓存；
     - thinking:disabled → V4 Flash 默认开思考，关掉后首 token 快约 3.5×、不产生 reasoning_tokens。
     `thinking` 是 DeepSeek 顶层参数；**已真机联调火山方舟**（model `deepseek-v4-flash-260425`、
     OpenAI 兼容 /chat/completions）确认接受同一顶层 `thinking` 参数、不报 400、标记格式无损。"""
@@ -68,7 +68,7 @@ def build_request_body(blocks: list[tuple[str, str]], model: str = MODEL) -> dic
         "temperature": 0.2,
         "max_tokens": MAX_OUTPUT_TOKENS,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt(target)},
             {"role": "user", "content": user},
         ],
     }
@@ -81,14 +81,15 @@ async def stream_content_deltas(
     *,
     url: str = DEEPSEEK_URL,
     model: str = MODEL,
+    target: str = "zh",
 ) -> AsyncIterator[StreamItem]:
     """调上游流式接口（OpenAI 兼容），逐个 yield delta.content 文本。错误按 network/api/auth 分类抛出。
-    url/model 默认官方 DeepSeek；failover 时由 `stream_with_failover` 传入火山方舟。
+    url/model 默认官方 DeepSeek；failover 时由 `stream_with_failover` 传入火山方舟。target=目标语言。
 
     失败分类（对齐 lib/deepseek.ts）：
     - 401/403 → auth；其余 4xx/5xx → api；fetch/连接层异常 → network（多半是代理未连通）。
     """
-    body = build_request_body(blocks, model=model)
+    body = build_request_body(blocks, model=model, target=target)
     headers = {
         "Authorization": f"Bearer {api_key}",  # 绝不写日志
         "Content-Type": "application/json",
@@ -153,7 +154,7 @@ def _providers(primary_api_key: str) -> list[Provider]:
 
 
 async def stream_with_failover(
-    api_key: str, blocks: list[tuple[str, str]]
+    api_key: str, blocks: list[tuple[str, str]], *, target: str = "zh"
 ) -> AsyncIterator[StreamItem]:
     """生产用上游调用：官方 DeepSeek 主线，失败且**尚未吐出任何内容**时切火山方舟备线。
     签名 (api_key, blocks) 对齐 translator 期望的 DeepSeekStream。
@@ -171,7 +172,7 @@ async def stream_with_failover(
                 timeout=httpx.Timeout(60.0, connect=10.0), trust_env=False
             ) as client:
                 async for item in stream_content_deltas(
-                    client, p.api_key, blocks, url=p.url, model=p.model
+                    client, p.api_key, blocks, url=p.url, model=p.model, target=target
                 ):
                     yielded = True
                     yield item

@@ -42,6 +42,7 @@ class BlockIn(BaseModel):
 class TranslateRequest(BaseModel):
     blocks: list[BlockIn]
     localDate: str | None = None  # 用户本地日 YYYY-MM-DD（daily_usage 按本地日记账）
+    target: str | None = None     # 目标语言代码（如 zh / ja / en-US）；缺省按简体中文翻
 
 
 # ---- 依赖（测试可覆盖）----
@@ -76,6 +77,7 @@ class _Prepared:
     currency: str | None     # 该桶币种（CNY/USD），决定三档价用 ¥ 还是 $
     no_credit: bool
     local_date: str
+    target: str              # 目标语言代码（决定系统提示词）；缺省 'zh'
 
 
 async def _prepare(req: TranslateRequest, request: Request, credits, user_id: int | None) -> _Prepared:
@@ -105,7 +107,8 @@ async def _prepare(req: TranslateRequest, request: Request, credits, user_id: in
     active = await credits.active_bucket(owner) if owner else None
     bucket, currency = active if active else (None, None)
     no_credit = active is None
-    return _Prepared(blocks, enc_key, enc_error, owner, bucket, currency, no_credit, local_date)
+    target = (req.target or "zh").strip() or "zh"
+    return _Prepared(blocks, enc_key, enc_error, owner, bucket, currency, no_credit, local_date, target)
 
 
 async def _translate_frames(
@@ -130,6 +133,7 @@ async def _translate_frames(
         prep.blocks,
         deepseek_stream=deepseek_stream,
         api_key=settings.deepseek_api_key,
+        target=prep.target,
     ):
         if isinstance(ev, BlockEvent):
             if prep.enc_key is not None:

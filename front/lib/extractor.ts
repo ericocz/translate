@@ -115,6 +115,22 @@ export function extractBlocks(root: HTMLElement): ExtractResult {
   return { blocks, rootById };
 }
 
+/**
+ * 按需抽取「单个元素」为一个翻译块（供 Ctrl+悬停整段翻译用）。
+ * 与 extractBlocks 不同：不遍历后代找块根，而是直接把传入元素当作块根序列化——
+ * 调用方（content 的 paragraphRootOf）负责挑出合适的「段落级」元素。
+ * 返回 null 的情形：元素自身/祖先已被认领（含 data-trans-id）、序列化后无可翻译字母。
+ * 副作用：成功时给元素写上 data-trans-id（沿用传入 id），后续整页抽取会自动跳过其子树。
+ */
+export function extractElement(el: HTMLElement, id: string): TransBlock | null {
+  if (el.closest('[data-trans-id]')) return null;
+  const styleMap = new Map<number, Element>();
+  const source = serializeBlock(el, styleMap).trim();
+  if (source.length === 0 || !containsLetter(source)) return null;
+  el.dataset['transId'] = id;
+  return { id, source, styleMap };
+}
+
 function hasDescendantHardBlock(el: Element): boolean {
   // querySelector 比再开一个 walker 简单可靠。
   return el.querySelector(BLOCK_SELECTOR) !== null;

@@ -56,6 +56,50 @@ body {
 .fav--ph { background: linear-gradient(135deg, #a8e4e6, #11b6bb); }
 .domain-name { font-size: 12.5px; color: var(--fg2); word-break: break-all; }
 
+/* 目标语言选择行 */
+.lang { display: flex; align-items: center; gap: 9px; }
+.lang-label { font-size: 12.5px; color: var(--fg2); flex: none; }
+.lang-select {
+  flex: 1;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg);
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
+.lang-select:focus { outline: none; border-color: var(--brand); }
+
+/* 双语对照开关行 */
+.bi-row { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.switch {
+  position: relative;
+  width: 34px;
+  height: 19px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 99px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.switch--on { background: var(--brand); }
+.switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease;
+}
+.switch--on i { transform: translateX(15px); }
+
 /* 状态行 */
 .status {
   display: flex;
@@ -94,6 +138,30 @@ body {
   background: var(--brand);
   transition: width 0.4s ease;
 }
+
+/* 翻译按钮行：左侧双语切换 + 右侧主按钮（按钮占满剩余宽度） */
+.action-row { display: flex; align-items: stretch; gap: 9px; }
+.action-row .action { flex: 1; }
+
+/* 双语对照切换（按钮内含小标签 + 开关轨道） */
+.bi-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--fg2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.bi-toggle--on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
+.bi-toggle-label { white-space: nowrap; }
 
 /* 主操作按钮 */
 .action {

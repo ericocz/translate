@@ -18,7 +18,7 @@ def volc_configured(monkeypatch):
 
 
 def _patch_scd(monkeypatch, behavior):
-    async def fake(client, api_key, blocks, *, url, model):
+    async def fake(client, api_key, blocks, *, url, model, target="zh"):
         async for item in behavior(url):
             yield item
     monkeypatch.setattr(deepseek, "stream_content_deltas", fake)

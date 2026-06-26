@@ -3,6 +3,8 @@ import { isDomainEnabled, setDomainEnabled } from '@/lib/storage';
 import { BACKEND_URL } from '@/lib/config';
 import { getDeviceId, localDateString } from '@/lib/device';
 import { getAccessToken, getEmail, login, logout, register } from '@/lib/auth';
+import { getTargetLang, setTargetLang, getBilingual, setBilingual } from '@/lib/storage';
+import { targetLanguages, type LangOption } from '@/lib/languages';
 import type { PopupQuery, StatusReply } from '@/lib/messages';
 import { claimGift } from '@/lib/grant';
 
@@ -171,6 +173,8 @@ export function Popup() {
         <span className="domain-name">{s.domain}</span>
       </div>
 
+      <TargetLangRow enabled={s.enabled} />
+
       {/* 状态行（一行极轻文字，不是进度条横幅） */}
       {err && st?.errorKind === 'quota' ? (
         <div className="status">
@@ -214,13 +218,17 @@ export function Popup() {
         </div>
       )}
 
-      <button
-        className={'action ' + (s.enabled ? 'action--on' : 'action--off')}
-        onClick={onToggle}
-      >
-        <span>{s.enabled ? '取消翻译此网站' : '翻译此网站'}</span>
-        {shortcut && <kbd>{shortcut}</kbd>}
-      </button>
+      {/* 一键翻译按钮 + 左侧双语对照切换（替换↔双语） */}
+      <div className="action-row">
+        <BilingualToggle />
+        <button
+          className={'action ' + (s.enabled ? 'action--on' : 'action--off')}
+          onClick={onToggle}
+        >
+          <span>{s.enabled ? '取消翻译此网站' : '翻译此网站'}</span>
+          {shortcut && <kbd>{shortcut}</kbd>}
+        </button>
+      </div>
 
       <div className="foot">
         <span className="foot-hint">
@@ -379,6 +387,87 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
       </button>
       {err && <span className="auth-err">{err}</span>}
     </div>
+  );
+}
+
+/**
+ * 目标语言选择行：清单按界面语言取（中文 6 变体 → 中文清单/中文名，否则英文清单/英文名）。
+ * 选中即持久化到设置；若当前站点已开启翻译，则就地重译生效（先还原再翻译，不动白名单）。
+ */
+function TargetLangRow({ enabled }: { enabled: boolean }) {
+  const [opts] = useState<LangOption[]>(() => targetLanguages());
+  const [code, setCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getTargetLang().then(setCode);
+  }, []);
+
+  const onChange = useCallback(
+    async (next: string) => {
+      setCode(next);
+      await setTargetLang(next);
+      // 已开站：先取消翻译（还原原文、清 records）再重新翻译，让新目标语言立即生效。
+      if (enabled) {
+        const tab = await getActiveTab();
+        if (tab?.id) {
+          await querySafe(tab.id, { kind: 'toggle-site', enabled: false });
+          await querySafe(tab.id, { kind: 'toggle-site', enabled: true });
+        }
+      }
+    },
+    [enabled]
+  );
+
+  return (
+    <label className="lang">
+      <span className="lang-label">翻译为</span>
+      <select
+        className="lang-select"
+        value={code ?? ''}
+        onChange={(e) => void onChange(e.target.value)}
+      >
+        {code === null && <option value="">…</option>}
+        {opts.map((o) => (
+          <option key={o.code} value={o.code}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * 双语对照切换（放在翻译按钮左侧）：开启＝译文追加在原文下方（双语对照），关闭＝译文替换原文（隐形）。
+ * 仅写设置；已开站 / 悬停译过的页面的 content script 监听 storage 变化会就地重排，无需重译、无需重开站。
+ */
+function BilingualToggle() {
+  const [on, setOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void getBilingual().then(setOn);
+  }, []);
+
+  const toggle = useCallback(async () => {
+    const next = !on;
+    setOn(next);
+    await setBilingual(next);
+  }, [on]);
+
+  return (
+    <button
+      type="button"
+      className={'bi-toggle' + (on ? ' bi-toggle--on' : '')}
+      role="switch"
+      aria-checked={!!on}
+      title={on ? '双语对照：原文 + 译文' : '替换模式：仅译文'}
+      onClick={() => void toggle()}
+    >
+      <span className="bi-toggle-label">双语</span>
+      <span className={'switch' + (on ? ' switch--on' : '')}>
+        <i />
+      </span>
+    </button>
   );
 }
 

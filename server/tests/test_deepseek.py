@@ -23,6 +23,27 @@ def test_request_body_locks_in_invariants():
     assert body["messages"][1]["content"] == "[[b1]] Hello <g0>x</g0>"
 
 
+def test_request_body_default_target_is_simplified_chinese():
+    # 缺省 / target='zh' 仍用历史简体中文 prompt（逐字节不变，守前缀缓存）。
+    assert build_request_body([("b1", "hi")])["messages"][0]["content"] == SYSTEM_PROMPT
+    assert build_request_body([("b1", "hi")], target="zh")["messages"][0]["content"] == SYSTEM_PROMPT
+
+
+def test_request_body_other_target_uses_generic_prompt_with_language_name():
+    sys = build_request_body([("b1", "hi")], target="ja")["messages"][0]["content"]
+    assert sys != SYSTEM_PROMPT
+    assert "Japanese" in sys           # 注入目标语言英文名
+    assert "[[id]]" in sys             # 输出格式规则保持（客户端切块依赖）
+    assert "<g0>" in sys and "<x0/>" in sys  # 标记规则保持（标记校验依赖）
+
+
+def test_request_body_traditional_chinese_is_generic_not_simplified():
+    # zh-TW 走通用模板（英文名含 Traditional）→ 输出繁体，不复用简体专用 prompt。
+    sys = build_request_body([("b1", "hi")], target="zh-TW")["messages"][0]["content"]
+    assert sys != SYSTEM_PROMPT
+    assert "Traditional" in sys
+
+
 def test_request_body_sets_explicit_max_tokens():
     body = build_request_body([("b1", "hi")])
     # 显式设 max_tokens（截断硬顶），令「超长被截断」行为确定；须 ≥ translator 的 OUTPUT_TOKEN_BUDGET（装箱软上限）

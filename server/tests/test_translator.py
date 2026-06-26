@@ -15,7 +15,7 @@ async def drain(gen):
 
 def fake_deepseek(scripted: dict[str, str]):
     """deepseek_stream 替身：按块 id 直接吐 `[[id]] 译文`。"""
-    async def _stream(api_key, blocks):
+    async def _stream(api_key, blocks, *, target="zh"):
         for bid, _src in blocks:
             yield f"[[{bid}]] {scripted.get(bid, '')}"
     return _stream
@@ -30,10 +30,22 @@ async def test_translates_and_emits_block():
     assert any(isinstance(e, DoneEvent) for e in evs)
 
 
+async def test_target_is_threaded_to_stream():
+    seen = {}
+
+    async def deepseek(api_key, blocks, *, target="zh"):
+        seen["target"] = target
+        for bid, _src in blocks:
+            yield f"[[{bid}]] x"
+
+    await drain(translate([SourceBlock("b1", "Hi")], deepseek_stream=deepseek, api_key="k", target="ja"))
+    assert seen["target"] == "ja"
+
+
 async def test_dedupe_same_source_translated_once():
     sent_batches = []
 
-    async def deepseek(api_key, blocks):
+    async def deepseek(api_key, blocks, *, target="zh"):
         sent_batches.append([b[0] for b in blocks])
         for bid, _ in blocks:
             yield f"[[{bid}]] 提交"
@@ -66,7 +78,7 @@ async def test_usage_event_estimates_when_no_api_usage():
 
 
 async def test_usage_event_from_model_real_usage():
-    async def ds(api_key, blocks):
+    async def ds(api_key, blocks, *, target="zh"):
         for bid, _ in blocks:
             yield f"[[{bid}]] 你好"
         yield Usage(input_miss_tokens=30, input_hit_tokens=10, output_tokens=12)
@@ -110,7 +122,7 @@ async def test_blocks_stream_incrementally_not_buffered():
 
     release = asyncio.Event()
 
-    async def ds(api_key, blocks):
+    async def ds(api_key, blocks, *, target="zh"):
         yield "[[b1]] 译一 [[b2]] "  # b1 已可切出（b2 标记到达）
         await release.wait()           # 卡住上游，模拟流未结束
         yield "译二"
@@ -130,7 +142,7 @@ async def test_small_page_single_batch():
     # 小页（总估算 < OUTPUT_TOKEN_BUDGET）仍只装一箱、只发一次——本就快，无需切。
     sent_batches: list[list[str]] = []
 
-    async def deepseek(api_key, blocks):
+    async def deepseek(api_key, blocks, *, target="zh"):
         sent_batches.append([bid for bid, _ in blocks])
         for bid, _ in blocks:
             yield f"[[{bid}]] 译"
@@ -145,7 +157,7 @@ async def test_large_page_splits_into_parallel_batches():
     # 长页（总估算 >> 预算）按预算切多箱并发跑（响应速度优化）；每块仍各自回填、不丢块。
     sent_batches: list[list[str]] = []
 
-    async def deepseek(api_key, blocks):
+    async def deepseek(api_key, blocks, *, target="zh"):
         sent_batches.append([bid for bid, _ in blocks])
         for bid, _ in blocks:
             yield f"[[{bid}]] 译"

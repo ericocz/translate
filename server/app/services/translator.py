@@ -86,7 +86,8 @@ class UsageEvent:
 
 Event = BlockEvent | DoneEvent | ErrorEvent | UsageEvent
 
-# deepseek_stream(api_key, blocks) -> 逐个 yield content delta 文本
+# deepseek_stream(api_key, blocks, *, target="zh") -> 逐个 yield content delta 文本
+# （target 为关键字参，Callable 类型无法表达 kw-only，此处仅标位置参签名。）
 DeepSeekStream = Callable[[str, list[tuple[str, str]]], AsyncIterator[str]]
 
 
@@ -95,6 +96,7 @@ async def translate(
     *,
     deepseek_stream: DeepSeekStream,
     api_key: str,
+    target: str = "zh",
 ) -> AsyncIterator[Event]:
     """去重 → token 预算装箱 + 有限并发 → 切块 → 标记校验 → 逐块 yield 事件。
 
@@ -150,7 +152,7 @@ async def translate(
             splitter = BlockSplitter(on_block)
             batch_usage: Usage | None = None
             try:
-                async for item in deepseek_stream(api_key, batch):
+                async for item in deepseek_stream(api_key, batch, target=target):
                     if isinstance(item, Usage):
                         batch_usage = item  # 最后一块的真实用量
                     else:

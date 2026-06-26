@@ -20,7 +20,7 @@ from app.routers.translate import (
 )
 
 
-async def fake_stream(api_key, blocks):
+async def fake_stream(api_key, blocks, *, target="zh"):
     for bid, _src in blocks:
         yield f"[[{bid}]] 你好"
 

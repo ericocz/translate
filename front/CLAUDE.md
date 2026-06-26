@@ -8,10 +8,17 @@
 
 衡量这插件好不好的唯一标准是它有多**隐形**——译文干净、不打扰，像这页本来就是中文写的。横幅 / 水印 / 进度条 / 骨架屏 / 闪烁都是向这个目标收税，加任何 UI 前先问它配不配。由此而来的产品决策：
 
-- **按域名激活、单一开关**：白名单内的站一打开就自动全页翻译；图标是唯一常驻接触点（用自身两态表达开 / 关，见 `lib/icon.ts`）。关掉即刻还原原文（原文常驻、瞬时）。**刻意无「临时翻译一次」入口**——只看一次的页面：加域名 → 读 → 关。
+- **按域名激活、单一开关**：白名单内的站一打开就自动全页翻译；图标是唯一常驻接触点（用自身两态表达开 / 关，见 `lib/icon.ts`）。关掉即刻还原原文（原文常驻、瞬时）。
+- **主动快捷键交互（均以 Ctrl/⌘ 为修饰，全在 `content.ts` 的 keydown/mousemove/click 里，不走 `chrome.commands`——避开「快捷键只首装绑定」坑，见经验库）**：
+  - **Ctrl+X**：开 / 关「此站点自动整页翻译」＝增删白名单（`setDomainEnabled`），翻译 / 还原由 `onSettingsChanged → applySiteEnabled` 接手；焦点在可编辑控件时让位原生「剪切」。
+  - **Ctrl+悬停某段（无选区）**：按需翻译光标所在段落——`paragraphRootOf` 找段落根 → `extractElement`（extractor 新增的「单元素抽取」）→ `startIndependentJob` 独立 port 翻译（多段并行、互不取消）。**这就是「临时翻译一次」入口，反转了早期「刻意无此入口」**——只看一次的页面不必加白名单，悬停即读。
+  - **选中文字后按 Ctrl**：选区旁浮动气泡（`.imt-sel-bubble`，暗底浅字、固定定位、最高层级）显示译文；**优先级高于整段**（有选区时悬停不触发整段）。点击别处 / 滚动 / Esc 收起。
+  - **Ctrl+点击某段**：就地粘滞切换该段 原文↔译文（见「查看原文」）。
+  - 按需翻译产生的临时块 id 用 `h`/`s` 前缀（`state.adhoc` 自增），与整页 `b`/`r{batch}.` 前缀互不相撞；非白名单页靠 `state.siteEnabled` 镜像判断「真切换」才整页翻 / 还原，故无关设置变化不会清掉悬停译文。
 - **整页全部可见文字都翻**，正文与界面（导航 / 按钮 / 页脚）在「翻不翻」上一视同仁；藏在属性里的（图片 `alt`、`placeholder`）暂不翻。**但在调度顺序上做结构识别**（见铁律 7）：正文区先翻、外框（导航/页眉/侧栏/页脚）后翻——为响应速度，刻意反转了早期「完全不做正文识别」的取舍。
 - **失败段静默保持原文 + 段内「重试翻译」文字按钮**：失败段（模型漏译 / 标记校验不过 / 部分失败）与「还没轮到」视觉无异（不报错、不空块）；译流结束后在该段**内部**追加一个极轻的「重试翻译」按钮（在 `[data-trans-id]` 子树内 → 抽取器天然跳过）。点击带**前后各 2 段上下文**重新请求（走 `bypassCache` 确保上下文真发给模型）。系统性失败（quota / auth）不挂按钮，交 popup 引导登录 / 充值。
 - **查看原文**：Ctrl/⌘+点击单段就地粘滞切换中↔英；整页看原文用快捷键 / popup 取消翻译此站（即刻还原、瞬时、无需重译）。
+- **双语对照（opt-in，默认关）**：popup 开关（`storage` 键 `bilingual`），开启时译文**追加**在原文下方（块级换行 / inline 同行）而非替换原文——原文留作对照。默认仍是「替换＝隐形」，双语是显式让渡隐形换对照。实现要点（见 `content.ts` `showBilingual/showReplace/showOriginal/rerenderAll`）：追加节点 `<span class="imt-bi">` 挂在 `[data-trans-id]` 子树内，**抽取器天然跳过、绝不被二次送翻**；`originalHTML` 在抽取期即捕获（早于任何追加），故关站 / 切英文 / 局部翻面走 `originalHTML` 重置 innerHTML 时追加译文随之消失，零额外清理。开关切换**就地重排**（`onSettingsChanged` 监听 storage → `rerenderAll`，已译块不重发服务端、不重译）；`BlockRecord.rendered`（original/replace/bilingual）记录当前呈现形态，供替换↔双语互切时判断是否需先还原原文。Ctrl/⌘+点击在双语模式下＝隐去 / 复现该段译文。
 - **出错说人话、分来源**：`errorKind` 区分「网络 / 代理未连通」与「模型接口报错」；`quota` 不是错误而是引导（柔和提示 + 登录 / 充值 CTA，不显示红色报错）。
 
 ## 技术栈
@@ -67,7 +74,8 @@ lib/
   regions.ts      # 结构分区 classifyTier（最近地标→正文/外框）+ splitByTier（拆两组，供按区域并发）
   markers.ts      # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
-  storage.ts      # 白名单 / 设置（缓存开关）薄封装
+  storage.ts      # 白名单 / 设置（缓存开关 / 目标语言 target_lang / 双语对照 bilingual）薄封装
+  languages.ts    # 目标语言清单（languages-{zh,en}.json）+ 界面语言判定 isZhUi + targetLanguages/defaultTargetLang
   icon.ts         # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
   config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）+ CREEM_RECHARGE_URL（Creem 充值 link，空＝options 不显美元充值入口）唯一读取处，构建期由 .env 的 WXT_* 注入
   messages.ts     # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
@@ -78,6 +86,12 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 ## 后端契约
 
 `BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE，正文)、`POST /v1/translate/batch`(非流式 JSON，外框/重试)、`GET /v1/usage`(返分桶余额 giftCny/cny/usd)、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/grant/gift`、`POST /v1/recharge/create`(微信充值)、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
+
+### 目标语言（用户可选）
+
+popup 顶部「翻译为 …」下拉让用户选目标语言（源语言不检测、交模型自适应）。清单 `lib/languages-{zh,en}.json`（DeepSeek V4 支持语种，各 111 条），下拉据**界面语言**二选一：浏览器为中文 6 变体（zh/zh-CN/zh-TW/zh-HK/zh-SG/zh-MO）用**中文清单+中文名**，否则**英文清单+英文名**（`lib/languages.ts`）。选中持久化到 `storage` 的 `target_lang`（`getTargetLang`，默认=所选清单首项：中文界面 `zh`、英文界面 `en-US`）；若当前站点已开站则就地重译生效（先 toggle off 还原、再 on 重译，不动白名单）。
+
+两处消费：① `api.ts` 翻译请求 body 带 `target` 字段；② `local-cache.ts` 缓存键按目标语言分桶（`auto-<target>`，不同目标互不串扰）。**后端 `../server` 已 honor `target`**（`prompt.system_prompt(target)`：`zh`/缺省走历史简体中文 prompt 逐字节不变、其余走通用模板注入语言英文名；繁体 zh-TW/zh-HK 走通用模板出繁体）。
 
 ## 计费 / 充值（统一走平台 key）
 

@@ -7,6 +7,7 @@
 import { BACKEND_URL } from './config';
 import { getDeviceId, localDateString } from './device';
 import { getAccessToken } from './auth';
+import { getTargetLang } from './storage';
 import { createSseParser } from './sse';
 import { encryptionEnabled, ephemeralPublicKey, encryptField, decryptField } from './crypto';
 import type { FailureInfo, FailureKind } from './types';
@@ -40,6 +41,8 @@ async function buildTranslateInit(
   }
 
   const accessToken = await getAccessToken();
+  // 目标语言：随 body 下发，后端据此切换提示词的目标语言（源语言仍由模型自适应）。
+  const target = await getTargetLang();
 
   // D-13：加密开启时把每块 source 换成密文 ct，并带客户端临时公钥头（服务端据此派生会话密钥）。
   const useEnc = encryptionEnabled();
@@ -60,7 +63,7 @@ async function buildTranslateInit(
       ...extraHeaders,
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: JSON.stringify({ blocks: bodyBlocks, localDate: localDateString(), pageKey }),
+    body: JSON.stringify({ blocks: bodyBlocks, localDate: localDateString(), pageKey, target }),
     signal,
   };
 }

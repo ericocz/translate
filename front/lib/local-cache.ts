@@ -7,13 +7,25 @@
 // 运行上下文：既被 service worker（翻译编排）用，也被 options 页（清空/统计）用——同源共享
 // 同一 IndexedDB。SW 30s 卸载不影响：IndexedDB 落盘持久。所有失败都静默降级（退回全发服务端）。
 
+import { getTargetLang } from './storage';
+
 const DB_NAME = 'imt-cache';
 const DB_VERSION = 1;
 const STORE = 'entries';
 const META = 'meta';
 
-// 语言对：当前固定 英→中；M2 多语言时改为按设置参数化（键含语言对即为此预留）。
-const LANG_PAIR = 'en-zh';
+// 语言对：源端不做检测（统一记 auto），目标端取用户所选目标语言 → 缓存按目标语言分桶，
+// 同一原文翻成不同目标语言互不串扰。运行期由 langPair() 从设置读出，默认见 languages.defaultTargetLang。
+const DEFAULT_LANG_PAIR = 'auto-zh';
+
+/** 当前缓存语言对（auto-<目标语言>）；读不到设置时退默认。 */
+async function langPair(): Promise<string> {
+  try {
+    return 'auto-' + (await getTargetLang());
+  } catch {
+    return DEFAULT_LANG_PAIR;
+  }
+}
 
 // LRU 上限（O-13）：~200MB 或 90 天未用即逐出。size 以 UTF-16 字节估算。
 export const MAX_BYTES = 200 * 1024 * 1024;
@@ -40,7 +52,7 @@ export interface CacheStats {
 }
 
 /** 内容寻址键：语言对 + NUL + 原文。直接用全文，零碰撞（不哈希）。 */
-export function cacheKey(source: string, lang: string = LANG_PAIR): string {
+export function cacheKey(source: string, lang: string = DEFAULT_LANG_PAIR): string {
   return lang + '\u0000' + source;
 }
 
@@ -123,12 +135,14 @@ export async function cacheGetMany(sources: string[]): Promise<Map<string, strin
   }
   const uniq = Array.from(new Set(sources));
   const now = Date.now();
+  // 语言对在开 tx 前一次性读出（tx 内不能 await 别的异步，否则空转自动提交）。
+  const lang = await langPair();
   try {
     // 读相：同一只读 tx 内同步发起全部 get 再 await（避免 tx 空转自动提交）。
     const rtx = db.transaction(STORE, 'readonly');
     const ros = rtx.objectStore(STORE);
     const got = await Promise.all(
-      uniq.map((s) => reqDone(ros.get(cacheKey(s))) as Promise<CacheEntry | undefined>)
+      uniq.map((s) => reqDone(ros.get(cacheKey(s, lang))) as Promise<CacheEntry | undefined>)
     );
     const touch: CacheEntry[] = [];
     uniq.forEach((s, i) => {
@@ -164,9 +178,11 @@ export async function cachePutMany(
     return;
   }
   const now = Date.now();
+  // 语言对在开 tx 前一次性读出（同 cacheGetMany）。
+  const lang = await langPair();
   // 同批同 key 去重，保留最后一个。
   const byKey = new Map<string, { source: string; translated: string }>();
-  for (const it of items) byKey.set(cacheKey(it.source), it);
+  for (const it of items) byKey.set(cacheKey(it.source, lang), it);
   const keys = Array.from(byKey.keys());
   try {
     // 读相：现有 entry（算 size 差 / 保留 created）+ stats，全部同步发起后 await。

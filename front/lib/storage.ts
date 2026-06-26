@@ -2,9 +2,13 @@
 // 所有持久化项的 key 都集中在这里，方便审计。
 
 // 平台 key 不走 storage（改由 .env 注入，见 lib/config.ts）；这里只管白名单 / 设置。
+
+import { defaultTargetLang } from './languages';
 const KEYS = {
   whitelist: 'whitelist_domains',
   cacheEnabled: 'cache_enabled',
+  targetLang: 'target_lang',
+  bilingual: 'bilingual',
 } as const;
 
 export async function getWhitelist(): Promise<string[]> {
@@ -46,6 +50,30 @@ export async function getCacheEnabled(): Promise<boolean> {
 
 export async function setCacheEnabled(enabled: boolean): Promise<void> {
   await chrome.storage.local.set({ [KEYS.cacheEnabled]: enabled });
+}
+
+/** 目标语言代码（如 'zh' / 'ja' / 'en-US'）。未设置时回退到按界面语言推断的默认值。 */
+export async function getTargetLang(): Promise<string> {
+  const raw = await chrome.storage.local.get(KEYS.targetLang);
+  const v = raw[KEYS.targetLang];
+  return typeof v === 'string' && v ? v : defaultTargetLang();
+}
+
+export async function setTargetLang(code: string): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.targetLang]: code });
+}
+
+/**
+ * 双语对照开关，默认关闭：仅显式存 true 才算开启。
+ * 开启时译文「追加」在原文下方（原文不被替换）；关闭时译文「替换」原文（默认隐形模式）。
+ */
+export async function getBilingual(): Promise<boolean> {
+  const raw = await chrome.storage.local.get(KEYS.bilingual);
+  return raw[KEYS.bilingual] === true;
+}
+
+export async function setBilingual(on: boolean): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.bilingual]: on });
 }
 
 export function onSettingsChanged(cb: (changes: chrome.storage.StorageChange) => void): () => void {

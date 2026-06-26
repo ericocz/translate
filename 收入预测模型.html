@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>秒懂翻译 · 充值收入预测模型</title>
+<style>
+  :root{
+    --teal:#02acb1; --teal-d:#018a8e; --teal-l:#e6f7f7;
+    --ink:#1a2526; --ink-2:#566566; --line:#e3e8e8; --bg:#fafbfb; --card:#fff;
+    --warn:#c9621a; --warn-bg:#fdf3ea; --good:#1f8a52; --good-bg:#eaf6ef;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 20px 80px}
+  header.top{margin-bottom:8px}
+  .badge{display:inline-block;font-size:12px;font-weight:600;color:var(--teal-d);background:var(--teal-l);
+    padding:3px 10px;border-radius:20px;letter-spacing:.3px}
+  h1{font-size:26px;margin:14px 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--ink-2);font-size:15px;max-width:760px}
+  .sub b{color:var(--ink)}
+
+  section{margin-top:32px}
+  h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  h2::before{content:"";width:4px;height:16px;background:var(--teal);border-radius:2px;display:inline-block}
+  h3{font-size:13px;color:var(--ink-2);font-weight:600;text-transform:none;margin:0 0 10px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+
+  /* 结论大卡 */
+  .answer-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .ans{position:relative;overflow:hidden}
+  .ans .goal{font-size:13px;color:var(--ink-2);font-weight:600}
+  .ans .big{font-size:40px;font-weight:700;line-height:1.1;margin:6px 0 2px;letter-spacing:-1px;color:var(--teal-d)}
+  .ans .big small{font-size:16px;font-weight:600;color:var(--ink-2)}
+  .ans .row{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2);padding:5px 0;border-top:1px dashed var(--line)}
+  .ans .row b{color:var(--ink);font-weight:600}
+  .ans .tag{position:absolute;top:0;right:0;background:var(--teal);color:#fff;font-size:11px;padding:3px 10px;border-bottom-left-radius:10px;font-weight:600}
+
+  /* 控制台 */
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:22px 28px}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px}
+  .ctrl label .val{color:var(--teal-d);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--teal);height:4px}
+  .ctrl .hint{font-size:11.5px;color:var(--ink-2);margin-top:4px}
+  .presets{display:flex;gap:6px;margin-top:8px}
+  .presets button{flex:1;font-size:12px;padding:5px 0;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--ink-2);transition:.15s}
+  .presets button:hover{border-color:var(--teal);color:var(--teal-d)}
+  .presets button.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  .goalrow{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:4px}
+  .goalrow .gi{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+  .goalrow input[type=number]{width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit}
+
+  /* 单位经济 */
+  .econ{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .econ .u{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .econ .u .k{font-size:12px;color:var(--ink-2)}
+  .econ .u .v{font-size:21px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+  .econ .u .v small{font-size:12px;font-weight:600;color:var(--ink-2)}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:10px 12px;text-align:center;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--ink-2);font-weight:600;background:var(--bg)}
+  td.lab{text-align:left;font-weight:600}
+  td .mau{display:block;font-size:11.5px;color:var(--ink-2);font-weight:400;margin-top:1px}
+  tbody tr:hover{background:var(--teal-l)}
+  td b{color:var(--teal-d)}
+
+  /* 两口径 */
+  .twoway{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .twoway .w{border-radius:12px;padding:16px;border:1px solid var(--line)}
+  .twoway .w.profit{background:var(--good-bg);border-color:#cfe9da}
+  .twoway .w.gross{background:var(--warn-bg);border-color:#f2dcc6}
+  .twoway .w .t{font-size:13px;font-weight:700;margin-bottom:6px}
+  .twoway .w .t.profit{color:var(--good)} .twoway .w .t.gross{color:var(--warn)}
+  .twoway .w p{margin:4px 0;font-size:13px;color:var(--ink-2)}
+  .twoway .w .n{font-size:24px;font-weight:700;color:var(--ink)}
+
+  /* 漏斗条 */
+  .bar{height:30px;border-radius:7px;display:flex;overflow:hidden;font-size:11.5px;color:#fff;font-weight:600;margin:10px 0 4px}
+  .bar .seg{display:flex;align-items:center;justify-content:center;white-space:nowrap}
+  .bar .cost{background:#9aa7a8}
+  .bar .chan{background:var(--warn)}
+  .bar .prof{background:var(--teal)}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+  .legend i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:middle}
+
+  .callout{border-left:3px solid var(--warn);background:var(--warn-bg);padding:14px 16px;border-radius:0 10px 10px 0;font-size:13.5px}
+  .callout.good{border-color:var(--good);background:var(--good-bg)}
+  .callout b{color:var(--ink)}
+  ul.lean{margin:8px 0 0;padding-left:18px;font-size:13.5px}
+  ul.lean li{margin:5px 0}
+
+  .market{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .market .m{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .market .m .v{font-size:20px;font-weight:700;color:var(--teal-d)}
+  .market .m .k{font-size:12px;color:var(--ink-2);margin-top:2px}
+  .src{font-size:12px;color:var(--ink-2);margin-top:14px;line-height:1.8}
+  .src a{color:var(--teal-d);text-decoration:none}
+  .src a:hover{text-decoration:underline}
+  .foot{margin-top:40px;font-size:12px;color:var(--ink-2);text-align:center}
+
+  @media(max-width:720px){
+    .answer-grid,.controls,.twoway{grid-template-columns:1fr}
+    .econ{grid-template-columns:1fr 1fr}
+    .market{grid-template-columns:1fr}
+    .ans .big{font-size:34px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="badge">秒懂翻译 · aha translate</span>
+    <h1>充值付费 · 收入预测模型</h1>
+    <p class="sub">
+      基于你代码里的<b>真实计费规则</b>（充值 1:1 入账、翻译扣费 = DeepSeek 成本 ×1.3）叠加行业基准，回答：
+      <b>每月要多少用户，才能净赚 1 万 / 3 万？</b>
+      所有假设可调，拖动滑块即时重算。
+    </p>
+  </header>
+
+  <!-- 核心答案 -->
+  <section>
+    <h2>核心答案（当前假设下）</h2>
+    <div class="answer-grid">
+      <div class="card ans">
+        <span class="tag">目标 ①</span>
+        <div class="goal">每月净赚 <span id="g1lab">¥10,000</span></div>
+        <div class="big"><span id="g1users">—</span> <small>位活跃付费用户 / 月</small></div>
+        <div class="row"><span>需触达月活(MAU)</span><b id="g1mau">—</b></div>
+        <div class="row"><span>对应月充值流水</span><b id="g1gmv">—</b></div>
+        <div class="row"><span>付费用户人均月充值</span><b id="g1arppu">—</b></div>
+      </div>
+      <div class="card ans">
+        <span class="tag">目标 ②</span>
+        <div class="goal">每月净赚 <span id="g2lab">¥30,000</span></div>
+        <div class="big"><span id="g2users">—</span> <small>位活跃付费用户 / 月</small></div>
+        <div class="row"><span>需触达月活(MAU)</span><b id="g2mau">—</b></div>
+        <div class="row"><span>对应月充值流水</span><b id="g2gmv">—</b></div>
+        <div class="row"><span>付费用户人均月充值</span><b id="g2arppu">—</b></div>
+      </div>
+    </div>
+    <div style="margin-top:14px" class="callout">
+      ⚠️ <b>注意「赚到」的口径</b>：充值 ×1.3 的模式毛利率只有
+      <b id="marginPct">23%</b>。也就是说用户充进来的钱里，约 <b id="costPct">77%</b> 要付给 DeepSeek，
+      剩下才是你的。下方<b>「两种口径」</b>会把「收到的钱」和「真正落袋的钱」分开算清。
+    </div>
+  </section>
+
+  <!-- 控制台 -->
+  <section>
+    <h2>关键假设（可调）</h2>
+    <div class="card">
+      <div class="controls">
+        <div class="ctrl">
+          <label>付费用户人均月翻译量 <span class="val"><span id="pagesV">400</span> 页/月</span></label>
+          <input type="range" id="pages" min="50" max="2000" step="10" value="400">
+          <div class="presets" id="pagePresets">
+            <button data-p="100">轻度 100页</button>
+            <button data-p="400" class="on">中度 400页</button>
+            <button data-p="1200">重度 1200页</button>
+          </div>
+          <div class="hint">付费用户偏中重度（轻度用户靠赠送 ¥2 就够、通常不充值）。400 页≈每天 13 个网页。</div>
+        </div>
+
+        <div class="ctrl">
+          <label>付费转化率 <span class="val"><span id="convV">4.0</span>%</span></label>
+          <input type="range" id="conv" min="0.5" max="15" step="0.1" value="4">
+          <div class="hint">活跃付费用户 ÷ MAU。freemium 普遍 2–5%、AI 工具中位 8.5%；但本产品是「赠送用完即停」的硬付费墙，建议取偏保守值。</div>
+        </div>
+
+        <div class="ctrl">
+          <label>服务费率（成本 ×N 扣费） <span class="val">×<span id="feeV">1.30</span></span></label>
+          <input type="range" id="fee" min="1.05" max="2.5" step="0.05" value="1.3">
+          <div class="hint">代码现值 ×1.3。这是你<b>唯一可直接调的利润旋钮</b>——毛利率 = (N−1)/N。</div>
+        </div>
+
+        <div class="ctrl">
+          <label>单页 DeepSeek 成本 <span class="val">¥<span id="cppV">0.0077</span></span></label>
+          <input type="range" id="costpage" min="0.003" max="0.03" step="0.0005" value="0.00765">
+          <div class="hint">默认按 1500 词文章估（输入≈2250 tok @¥1/M + 输出≈2700 tok @¥2/M）。论文/长文更高。</div>
+        </div>
+
+        <div class="ctrl" style="grid-column:1/-1">
+          <div class="goalrow">
+            <div class="gi">利润目标 ①：¥<input type="number" id="goal1" value="10000" step="1000"></div>
+            <div class="gi">利润目标 ②：¥<input type="number" id="goal2" value="30000" step="1000"></div>
+            <div class="gi" style="color:var(--ink-2);font-weight:500">支付通道费
+              <input type="number" id="channel" value="0.6" step="0.1" style="width:64px">%</div>
+            <div class="gi" style="color:var(--ink-2);font-weight:500">月固定成本 ¥
+              <input type="number" id="fixed" value="0" step="100" style="width:80px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 单位经济 -->
+  <section>
+    <h2>单位经济（每一页翻译赚多少）</h2>
+    <div class="card">
+      <div class="econ">
+        <div class="u"><div class="k">单页成本（给 DeepSeek）</div><div class="v">¥<span id="e_cost">—</span></div></div>
+        <div class="u"><div class="k">单页扣用户额度</div><div class="v">¥<span id="e_charge">—</span></div></div>
+        <div class="u"><div class="k">单页毛利（你的）</div><div class="v" style="color:var(--teal-d)">¥<span id="e_gross">—</span></div></div>
+        <div class="u"><div class="k">毛利率</div><div class="v"><span id="e_margin">—</span><small>%</small></div></div>
+      </div>
+      <div style="margin-top:16px">
+        <h3>每 ¥10 充值的去向</h3>
+        <div class="bar" id="splitBar"></div>
+        <div class="legend">
+          <span><i style="background:#9aa7a8"></i>DeepSeek 成本</span>
+          <span><i style="background:var(--warn)"></i>支付通道费</span>
+          <span><i style="background:var(--teal)"></i>你的净利</span>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:13px;color:var(--ink-2)">
+        付费用户人均：每月消耗额度 <b id="arpuSpend" style="color:var(--ink)">—</b>，
+        贡献毛利 <b id="arpuGross" style="color:var(--teal-d)">—</b>。
+      </div>
+    </div>
+  </section>
+
+  <!-- 敏感性矩阵 -->
+  <section>
+    <h2>敏感性矩阵：不同用户画像 × 利润目标</h2>
+    <div class="card">
+      <p style="margin:0 0 12px;font-size:13px;color:var(--ink-2)">
+        每格 = 所需<b>活跃付费用户数</b>，灰字 = 按当前转化率（<span id="convEcho">4%</span>）反推的 <b>MAU</b>。
+      </p>
+      <table id="matrix">
+        <thead>
+          <tr><th style="text-align:left">付费用户人均消耗</th>
+            <th>净赚 <span class="mt1">¥1万</span>/月</th>
+            <th>净赚 <span class="mt2">¥3万</span>/月</th>
+            <th>净赚 ¥5万/月</th></tr>
+        </thead>
+        <tbody><!-- JS 填 --></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 两种口径 -->
+  <section>
+    <h2>两种口径：收到的钱 ≠ 赚到的钱</h2>
+    <div class="twoway">
+      <div class="w profit">
+        <div class="t profit">口径 A · 真实净利（推荐）</div>
+        <p>「赚到 1 万」= 真正落袋 1 万。需要月充值流水达到</p>
+        <div class="n" id="A_gmv">—</div>
+        <p>其中 <b id="A_margin">—</b> 是你的，其余给 DeepSeek 和通道。</p>
+      </div>
+      <div class="w gross">
+        <div class="t gross">口径 B · 充值流水（容易误读）</div>
+        <p>若把「月收到 1 万充值」当成赚 1 万，那只需</p>
+        <div class="n" id="B_users">—</div>
+        <p>付费用户即可——<b>但你实际只净赚 <span id="B_profit">—</span></b>。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 洞察 -->
+  <section>
+    <h2>这个模式的真相 & 战略选项</h2>
+    <div class="card">
+      <div class="callout">
+        <b>充值消耗 ×1.3 是「走量」生意。</b>单页只赚约 <span id="insightGross">¥0.0023</span>（两三厘），
+        毛利率被死死压在 23%。要靠它月净赚 3 万，需要把月活做到
+        <b id="insightMau">几十万级</b>——对标沉浸式翻译 200 万用户、且人家走的是利润率高得多的
+        <b>订阅制</b>（¥80/年），充值消耗制的天花板明显更低。
+      </div>
+      <h3 style="margin-top:16px">三个抬高天花板的方向</h3>
+      <ul class="lean">
+        <li><b>① 调高服务费率</b>：把 ×1.3 提到 ×1.5～×2（毛利率 33%→50%）。把上面滑块拖到 1.5 看用户数立刻减半——这是最快的旋钮，代价是性价比叙事变弱。</li>
+        <li><b>② 加一层订阅/会员</b>：竞品 200 万用户靠的是 ¥80/年订阅而非按量。一个 ¥18/月「畅翻包」的 ARPU，是充值中度用户的 4 倍多。</li>
+        <li><b>③ 把买断 $9.99（BYOK）做成增量</b>：买断不走平台额度、零边际成本，每单≈¥70 净利，相当于 30 个中度充值用户一个月的毛利。<b id="buyoutEq">—</b></li>
+      </ul>
+      <div class="callout good" style="margin-top:14px">
+        ✅ <b>务实结论</b>：充值是好的「现金流地基」和低门槛入口，但<b>不要指望它单独撑起利润</b>。
+        把它当获客/留存层，利润靠 <b>买断 + 订阅</b> 叠上去。
+      </div>
+    </div>
+  </section>
+
+  <!-- 市场对标 -->
+  <section>
+    <h2>市场对标与数据来源</h2>
+    <div class="card">
+      <div class="market">
+        <div class="m"><div class="v">200 万+</div><div class="k">沉浸式翻译 Chrome 用户（你的天花板参照）</div></div>
+        <div class="m"><div class="v">2–5%</div><div class="k">freemium 付费转化率（AI 工具中位 8.5%）</div></div>
+        <div class="m"><div class="v">¥80/年</div><div class="k">竞品订阅价（订阅制 ARPU ≫ 充值消耗制）</div></div>
+        <div class="m"><div class="v">¥1 / ¥0.02 / ¥2</div><div class="k">DeepSeek 三档成本/M token（输入未命中/命中/输出）</div></div>
+        <div class="m"><div class="v">~1500 词</div><div class="k">典型网页正文长度（决定单页成本）</div></div>
+        <div class="m"><div class="v">$18.9/月</div><div class="k">AI 应用月度 LTV 中位（参照，订阅口径）</div></div>
+      </div>
+      <p class="src">
+        数据来源：
+        沉浸式翻译用户量与定价 ·
+        <a href="https://immersivetranslate.cn/pricing/" target="_blank">immersivetranslate.cn/pricing</a>；
+        freemium 转化率基准 ·
+        <a href="https://userpilot.com/blog/saas-average-conversion-rate/" target="_blank">Userpilot</a> /
+        <a href="https://firstpagesage.com/seo-blog/saas-freemium-conversion-rates/" target="_blank">First Page Sage</a>；
+        AI 应用 ARPU/LTV/留存 ·
+        <a href="https://www.revenuecat.com/blog/growth/ai-feature-cost-subscription-app-margins/" target="_blank">RevenueCat</a>；
+        网页平均字数 · Orbit Media（经
+        <a href="https://www.elevenwriting.com/blog/how-long-should-a-blog-post-be" target="_blank">Eleven Writing</a> 引用）；
+        DeepSeek 成本价与 ×1.3 费率 · 本仓库 <code>server/app/services/pricing.py</code> 与 <code>routers/recharge.py</code>。
+      </p>
+    </div>
+  </section>
+
+  <div class="foot">
+    模型为估算工具，非精确预测。人均消耗、转化率两项需用上线后真实数据校准。<br>
+    生成于 2026-06-19 · 秒懂翻译内部测算
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.round(n).toLocaleString('zh-CN');
+  const yuan = n => n.toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  // —— 取参数 ——
+  function P(){
+    return {
+      pages:   +$('pages').value,
+      conv:    +$('conv').value/100,
+      fee:     +$('fee').value,
+      costPage:+$('costpage').value,
+      goal1:   +$('goal1').value||0,
+      goal2:   +$('goal2').value||0,
+      channel: (+$('channel').value||0)/100,
+      fixed:   +$('fixed').value||0,
+    };
+  }
+
+  // 给定利润目标，求所需付费用户 / MAU / 流水
+  function solve(p, target, pages){
+    const chargePage = p.costPage*p.fee;        // 单页扣用户
+    const grossPage  = p.costPage*(p.fee-1);     // 单页毛利
+    const margin     = (p.fee-1)/p.fee;          // 毛利率
+    const netRate    = margin - p.channel;       // 扣掉通道费后的净利率（占流水）
+    const spendPU    = pages*chargePage;         // 人均月消耗(=人均月充值，稳态)
+    // 净利 = 流水*netRate - fixed  →  流水 = (target+fixed)/netRate
+    const gmv   = netRate>0 ? (target+p.fixed)/netRate : Infinity;
+    const users = spendPU>0 ? gmv/spendPU : Infinity;
+    const mau   = p.conv>0 ? users/p.conv : Infinity;
+    return {chargePage,grossPage,margin,netRate,spendPU,gmv,users,mau};
+  }
+
+  function recompute(){
+    const p = P();
+    // 回显
+    $('pagesV').textContent = p.pages;
+    $('convV').textContent  = (p.conv*100).toFixed(1);
+    $('feeV').textContent   = p.fee.toFixed(2);
+    $('cppV').textContent   = p.costPage.toFixed(4);
+    $('convEcho').textContent = (p.conv*100).toFixed(1)+'%';
+    $('g1lab').textContent = '¥'+yuan(p.goal1);
+    $('g2lab').textContent = '¥'+yuan(p.goal2);
+
+    const margin = (p.fee-1)/p.fee;
+    $('marginPct').textContent = (margin*100).toFixed(0)+'%';
+    $('costPct').textContent   = ((1-margin)*100).toFixed(0)+'%';
+
+    // 单位经济
+    const chargePage = p.costPage*p.fee, grossPage = p.costPage*(p.fee-1);
+    $('e_cost').textContent   = p.costPage.toFixed(4);
+    $('e_charge').textContent = chargePage.toFixed(4);
+    $('e_gross').textContent  = grossPage.toFixed(4);
+    $('e_margin').textContent = (margin*100).toFixed(1);
+    $('arpuSpend').textContent = '¥'+(p.pages*chargePage).toFixed(2);
+    $('arpuGross').textContent = '¥'+(p.pages*grossPage).toFixed(2);
+    $('insightGross').textContent = '¥'+grossPage.toFixed(4);
+
+    // 充值去向条（每 ¥10）
+    const costShare=1/p.fee, chanShare=p.channel, profShare=Math.max(0,1-costShare-chanShare);
+    $('splitBar').innerHTML =
+      `<div class="seg cost" style="width:${costShare*100}%">DeepSeek ¥${(10*costShare).toFixed(2)}</div>`+
+      `<div class="seg chan" style="width:${Math.max(chanShare*100,6)}%">通道 ¥${(10*chanShare).toFixed(2)}</div>`+
+      `<div class="seg prof" style="width:${profShare*100}%">净利 ¥${(10*profShare).toFixed(2)}</div>`;
+
+    // 目标①②
+    const s1 = solve(p, p.goal1, p.pages), s2 = solve(p, p.goal2, p.pages);
+    fill('g1', s1, p); fill('g2', s2, p);
+
+    // 两种口径（以目标①为例）
+    $('A_gmv').textContent = '¥'+fmt(s1.gmv);
+    $('A_margin').textContent = '¥'+fmt(p.goal1);
+    const bUsers = (p.pages*chargePage)>0 ? p.goal1/(p.pages*chargePage) : 0; // 月流水=goal1 时的用户数
+    const bProfit = p.goal1*s1.netRate - p.fixed;
+    $('B_users').textContent = fmt(bUsers)+' 人';
+    $('B_profit').textContent = '¥'+fmt(bProfit);
+
+    // 矩阵
+    buildMatrix(p);
+
+    // 洞察动态值
+    $('insightMau').textContent = abbr(s2.mau);
+    const buyoutNet = 70; // $9.99≈¥72，扣 Creem 费≈¥70 净利
+    const eqUsers = grossPage>0 ? buyoutNet/(p.pages*grossPage) : 0;
+    $('buyoutEq').textContent = `按当前假设，1 个买断 ≈ ${fmt(eqUsers)} 个中度充值用户一个月的毛利。`;
+  }
+
+  function fill(pre, s, p){
+    $(pre+'users').textContent = isFinite(s.users)?fmt(s.users):'∞';
+    $(pre+'mau').textContent   = isFinite(s.mau)?fmt(s.mau):'∞';
+    $(pre+'gmv').textContent   = isFinite(s.gmv)?'¥'+fmt(s.gmv):'∞';
+    $(pre+'arppu').textContent = '¥'+(s.spendPU).toFixed(2);
+  }
+
+  function abbr(n){
+    if(!isFinite(n)) return '∞';
+    if(n>=1e6) return (n/1e4).toFixed(0)+'万';
+    if(n>=1e4) return (n/1e4).toFixed(1)+'万';
+    return fmt(n);
+  }
+
+  function buildMatrix(p){
+    const rows = [
+      ['轻度 100 页/月', 100],
+      ['中度 400 页/月', 400],
+      ['重度 1200 页/月', 1200],
+    ];
+    const goals = [10000,30000,50000];
+    const tb = document.querySelector('#matrix tbody');
+    tb.innerHTML = rows.map(([lab,pg])=>{
+      const tds = goals.map(g=>{
+        const s = solve(p, g, pg);
+        return `<td><b>${isFinite(s.users)?fmt(s.users):'∞'}</b>`+
+               `<span class="mau">MAU ${isFinite(s.mau)?abbr(s.mau):'∞'}</span></td>`;
+      }).join('');
+      return `<tr><td class="lab">${lab}</td>${tds}</tr>`;
+    }).join('');
+  }
+
+  // —— 绑定 ——
+  ['pages','conv','fee','costpage','goal1','goal2','channel','fixed'].forEach(id=>{
+    $(id).addEventListener('input', recompute);
+  });
+  // 预设按钮
+  $('pagePresets').addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    $('pages').value = b.dataset.p;
+    [...$('pagePresets').children].forEach(x=>x.classList.toggle('on', x===b));
+    recompute();
+  });
+  // 滑动 pages 时同步预设高亮
+  $('pages').addEventListener('input', ()=>{
+    [...$('pagePresets').children].forEach(x=>x.classList.toggle('on', +x.dataset.p===+$('pages').value));
+  });
+
+  recompute();
+})();
+</script>
+</body>
+</html>
