@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     yungouos_mch_id: str = ""  # 大陆充值（YunGouOS 微信支付）商户号；空＝充值不可用
     yungouos_pay_key: str = ""  # YunGouOS 支付密钥（签名 / 回调验签）
     public_base_url: str = ""  # 公网后端地址（YunGouOS notify 回调用），如 https://api.yourdomain；空＝充值不可用
+    # 管理台是独立 origin 的浏览器应用（dev :3001），跨端口调 /admin/* 必过 CORS。
+    # 逗号分隔的允许 origin 白名单；生产部署把管理台公网 origin 加进来（env 覆盖）。
+    # 扩展走 service worker（有 host_permissions）不受 CORS 限制，故只为管理台开。
+    cors_origins: str = "http://localhost:3001,http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

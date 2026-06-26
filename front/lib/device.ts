@@ -15,10 +15,18 @@ export async function getDeviceId(): Promise<string> {
 
 /** chrome.instanceID：清 storage 免疫的实例标识（须卸载重装才变），比 deviceId 难重置。
  *  用作赠送 ¥2 的防薅幂等键——「清缓存换 deviceId 反复领」会被同一 instanceID 拦下。
- *  取不到（API 失败 / 缺 gcm 权限）则返回空串，后端回退 deviceId 幂等。 */
+ *  取不到（API 失败 / 缺 gcm 权限）则返回空串，后端回退 deviceId 幂等。
+ *
+ *  ⚠️ 必须带超时：`chrome.instanceID.getID()` 依赖 FCM 注册，FCM 不可达时（**墙内无代理**——正是
+ *  目标用户常见场景）会长时间挂起、**既不 resolve 也不 reject**，裸 `await` 连 catch 都进不去、
+ *  会卡死调用方（`claimGift` 的 Promise.all 永不返回 → 领赠送按钮一直转圈、onboarding 阻断）。
+ *  故 race 一个超时：拿不到就当空串、后端回退 deviceId 幂等（防薅退化但绝不阻断领取）。 */
 export async function getInstanceId(): Promise<string> {
   try {
-    return await chrome.instanceID.getID();
+    return await Promise.race([
+      chrome.instanceID.getID(),
+      new Promise<string>((resolve) => setTimeout(() => resolve(''), 3000)),
+    ]);
   } catch {
     return '';
   }
