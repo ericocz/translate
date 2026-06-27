@@ -53,7 +53,7 @@ app/
   services/ markers.py · block_splitter.py · deepseek.py(请求体 + SSE + Usage 捕获 + 错误分类 + Provider/stream_with_failover 官方主+火山备)
            translator.py(编排 → 事件流 Block/Done/Error/UsageEvent) · usage_repo.py(daily_usage 统计)
            credit_repo.py(额度账本【方案 B · 多币种分桶】：**某桶余额＝owner+bucket 的 delta 之和**；get_balances 返三桶 dict、active_bucket 取优先级最高且>0 的桶+币种；grant(bucket)/deduct(bucket) 只插流水、has_account=有过流水；user_owner / device_owner) · pricing.py(cost_cny / cost_usd / cost_for(currency)：三档成本价 ×SERVICE_FEE_RATE=2，人民币 / 美元两套官方定价各自透传、**不换汇**，返回**高精度 Decimal、不量化**)
-           auth.py · creem.py(Creem webhook HMAC 验签 + checkout.completed 解析 + usd_amount 取实付美元) · email.py(EmailSender 接口 + ResendEmailSender + make_email_sender 工厂：配 resend_api_key+email_from 则真发、否则退化 LogEmailSender) · yungouos.py(大陆充值：微信 nativePay 下单 + 签名/回调验签，签名=字段字典序+key+MD5大写)
+           auth.py · creem.py(Creem webhook HMAC 验签 + checkout.completed 解析 + usd_amount 取实付美元) · yungouos.py(大陆充值：微信 nativePay 下单 + 签名/回调验签，签名=字段字典序+key+MD5大写)
   routers/ deps.py(current_user_optional) · translate.py(owner 额度门控 + active bucket 扣费) · usage.py(分桶余额 + 领赠送 /v1/grant/gift) · auth.py · telemetry.py · admin.py · billing.py(Creem 充值 webhook：邮箱匹配 → 美元桶入账) · recharge.py(YunGouOS 充值下单 + notify 回调 grant 人民币桶)
   main.py  挂载全部 router + /health + RateLimitMiddleware
 alembic/   迁移

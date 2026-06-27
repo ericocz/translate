@@ -134,7 +134,7 @@ export function translateViaBackend(
         settled = true;
         handlers.onError(parseFailure(ev.data));
       } else if (ev.event === 'quota') {
-        // 额度不足：非失败，是引导（popup 用柔和样式 + 领赠送/充值/买断提示）。
+        // 额度不足：非失败，是引导（popup 用柔和样式 + 领赠送/充值提示）。
         settled = true;
         handlers.onError(parseQuota(ev.data));
       }
@@ -229,8 +229,8 @@ function parseFailure(data: string): FailureInfo {
 }
 
 function parseQuota(data: string): FailureInfo {
-  // 已无免费配额：零额度模型下「quota」=余额不足，引导领赠送 ¥2 / 充值 / 买断。
-  const fallback = '额度不足：可领取赠送额度、充值，或买断后用自己的模型';
+  // 已无免费配额：零额度模型下「quota」=余额不足，引导领赠送 ¥2 / 充值。
+  const fallback = '额度不足：可领取赠送额度或充值后继续翻译';
   try {
     const obj = JSON.parse(data) as { message?: string };
     return { kind: 'quota', message: obj.message ?? fallback };

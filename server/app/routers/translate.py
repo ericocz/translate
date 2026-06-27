@@ -29,8 +29,8 @@ router = APIRouter()
 # D-13 应用层加密：静态私钥启动时载一次；空＝明文路径（dev / 现有测试）。
 _server_priv = crypto.load_private_key(settings.session_private_key) if settings.session_private_key else None
 
-# 余额不足（无账户或余额≤0）统一文案——前端按登录态引导领赠送/充值/买断。
-_NO_CREDIT_MSG = "额度不足：可领取赠送额度、充值，或买断后用自己的模型"
+# 余额不足（无账户或余额≤0）统一文案——前端按登录态引导领赠送/充值。
+_NO_CREDIT_MSG = "额度不足：可领取赠送额度或充值后继续翻译"
 
 
 class BlockIn(BaseModel):

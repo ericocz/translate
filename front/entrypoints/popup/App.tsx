@@ -348,8 +348,8 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
 
   if (usage.loggedIn) {
     return (
-      <div className="byokbar">
-        <span className="byokbar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
+      <div className="balancebar">
+        <span className="balancebar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
         <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
           充值 ›
         </button>
@@ -359,8 +359,8 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
 
   if (usage.hasAccount) {
     return (
-      <div className="byokbar">
-        <span className="byokbar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
+      <div className="balancebar">
+        <span className="balancebar-t">{parts.length > 0 ? `余额 ${parts.join(' · ')}` : '额度已用完'}</span>
         {parts.length === 0 && (
           <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
             充值 ›
@@ -380,8 +380,8 @@ function GiftBar({ usage, onChanged }: { usage: UsageInfo | null; onChanged: () 
   };
 
   return (
-    <div className="byokbar">
-      <span className="byokbar-t">新用户赠送 ¥2 翻译额度</span>
+    <div className="balancebar">
+      <span className="balancebar-t">新用户赠送 ¥2 翻译额度</span>
       <button className="link" onClick={() => void onClaim()} disabled={busy}>
         {busy ? '领取中…' : '领取 ¥2'}
       </button>

@@ -117,8 +117,8 @@ export function RechargeCard() {
             </>
           )}
 
-          {err && <div className="byok-score byok-score--poor">{err}</div>}
-          {paid && <div className="byok-score byok-score--good">充值成功，额度已到账。</div>}
+          {err && <div className="pay-msg pay-msg--err">{err}</div>}
+          {paid && <div className="pay-msg pay-msg--ok">充值成功，额度已到账。</div>}
           {order?.qr && (
             <div
               style={{
