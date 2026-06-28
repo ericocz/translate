@@ -4,776 +4,887 @@
     "en": "Chinese (Simplified)",
     "zh": "中文（简体）",
     "native": "中文（简体）",
-    "family": "汉藏语系"
+    "family": "汉藏语系",
+    "zhHant": "中文（簡體）"
   },
   {
     "code": "zh-TW",
     "en": "Chinese (Traditional, Taiwan)",
     "zh": "中文（台湾繁体）",
     "native": "中文（臺灣繁體）",
-    "family": "汉藏语系"
+    "family": "汉藏语系",
+    "zhHant": "中文（臺灣繁體）"
   },
   {
     "code": "zh-HK",
     "en": "Chinese (Traditional, Hong Kong)",
     "zh": "中文（香港繁体）",
     "native": "中文（香港繁體）",
-    "family": "汉藏语系"
+    "family": "汉藏语系",
+    "zhHant": "中文（香港繁體）"
   },
   {
     "code": "bo",
     "en": "Tibetan",
     "zh": "藏语",
     "native": "བོད་སྐད།",
-    "family": "汉藏语系"
+    "family": "汉藏语系",
+    "zhHant": "藏語"
   },
   {
     "code": "ug",
     "en": "Uyghur",
     "zh": "维吾尔语",
     "native": "ئۇيغۇرچە / Uyghurche",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "維吾爾語"
   },
   {
     "code": "mn",
     "en": "Mongolian",
     "zh": "蒙古语",
     "native": "Монгол хэл / ᠮᠣᠩᠭᠣᠯ ᠬᠡᠯᠡ",
-    "family": "蒙古语系"
+    "family": "蒙古语系",
+    "zhHant": "蒙古語"
   },
   {
     "code": "sq",
     "en": "Albanian",
     "zh": "阿尔巴尼亚语",
     "native": "Shqip",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "阿爾巴尼亞語"
   },
   {
     "code": "ar",
     "en": "Arabic",
     "zh": "阿拉伯语",
     "native": "العربية",
-    "family": "亚非语系·闪米特"
+    "family": "亚非语系·闪米特",
+    "zhHant": "阿拉伯語"
   },
   {
     "code": "am",
     "en": "Amharic",
     "zh": "阿姆哈拉语",
     "native": "አማርኛ",
-    "family": "亚非语系·闪米特"
+    "family": "亚非语系·闪米特",
+    "zhHant": "阿姆哈拉語"
   },
   {
     "code": "as",
     "en": "Assamese",
     "zh": "阿萨姆语",
     "native": "অসমীয়া",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "阿薩姆語"
   },
   {
     "code": "az",
     "en": "Azerbaijani",
     "zh": "阿塞拜疆语",
     "native": "Azərbaycan dili",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "阿塞拜疆語"
   },
   {
     "code": "ga",
     "en": "Irish",
     "zh": "爱尔兰语",
     "native": "Gaeilge",
-    "family": "印欧语系·凯尔特"
+    "family": "印欧语系·凯尔特",
+    "zhHant": "愛爾蘭語"
   },
   {
     "code": "et",
     "en": "Estonian",
     "zh": "爱沙尼亚语",
     "native": "Eesti",
-    "family": "乌拉尔语系"
+    "family": "乌拉尔语系",
+    "zhHant": "愛沙尼亞語"
   },
   {
     "code": "oc",
     "en": "Occitan",
     "zh": "奥克语",
     "native": "Occitan / Lenga d'òc",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "奧克語"
   },
   {
     "code": "or",
     "en": "Odia (Oriya)",
     "zh": "奥里亚语",
     "native": "ଓଡ଼ିଆ",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "奧里亞語"
   },
   {
     "code": "eu",
     "en": "Basque",
     "zh": "巴斯克语",
     "native": "Euskara",
-    "family": "孤立语系"
+    "family": "孤立语系",
+    "zhHant": "巴斯克語"
   },
   {
     "code": "be",
     "en": "Belarusian",
     "zh": "白俄罗斯语",
     "native": "Беларуская",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "白俄羅斯語"
   },
   {
     "code": "bg",
     "en": "Bulgarian",
     "zh": "保加利亚语",
     "native": "Български",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "保加利亞語"
   },
   {
     "code": "se",
     "en": "Northern Sami",
     "zh": "北萨米语",
     "native": "Davvisámegiella",
-    "family": "乌拉尔语系"
+    "family": "乌拉尔语系",
+    "zhHant": "北薩米語"
   },
   {
     "code": "is",
     "en": "Icelandic",
     "zh": "冰岛语",
     "native": "Íslenska",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "冰島語"
   },
   {
     "code": "pl",
     "en": "Polish",
     "zh": "波兰语",
     "native": "Polski",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "波蘭語"
   },
   {
     "code": "bs",
     "en": "Bosnian",
     "zh": "波斯尼亚语",
     "native": "Bosanski",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "波斯尼亞語"
   },
   {
     "code": "fa",
     "en": "Persian (Farsi)",
     "zh": "波斯语",
     "native": "فارسی",
-    "family": "印欧语系·伊朗"
+    "family": "印欧语系·伊朗",
+    "zhHant": "波斯語"
   },
   {
     "code": "da",
     "en": "Danish",
     "zh": "丹麦语",
     "native": "Dansk",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "丹麥語"
   },
   {
     "code": "de",
     "en": "German",
     "zh": "德语",
     "native": "Deutsch",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "德語"
   },
   {
     "code": "ru",
     "en": "Russian",
     "zh": "俄语",
     "native": "Русский",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "俄語"
   },
   {
     "code": "fo",
     "en": "Faroese",
     "zh": "法罗语",
     "native": "Føroyskt",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "法羅語"
   },
   {
     "code": "fr",
     "en": "French",
     "zh": "法语",
     "native": "Français",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "法語"
   },
   {
     "code": "sa",
     "en": "Sanskrit",
     "zh": "梵语",
     "native": "संस्कृतम्",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "梵語"
   },
   {
     "code": "tl",
     "en": "Filipino / Tagalog",
     "zh": "菲律宾语 / 他加禄语",
     "native": "Filipino / Tagalog",
-    "family": "南岛语系"
+    "family": "南岛语系",
+    "zhHant": "菲律賓語 / 他加祿語"
   },
   {
     "code": "fi",
     "en": "Finnish",
     "zh": "芬兰语",
     "native": "Suomi",
-    "family": "乌拉尔语系"
+    "family": "乌拉尔语系",
+    "zhHant": "芬蘭語"
   },
   {
     "code": "fy",
     "en": "Frisian",
     "zh": "弗里斯兰语",
     "native": "Frysk",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "弗里斯蘭語"
   },
   {
     "code": "km",
     "en": "Khmer",
     "zh": "高棉语 / 柬埔寨语",
     "native": "ភាសាខ្មែរ",
-    "family": "南亚语系"
+    "family": "南亚语系",
+    "zhHant": "高棉語 / 柬埔寨語"
   },
   {
     "code": "ka",
     "en": "Georgian",
     "zh": "格鲁吉亚语",
     "native": "ქართული",
-    "family": "南高加索语系"
+    "family": "南高加索语系",
+    "zhHant": "格魯吉亞語"
   },
   {
     "code": "gu",
     "en": "Gujarati",
     "zh": "古吉拉特语",
     "native": "ગુજરાતી",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "古吉拉特語"
   },
   {
     "code": "kk",
     "en": "Kazakh",
     "zh": "哈萨克语",
     "native": "Қазақ тілі / Qazaq tılı",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "哈薩克語"
   },
   {
     "code": "ko",
     "en": "Korean",
     "zh": "韩语 / 朝鲜语",
     "native": "한국어 / 조선어",
-    "family": "朝鲜语系"
+    "family": "朝鲜语系",
+    "zhHant": "韓語 / 朝鮮語"
   },
   {
     "code": "ha",
     "en": "Hausa",
     "zh": "豪萨语",
     "native": "Hausa / هَرْشَن هَوْسَ",
-    "family": "亚非语系·乍得"
+    "family": "亚非语系·乍得",
+    "zhHant": "豪薩語"
   },
   {
     "code": "nl",
     "en": "Dutch",
     "zh": "荷兰语",
     "native": "Nederlands",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "荷蘭語"
   },
   {
     "code": "—",
     "en": "Montenegrin",
     "zh": "黑山语",
     "native": "Crnogorski / Црногорски",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "黑山語"
   },
   {
     "code": "ky",
     "en": "Kyrgyz",
     "zh": "吉尔吉斯语",
     "native": "Кыргызча / قىرعىزچا",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "吉爾吉斯語"
   },
   {
     "code": "gl",
     "en": "Galician",
     "zh": "加利西亚语",
     "native": "Galego",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "加利西亞語"
   },
   {
     "code": "ca",
     "en": "Catalan",
     "zh": "加泰罗尼亚语",
     "native": "Català",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "加泰羅尼亞語"
   },
   {
     "code": "cs",
     "en": "Czech",
     "zh": "捷克语",
     "native": "Čeština",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "捷克語"
   },
   {
     "code": "kn",
     "en": "Kannada",
     "zh": "卡纳达语",
     "native": "ಕನ್ನಡ",
-    "family": "达罗毗荼语系"
+    "family": "达罗毗荼语系",
+    "zhHant": "卡納達語"
   },
   {
     "code": "xh",
     "en": "Xhosa",
     "zh": "科萨语",
     "native": "isiXhosa",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "科薩語"
   },
   {
     "code": "co",
     "en": "Corsican",
     "zh": "科西嘉语",
     "native": "Corsu",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "科西嘉語"
   },
   {
     "code": "hr",
     "en": "Croatian",
     "zh": "克罗地亚语",
     "native": "Hrvatski",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "克羅地亞語"
   },
   {
     "code": "ku",
     "en": "Kurdish (Kurmanji)",
     "zh": "库尔德语",
     "native": "Kurdî / کوردی",
-    "family": "印欧语系·伊朗"
+    "family": "印欧语系·伊朗",
+    "zhHant": "庫爾德語"
   },
   {
     "code": "la",
     "en": "Latin",
     "zh": "拉丁语",
     "native": "Latina",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "拉丁語"
   },
   {
     "code": "lv",
     "en": "Latvian",
     "zh": "拉脱维亚语",
     "native": "Latviešu",
-    "family": "印欧语系·波罗的"
+    "family": "印欧语系·波罗的",
+    "zhHant": "拉脫維亞語"
   },
   {
     "code": "lo",
     "en": "Lao",
     "zh": "老挝语",
     "native": "ພາສາລາວ",
-    "family": "壮侗语系"
+    "family": "壮侗语系",
+    "zhHant": "老撾語"
   },
   {
     "code": "lt",
     "en": "Lithuanian",
     "zh": "立陶宛语",
     "native": "Lietuvių",
-    "family": "印欧语系·波罗的"
+    "family": "印欧语系·波罗的",
+    "zhHant": "立陶宛語"
   },
   {
     "code": "lb",
     "en": "Luxembourgish",
     "zh": "卢森堡语",
     "native": "Lëtzebuergesch",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "盧森堡語"
   },
   {
     "code": "ro",
     "en": "Romanian",
     "zh": "罗马尼亚语",
     "native": "Română",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "羅馬尼亞語"
   },
   {
     "code": "mt",
     "en": "Maltese",
     "zh": "马耳他语",
     "native": "Malti",
-    "family": "亚非语系·闪米特"
+    "family": "亚非语系·闪米特",
+    "zhHant": "馬耳他語"
   },
   {
     "code": "mr",
     "en": "Marathi",
     "zh": "马拉地语",
     "native": "मराठी",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "馬拉地語"
   },
   {
     "code": "ml",
     "en": "Malayalam",
     "zh": "马拉雅拉姆语",
     "native": "മലയാളം",
-    "family": "达罗毗荼语系"
+    "family": "达罗毗荼语系",
+    "zhHant": "馬拉雅拉姆語"
   },
   {
     "code": "ms",
     "en": "Malay",
     "zh": "马来语",
     "native": "Bahasa Melayu",
-    "family": "南岛语系"
+    "family": "南岛语系",
+    "zhHant": "馬來語"
   },
   {
     "code": "mk",
     "en": "Macedonian",
     "zh": "马其顿语",
     "native": "Македонски",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "馬其頓語"
   },
   {
     "code": "bn",
     "en": "Bengali",
     "zh": "孟加拉语",
     "native": "বাংলা",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "孟加拉語"
   },
   {
     "code": "my",
     "en": "Burmese",
     "zh": "缅甸语",
     "native": "မြန်မာစာ",
-    "family": "汉藏语系"
+    "family": "汉藏语系",
+    "zhHant": "緬甸語"
   },
   {
     "code": "af",
     "en": "Afrikaans",
     "zh": "南非荷兰语 / 阿非利卡语",
     "native": "Afrikaans",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "南非荷蘭語 / 阿非利卡語"
   },
   {
     "code": "ne",
     "en": "Nepali",
     "zh": "尼泊尔语",
     "native": "नेपाली",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "尼泊爾語"
   },
   {
     "code": "no",
     "en": "Norwegian (Bokmål)",
     "zh": "挪威语",
     "native": "Norsk (Bokmål)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "挪威語"
   },
   {
     "code": "pa",
     "en": "Punjabi",
     "zh": "旁遮普语",
     "native": "ਪੰਜਾਬੀ / پنجابی",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "旁遮普語"
   },
   {
     "code": "pt",
     "en": "Portuguese",
     "zh": "葡萄牙语",
     "native": "Português",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "葡萄牙語"
   },
   {
     "code": "ps",
     "en": "Pashto",
     "zh": "普什图语",
     "native": "پښتو",
-    "family": "印欧语系·伊朗"
+    "family": "印欧语系·伊朗",
+    "zhHant": "普什圖語"
   },
   {
     "code": "ja",
     "en": "Japanese",
     "zh": "日语",
     "native": "日本語",
-    "family": "日本语系"
+    "family": "日本语系",
+    "zhHant": "日語"
   },
   {
     "code": "sv",
     "en": "Swedish",
     "zh": "瑞典语",
     "native": "Svenska",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "瑞典語"
   },
   {
     "code": "sr",
     "en": "Serbian",
     "zh": "塞尔维亚语",
     "native": "Српски / Srpski",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "塞爾維亞語"
   },
   {
     "code": "si",
     "en": "Sinhala",
     "zh": "僧伽罗语",
     "native": "සිංහල",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "僧伽羅語"
   },
   {
     "code": "sn",
     "en": "Shona",
     "zh": "绍纳语",
     "native": "chiShona",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "紹納語"
   },
   {
     "code": "eo",
     "en": "Esperanto",
     "zh": "世界语",
     "native": "Esperanto",
-    "family": "人工语言"
+    "family": "人工语言",
+    "zhHant": "世界語"
   },
   {
     "code": "sk",
     "en": "Slovak",
     "zh": "斯洛伐克语",
     "native": "Slovenčina",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "斯洛伐克語"
   },
   {
     "code": "sl",
     "en": "Slovenian",
     "zh": "斯洛文尼亚语",
     "native": "Slovenščina",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "斯洛文尼亞語"
   },
   {
     "code": "sw",
     "en": "Swahili",
     "zh": "斯瓦希里语",
     "native": "Kiswahili",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "斯瓦希里語"
   },
   {
     "code": "gd",
     "en": "Scottish Gaelic",
     "zh": "苏格兰盖尔语",
     "native": "Gàidhlig",
-    "family": "印欧语系·凯尔特"
+    "family": "印欧语系·凯尔特",
+    "zhHant": "蘇格蘭蓋爾語"
   },
   {
     "code": "so",
     "en": "Somali",
     "zh": "索马里语",
     "native": "Soomaali / 𐒈𐒝𐒑𐒛𐒐𐒘",
-    "family": "亚非语系·库施特"
+    "family": "亚非语系·库施特",
+    "zhHant": "索馬里語"
   },
   {
     "code": "tg",
     "en": "Tajik",
     "zh": "塔吉克语",
     "native": "Тоҷикӣ / تاجیکی",
-    "family": "印欧语系·伊朗"
+    "family": "印欧语系·伊朗",
+    "zhHant": "塔吉克語"
   },
   {
     "code": "te",
     "en": "Telugu",
     "zh": "泰卢固语",
     "native": "తెలుగు",
-    "family": "达罗毗荼语系"
+    "family": "达罗毗荼语系",
+    "zhHant": "泰盧固語"
   },
   {
     "code": "ta",
     "en": "Tamil",
     "zh": "泰米尔语",
     "native": "தமிழ்",
-    "family": "达罗毗荼语系"
+    "family": "达罗毗荼语系",
+    "zhHant": "泰米爾語"
   },
   {
     "code": "th",
     "en": "Thai",
     "zh": "泰语",
     "native": "ภาษาไทย",
-    "family": "壮侗语系"
+    "family": "壮侗语系",
+    "zhHant": "泰語"
   },
   {
     "code": "tr",
     "en": "Turkish",
     "zh": "土耳其语",
     "native": "Türkçe",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "土耳其語"
   },
   {
     "code": "tk",
     "en": "Turkmen",
     "zh": "土库曼语",
     "native": "Türkmençe / Түркменче",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "土庫曼語"
   },
   {
     "code": "cy",
     "en": "Welsh",
     "zh": "威尔士语",
     "native": "Cymraeg",
-    "family": "印欧语系·凯尔特"
+    "family": "印欧语系·凯尔特",
+    "zhHant": "威爾士語"
   },
   {
     "code": "ur",
     "en": "Urdu",
     "zh": "乌尔都语",
     "native": "اردو",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "烏爾都語"
   },
   {
     "code": "uk",
     "en": "Ukrainian",
     "zh": "乌克兰语",
     "native": "Українська",
-    "family": "印欧语系·斯拉夫"
+    "family": "印欧语系·斯拉夫",
+    "zhHant": "烏克蘭語"
   },
   {
     "code": "uz",
     "en": "Uzbek",
     "zh": "乌兹别克语",
     "native": "O'zbek tili / Ўзбек тили",
-    "family": "突厥语系"
+    "family": "突厥语系",
+    "zhHant": "烏茲別克語"
   },
   {
     "code": "es",
     "en": "Spanish",
     "zh": "西班牙语",
     "native": "Español",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "西班牙語"
   },
   {
     "code": "he",
     "en": "Hebrew",
     "zh": "希伯来语",
     "native": "עברית",
-    "family": "亚非语系·闪米特"
+    "family": "亚非语系·闪米特",
+    "zhHant": "希伯來語"
   },
   {
     "code": "el",
     "en": "Greek",
     "zh": "希腊语",
     "native": "Ελληνικά",
-    "family": "印欧语系·希腊"
+    "family": "印欧语系·希腊",
+    "zhHant": "希臘語"
   },
   {
     "code": "sd",
     "en": "Sindhi",
     "zh": "信德语",
     "native": "سنڌي / सिन्धी",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "信德語"
   },
   {
     "code": "hu",
     "en": "Hungarian",
     "zh": "匈牙利语",
     "native": "Magyar",
-    "family": "乌拉尔语系"
+    "family": "乌拉尔语系",
+    "zhHant": "匈牙利語"
   },
   {
     "code": "su",
     "en": "Sundanese",
     "zh": "巽他语",
     "native": "Basa Sunda / ᮘᮞ ᮞᮥᮔ᮪ᮓ",
-    "family": "南岛语系"
+    "family": "南岛语系",
+    "zhHant": "巽他語"
   },
   {
     "code": "hy",
     "en": "Armenian",
     "zh": "亚美尼亚语",
     "native": "Հայերեն",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "亞美尼亞語"
   },
   {
     "code": "ig",
     "en": "Igbo",
     "zh": "伊博语",
     "native": "Igbo / Ásụ̀sụ́ Ìgbò",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "伊博語"
   },
   {
     "code": "it",
     "en": "Italian",
     "zh": "意大利语",
     "native": "Italiano",
-    "family": "印欧语系·罗曼"
+    "family": "印欧语系·罗曼",
+    "zhHant": "意大利語"
   },
   {
     "code": "hi",
     "en": "Hindi",
     "zh": "印地语",
     "native": "हिन्दी",
-    "family": "印欧语系"
+    "family": "印欧语系",
+    "zhHant": "印地語"
   },
   {
     "code": "id",
     "en": "Indonesian",
     "zh": "印度尼西亚语",
     "native": "Bahasa Indonesia",
-    "family": "南岛语系"
+    "family": "南岛语系",
+    "zhHant": "印度尼西亞語"
   },
   {
     "code": "en-AU",
     "en": "English (Australian)",
     "zh": "英语（澳大利亚）",
     "native": "English (AU)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（澳大利亞）"
   },
   {
     "code": "en-CA",
     "en": "English (Canadian)",
     "zh": "英语（加拿大）",
     "native": "English (CA)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（加拿大）"
   },
   {
     "code": "en-US",
     "en": "English (US)",
     "zh": "英语（美国）",
     "native": "English (US)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（美國）"
   },
   {
     "code": "en-ZA",
     "en": "English (South African)",
     "zh": "英语（南非）",
     "native": "English (ZA)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（南非）"
   },
   {
     "code": "en-NZ",
     "en": "English (New Zealand)",
     "zh": "英语（新西兰）",
     "native": "English (NZ)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（新西蘭）"
   },
   {
     "code": "en-IN",
     "en": "English (Indian)",
     "zh": "英语（印度）",
     "native": "English (IN)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（印度）"
   },
   {
     "code": "en-GB",
     "en": "English (UK)",
     "zh": "英语（英国）",
     "native": "English (UK)",
-    "family": "印欧语系·日耳曼"
+    "family": "印欧语系·日耳曼",
+    "zhHant": "英語（英國）"
   },
   {
     "code": "yo",
     "en": "Yoruba",
     "zh": "约鲁巴语",
     "native": "Yorùbá",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "約魯巴語"
   },
   {
     "code": "vi",
     "en": "Vietnamese",
     "zh": "越南语",
     "native": "Tiếng Việt",
-    "family": "南亚语系"
+    "family": "南亚语系",
+    "zhHant": "越南語"
   },
   {
     "code": "jv",
     "en": "Javanese",
     "zh": "爪哇语",
     "native": "Basa Jawa / ꦧꦱꦗꦮ",
-    "family": "南岛语系"
+    "family": "南岛语系",
+    "zhHant": "爪哇語"
   },
   {
     "code": "zu",
     "en": "Zulu",
     "zh": "祖鲁语",
     "native": "isiZulu",
-    "family": "尼日尔-刚果语系"
+    "family": "尼日尔-刚果语系",
+    "zhHant": "祖魯語"
   }
 ]

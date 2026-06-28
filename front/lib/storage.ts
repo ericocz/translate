@@ -4,6 +4,7 @@
 // 平台 key 不走 storage（改由 .env 注入，见 lib/config.ts）；这里只管白名单 / 设置。
 
 import { defaultTargetLang } from './languages';
+import { getUiLocale } from './i18n';
 const KEYS = {
   whitelist: 'whitelist_domains',
   cacheEnabled: 'cache_enabled',
@@ -52,11 +53,12 @@ export async function setCacheEnabled(enabled: boolean): Promise<void> {
   await chrome.storage.local.set({ [KEYS.cacheEnabled]: enabled });
 }
 
-/** 目标语言代码（如 'zh' / 'ja' / 'en-US'）。未设置时回退到按界面语言推断的默认值。 */
+/** 目标语言代码（如 'zh' / 'ja' / 'en-US'）。未设置时回退到「跟随当前界面语言」的默认值。 */
 export async function getTargetLang(): Promise<string> {
   const raw = await chrome.storage.local.get(KEYS.targetLang);
   const v = raw[KEYS.targetLang];
-  return typeof v === 'string' && v ? v : defaultTargetLang();
+  if (typeof v === 'string' && v) return v;
+  return defaultTargetLang(await getUiLocale());
 }
 
 export async function setTargetLang(code: string): Promise<void> {

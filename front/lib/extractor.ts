@@ -3,6 +3,8 @@
 // 关键决策：
 // - 块级元素：p / li / h1~h6 / td / th / blockquote / dt / dd / figcaption / summary。
 //   还允许"叶子块"——含直接文本子节点、且没有再嵌套块级后代的 div/section/aside/article/header/footer 等。
+//   例外：纯链接 / 按钮组容器（裸 <a>/<button> 导航条、无 <li>）不整体认领，下沉让每项各成块——
+//   否则双语对照时多个导航项译文挤成一团无法逐项对齐（isLinkGroupContainer）。
 // - 抽取时跳过 code / pre / script / style / noscript / template；行内 <code> 同样跳过其文字。
 // - 含可翻译文字的元素（内联样式 span/a/strong/em… 或 div/section 等容器）转成 <gN>...</gN>，保留属性壳。
 // - 无文字子树（br/img/svg/input，或仅裹图标/图片的容器如 .navbar__logo）整体转成 <xN/>，深克隆保形。
@@ -94,7 +96,11 @@ export function extractBlocks(root: HTMLElement): ExtractResult {
       // 软块认领条件：自己直接含可见文字 / 内联文字、且不含硬块。
       // 软块不放开「有直接文字就认领整体」——div/main/section 等可能是整页级容器，
       // 一旦认领整体会把大量后代硬块吞成一个巨型块；混合内容只在硬块（粒度可控）上处理。
-      claim = hasDirectText(el) && !hasDescendantHardBlock(el);
+      // 例外：纯链接 / 按钮组容器（导航条 <div><a>Docs</a><a>Skills</a>…，裸 <a> 无 <li>）
+      // 不认领整体——否则多个导航项被并成一块，双语对照时整段译文挤在末尾、无法逐项对齐
+      //（「Docs Skills Download」后跟一团「文档 技能 下载」）。下沉让每个 <a>/<button> 各成一块，
+      // 渲染即逐项交错「Docs 文档」「Skills 技能」。见 isLinkGroupContainer 的保守判定。
+      claim = hasDirectText(el) && !hasDescendantHardBlock(el) && !isLinkGroupContainer(el);
     }
 
     if (claim) {
@@ -134,6 +140,32 @@ export function extractElement(el: HTMLElement, id: string): TransBlock | null {
 function hasDescendantHardBlock(el: Element): boolean {
   // querySelector 比再开一个 walker 简单可靠。
   return el.querySelector(BLOCK_SELECTOR) !== null;
+}
+
+/**
+ * 「纯链接 / 按钮组容器」：直接子节点里**带文字的元素全是 `<a>`/`<button>`（≥2 个）、且无松散文本节点**。
+ * 典型即裸链接导航条 `<div><a>Docs</a><a>Skills</a><a>Download</a></div>`（无 <li> 包裹）。
+ * 保守：只要出现①任何非空松散文本节点（句子），或②带文字的非链接子元素（span 片段 / 嵌套容器），
+ * 即判否（整体认领，维持原行为）——保证句子 / 混排绝不被拆坏，只命中干净的链接 / 按钮条。
+ * 命中后调用方不认领该容器、下沉让每个 `<a>`/`<button>` 各自成块。
+ */
+function isLinkGroupContainer(el: Element): boolean {
+  let links = 0;
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if ((node.textContent ?? '').trim().length > 0) return false; // 松散文本＝句子，不拆
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const child = node as Element;
+    if ((child.textContent ?? '').trim().length === 0) continue; // 图标 / 图片 wrapper 等无文字子树，忽略
+    if (child.tagName === 'A' || child.tagName === 'BUTTON') {
+      links++;
+      continue;
+    }
+    return false; // 带文字的非链接子元素 → 可能是句子片段 / 嵌套容器，整体认领更安全
+  }
+  return links >= 2;
 }
 
 function hasDirectText(el: Element): boolean {

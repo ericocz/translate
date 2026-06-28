@@ -46,15 +46,9 @@ body {
   font-size: 12.5px;
 }
 
-/* 品牌行 */
+/* 品牌行：仅扩展名称，单色 + 舒展字距 */
 .brand { display: flex; align-items: center; }
-.brand-name { font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em; }
-
-/* 域名 */
-.domain { display: flex; align-items: center; gap: 8px; }
-.fav { width: 15px; height: 15px; border-radius: 4px; flex: none; object-fit: cover; }
-.fav--ph { background: linear-gradient(135deg, #a8e4e6, #11b6bb); }
-.domain-name { font-size: 12.5px; color: var(--fg2); word-break: break-all; }
+.brand-name { font-weight: 700; font-size: 16px; letter-spacing: 0.12em; }
 
 /* 目标语言选择行 */
 .lang { display: flex; align-items: center; gap: 9px; }
@@ -143,25 +137,32 @@ body {
 .action-row { display: flex; align-items: stretch; gap: 9px; }
 .action-row .action { flex: 1; }
 
-/* 双语对照切换（按钮内含小标签 + 开关轨道） */
+/* 双语对照切换（纯图标方形按钮；两态靠图标区分，不靠颜色） */
 .bi-toggle {
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
   flex: none;
-  padding: 0 11px;
+  width: 44px;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--soft);
   color: var(--fg2);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
   transition: color 0.18s ease, border-color 0.18s ease;
 }
-.bi-toggle--on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
-.bi-toggle-label { white-space: nowrap; }
+.bi-toggle:hover { color: var(--fg); border-color: color-mix(in srgb, var(--fg2) 35%, var(--line)); }
+/* 图标：双语态「文A」、替换态「A」；用 mask + currentColor，两态恒同色、随 hover/主题变色（定宽按钮避免切换跳动）*/
+.bi-glyph {
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  -webkit-mask: var(--bi-icon) center / contain no-repeat;
+  mask: var(--bi-icon) center / contain no-repeat;
+}
+.bi-glyph[data-mode='bilingual'] { --bi-icon: url(/icon/mode-bilingual.png); }
+.bi-glyph[data-mode='replace'] { --bi-icon: url(/icon/mode-replace.png); }
 
 /* 主操作按钮 */
 .action {
@@ -170,31 +171,28 @@ body {
   justify-content: center;
   gap: 9px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 0;
   border-radius: 10px;
   font: inherit;
-  font-weight: 600;
-  font-size: 13.5px;
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: transform 0.12s ease, filter 0.2s ease;
 }
 .action:hover { transform: translateY(-1px); }
 .action:active { transform: none; }
-.action--on {
+/* 实心青绿主 CTA：待翻译（idle）按钮 + 登录提交，对齐参考图 */
+.action--primary {
   background: var(--brand);
   color: #fff;
   box-shadow: 0 8px 18px -10px rgba(3, 143, 147, 0.7);
 }
-.action--off { background: var(--soft); color: var(--fg); }
-.action kbd {
-  font: 500 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  padding: 2px 6px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.action--on kbd { background: rgba(255, 255, 255, 0.22); color: #fff; }
-.action--off kbd { background: var(--bg); color: var(--fg2); box-shadow: inset 0 0 0 1px var(--line); }
+/* 素底退场：已翻译（取消翻译）态，符合「隐形」 */
+.action--quiet { background: var(--soft); color: var(--fg); }
+/* 内联快捷键：与文案同色，仅字号略小、稍淡 */
+.action-key { font-style: normal; font-weight: 600; font-size: 13px; opacity: 0.8; }
 
 /* 页脚 */
 .foot {
@@ -204,6 +202,7 @@ body {
   padding-top: 11px;
   border-top: 1px solid var(--line);
 }
+.foot--end { justify-content: flex-end; }
 .foot-hint { font-size: 11.5px; color: var(--fg2); opacity: 0.75; }
 .link {
   background: none;
@@ -225,6 +224,7 @@ body {
 /* 账号区 */
 .acct { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .acct-email { font-size: 12px; color: var(--fg2); word-break: break-all; }
+.acct-actions { display: flex; gap: 14px; flex-shrink: 0; }
 .authbox { display: flex; flex-direction: column; gap: 7px; }
 .authbox input {
   font: inherit;

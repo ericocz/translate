@@ -1,16 +1,22 @@
-// 目标语言清单 + 界面语言判定。
-// 数据来自 languages-{zh,en}.json（DeepSeek V4 支持的语种，两份只是排序/名称取向不同：
-// zh 版把中文系语种排前、用中文名；en 版把英语系排前、用英文名）。
-// popup 的目标语言下拉据「界面语言」二选一：浏览器是中文 6 变体 → 中文清单，否则英文清单。
+// 目标语言清单 + 按界面语言取显示名 / 排序。
+// 数据来自 languages-{zh,en}.json（DeepSeek V4 支持的语种，两份只是排序取向不同：
+// zh 版把中文系语种排前、en 版把英语系排前；每条带 zh(简体) / zhHant(繁体) / en(英文) 三种名）。
+//
+// 目标语言下拉据「界面语言」取清单与显示名（与界面语言保持一致）：
+//   - 中文界面（zh-CN/zh-TW/zh-HK）→ 中文清单（中文系排前），名按简体 / 繁体取；
+//   - 英文界面（en）→ 英文清单（英语系排前），用英文名。
+// 默认目标语言「跟随界面语言」：zh-CN→zh、zh-TW→zh-TW、zh-HK→zh-HK、en→en-US。
 
 import zhRaw from './languages-zh.json';
 import enRaw from './languages-en.json';
+import type { UiLocale } from './i18n';
 
 /** languages-*.json 单条结构。 */
 interface RawLanguage {
   code: string;
   en: string;
-  zh: string;
+  zh: string; // 简体名
+  zhHant: string; // 繁体名（台湾/香港语言名写法一致，单一繁体集）
   native: string;
   family: string;
 }
@@ -24,24 +30,37 @@ export interface LangOption {
 const zhList = zhRaw as RawLanguage[];
 const enList = enRaw as RawLanguage[];
 
-// 中文界面：navigator.language 为 6 种中文变体之一（zh / zh-CN / zh-TW / zh-HK / zh-SG / zh-MO）。
-// 统一按主标签 zh 前缀判定即覆盖这 6 种（含未来同族变体）。
-const ZH_UI_LOCALES = ['zh', 'zh-CN', 'zh-TW', 'zh-HK', 'zh-SG', 'zh-MO'];
-
-/** 当前浏览器界面语言是否为中文（6 变体之一）。 */
-export function isZhUi(lang: string = navigator.language || ''): boolean {
-  const l = lang.toLowerCase();
-  return ZH_UI_LOCALES.some((z) => l === z.toLowerCase()) || l.startsWith('zh');
+/** 界面语言是否为中文（三种中文变体之一）。 */
+function isZhLocale(locale: UiLocale): boolean {
+  return locale === 'zh-CN' || locale === 'zh-TW' || locale === 'zh-HK';
 }
 
-/** 目标语言下拉选项：中文界面用中文清单+中文名，其余用英文清单+英文名。 */
-export function targetLanguages(zhUi: boolean = isZhUi()): LangOption[] {
-  return zhUi
-    ? zhList.map((x) => ({ code: x.code, label: x.zh }))
-    : enList.map((x) => ({ code: x.code, label: x.en }));
+/** 取某条语种在某界面语言下的显示名。 */
+function labelOf(x: RawLanguage, locale: UiLocale): string {
+  if (locale === 'zh-CN') return x.zh;
+  if (locale === 'zh-TW' || locale === 'zh-HK') return x.zhHant;
+  return x.en;
 }
 
-/** 默认目标语言：取所选清单首项（中文清单首项=中文，英文清单首项=英语）。 */
-export function defaultTargetLang(zhUi: boolean = isZhUi()): string {
-  return (zhUi ? zhList[0]?.code : enList[0]?.code) ?? 'zh';
+/**
+ * 目标语言下拉选项：中文界面用中文清单（中文系排前）+ 简体/繁体名，英文界面用英文清单 + 英文名。
+ * 排序逻辑与目标一致：中文界面中文排前、其余英文排前（由两份清单各自的固有顺序保证）。
+ */
+export function targetLanguages(locale: UiLocale): LangOption[] {
+  const list = isZhLocale(locale) ? zhList : enList;
+  return list.map((x) => ({ code: x.code, label: labelOf(x, locale) }));
+}
+
+/** 默认目标语言：跟随界面语言（zh-CN→zh、zh-TW→zh-TW、zh-HK→zh-HK、en→en-US）。 */
+export function defaultTargetLang(locale: UiLocale): string {
+  switch (locale) {
+    case 'zh-CN':
+      return 'zh';
+    case 'zh-TW':
+      return 'zh-TW';
+    case 'zh-HK':
+      return 'zh-HK';
+    default:
+      return enList[0]?.code ?? 'en-US';
+  }
 }

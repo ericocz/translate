@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWhitelist, setWhitelist, getCacheEnabled, setCacheEnabled } from '@/lib/storage';
+import { getCacheEnabled, setCacheEnabled } from '@/lib/storage';
 import { cacheStats, clearCache } from '@/lib/local-cache';
+import { useT } from '@/lib/i18n-react';
+import { UI_LOCALES, UI_LOCALE_NAMES, detectUiLocale, type Messages, type UiLocale } from '@/lib/i18n';
 import { RechargeCard } from './Recharge';
 
 export function Options() {
-  const [list, setList] = useState<string[]>([]);
-  const [newDomain, setNewDomain] = useState('');
+  const { m, locale, stored, setLocale } = useT();
   const [shortcut, setShortcut] = useState(suggestedShortcut);
   // Chrome 是否真的绑定了快捷键：getAll() 返回非空才算（reload/更新后常返空，见经验）。
   const [bound, setBound] = useState(false);
@@ -14,7 +15,6 @@ export function Options() {
   const cacheRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    void (async () => setList(await getWhitelist()))();
     // 显示实际快捷键（用户可能在 chrome://extensions/shortcuts 改过）；为空则保留建议键。
     void chrome.commands.getAll().then((cmds) => {
       const real = cmds.find((c) => c.name === 'toggle-site')?.shortcut;
@@ -31,23 +31,11 @@ export function Options() {
     }
   }, []);
 
-  const addDomain = useCallback(async () => {
-    const d = normalizeDomain(newDomain);
-    if (!d) return;
-    const next = Array.from(new Set([...list, d])).sort();
-    await setWhitelist(next);
-    setList(next);
-    setNewDomain('');
-  }, [newDomain, list]);
-
-  const removeDomain = useCallback(
-    async (d: string) => {
-      const next = list.filter((x) => x !== d);
-      await setWhitelist(next);
-      setList(next);
-    },
-    [list]
-  );
+  // 标签页标题 + 文档语言随界面语言。
+  useEffect(() => {
+    document.title = m.options.docTitle;
+    document.documentElement.lang = locale;
+  }, [m.options.docTitle, locale]);
 
   // 「修改快捷键」：MV3 不允许扩展用 API 改快捷键，只能打开 Chrome 原生改键页引导用户。
   const openShortcuts = useCallback(() => {
@@ -65,7 +53,6 @@ export function Options() {
     setStats({ count: 0, bytes: 0 });
   }, []);
 
-  const valid = normalizeDomain(newDomain) !== '';
   const keys = parseShortcut(shortcut);
 
   return (
@@ -73,61 +60,18 @@ export function Options() {
       <header className="head">
         <Mark />
         <div className="head-t">
-          <h1>秒懂翻译</h1>
-          <span className="head-sub">设置</span>
+          <h1>
+            {m.brand}<span className="head-sub">{m.options.titleSuffix}</span>
+          </h1>
+          <p className="lead">{m.options.lead}</p>
         </div>
       </header>
 
-      <section className="card">
-        <div className="card-h">
-          <h2>自动翻译的网站</h2>
-          {list.length > 0 && <span className="count">{list.length}</span>}
-        </div>
-        <p className="muted">
-          列表里的网站，打开即自动整页翻成中文。也可以在任意页面点扩展图标，直接开关当前站点。
-        </p>
-
-        <div className="row">
-          <input
-            type="text"
-            placeholder="example.com"
-            value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void addDomain();
-            }}
-          />
-          <button className="add" onClick={() => void addDomain()} disabled={!valid}>
-            添加
-          </button>
-        </div>
-
-        {list.length === 0 ? (
-          <div className="empty">还没有添加任何网站。在上面输入域名，或在站点页面点扩展图标开启。</div>
-        ) : (
-          <ul className="wl">
-            {list.map((d) => (
-              <li key={d}>
-                <span className="wl-d">
-                  <span className="wl-dot" />
-                  {d}
-                </span>
-                <button className="rm" onClick={() => void removeDomain(d)}>
-                  移除
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <UiLangCard m={m} stored={stored} setLocale={setLocale} />
 
       <section className="card">
         <div className="card-h">
-          <h2>快捷键</h2>
-        </div>
-        <p className="muted">翻译 / 取消翻译当前网站。</p>
-
-        <div className="kbd-row">
+          <h2>{m.options.shortcut}</h2>
           <div className="keys">
             {keys.length > 0 ? (
               keys.map((k, i) => (
@@ -136,47 +80,80 @@ export function Options() {
                 </kbd>
               ))
             ) : (
-              <span className="muted">未设置</span>
+              <span className="muted">{m.options.notSet}</span>
             )}
           </div>
+        </div>
+        <div className="line">
+          <span className="muted">
+            {bound ? m.options.shortcutBound : m.options.shortcutUnbound}
+          </span>
           <button className="ghost" onClick={openShortcuts}>
-            修改快捷键 ›
+            {m.options.modify}
           </button>
         </div>
-
-        <p className="muted">
-          {bound
-            ? '快捷键由 Chrome 管理。点「修改快捷键」会打开浏览器的扩展快捷键页，在那里改成顺手的组合。'
-            : 'Chrome 还没绑定这个快捷键（扩展更新或重载后常见）。点「修改快捷键」去绑定。'}
-        </p>
       </section>
 
       <section className="card" id="cache" ref={cacheRef}>
         <div className="card-h">
-          <h2>翻译缓存</h2>
-        </div>
-        <p className="muted">
-          译文只存在你这台设备的浏览器里（IndexedDB），同一页面重访时秒出、且不再消耗额度。
-          我们的服务器不保存你的译文。
-        </p>
-        <div className="kbd-row">
-          <span className="muted">
-            {cacheOn ? `已开启 · ${stats.count} 条 · ${formatBytes(stats.bytes)}` : '已关闭'}
-          </span>
-          <button className="ghost" onClick={() => void toggleCache()}>
-            {cacheOn ? '关闭缓存' : '开启缓存'}
+          <h2>{m.options.cacheTitle}</h2>
+          <button
+            type="button"
+            className={'switch' + (cacheOn ? ' switch--on' : '')}
+            role="switch"
+            aria-checked={cacheOn}
+            aria-label={m.options.cacheAria}
+            onClick={() => void toggleCache()}
+          >
+            <i />
           </button>
         </div>
-        <div className="kbd-row">
-          <span className="muted">清空后下次翻译会重新请求。</span>
+        <p className="muted">{m.options.cacheDesc}</p>
+        <div className="line">
+          <span className="muted">
+            {cacheOn ? m.options.cacheStored(stats.count, formatBytes(stats.bytes)) : m.options.cacheOff}
+          </span>
           <button className="ghost" onClick={() => void onClearCache()} disabled={stats.count === 0}>
-            清空缓存
+            {m.options.clear}
           </button>
         </div>
       </section>
 
       <RechargeCard />
     </div>
+  );
+}
+
+/** 界面语言卡：「跟随浏览器」+ 四种语言显式选择。stored=null 即跟随浏览器（首项）。 */
+function UiLangCard({
+  m,
+  stored,
+  setLocale,
+}: {
+  m: Messages;
+  stored: UiLocale | null;
+  setLocale: (l: UiLocale | null) => Promise<void>;
+}) {
+  const autoName = UI_LOCALE_NAMES[detectUiLocale()];
+  return (
+    <section className="card">
+      <div className="card-h">
+        <h2>{m.options.uiLangTitle}</h2>
+        <select
+          className="lang-select"
+          value={stored ?? ''}
+          onChange={(e) => void setLocale(e.target.value ? (e.target.value as UiLocale) : null)}
+        >
+          <option value="">{m.options.uiLangAuto(autoName)}</option>
+          {UI_LOCALES.map((l) => (
+            <option key={l} value={l}>
+              {UI_LOCALE_NAMES[l]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="muted">{m.options.uiLangDesc}</p>
+    </section>
   );
 }
 
@@ -223,20 +200,4 @@ function parseShortcut(s: string): string[] {
   }
   if (main) keys.push(main);
   return keys;
-}
-
-function normalizeDomain(input: string): string {
-  const s = input.trim().toLowerCase();
-  if (!s) return '';
-  // 容忍粘贴整个 URL：取 hostname。
-  try {
-    if (s.startsWith('http://') || s.startsWith('https://')) {
-      return new URL(s).hostname;
-    }
-  } catch {
-    /* ignore */
-  }
-  // 简单校验：至少一个点、不含空格 / 路径。
-  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(s)) return '';
-  return s;
 }

@@ -41,7 +41,14 @@ async function doAuth(path: string, email: string, password: string): Promise<st
   } else {
     body = JSON.stringify({ email, password });
   }
-  const r = await fetch(`${BACKEND_URL}${path}`, { method: 'POST', headers, body });
+  let r: Response;
+  try {
+    r = await fetch(`${BACKEND_URL}${path}`, { method: 'POST', headers, body });
+  } catch {
+    // fetch 抛异常＝请求根本没到后端（后端没起 / 断网 / 代理拦了 localhost）。
+    // 原生消息是英文「Failed to fetch」，对小白不友好——换成人话。
+    throw new Error('连不上服务器，请检查网络后重试');
+  }
   if (!r.ok) {
     const d = (await r.json().catch(() => ({}))) as { detail?: string };
     throw new Error(d.detail ?? '操作失败');

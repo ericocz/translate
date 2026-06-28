@@ -1,5 +1,5 @@
 // content script：抽取、原文先垫、流式回填、整页翻面、白名单关闭→还原，
-// 以及三套主动快捷键交互（Ctrl+X 整页开关 / Ctrl+悬停整段 / Ctrl+划词气泡）。
+// 以及三套主动快捷键交互（Ctrl+X 整页开关 / 悬停段落按 Ctrl 译段 / 选区按 Ctrl 划词气泡）。
 //
 // 状态：
 // - records: 已抽取的块（id → 原始 HTML 字符串 + styleMap + 根节点）
@@ -10,8 +10,8 @@
 //
 // 快捷键交互（均以 Ctrl/⌘ 为修饰）：
 // - Ctrl+X：开/关「此站点自动整页翻译」（= 增删白名单，复用 onSettingsChanged 翻译/还原）
-// - Ctrl+悬停某段（无选区）：按需翻译光标所在段落
-// - 选中文字后按 Ctrl：选区旁浮动气泡显示译文（优先级高于整段）
+// - 鼠标悬停某段后按 Ctrl（无选区）：按需翻译光标所在段落
+// - 选中文字后按 Ctrl：选区旁浮动气泡显示译文（优先级高于段落）
 // - Ctrl+点击某段：就地切换该段 原文↔译文
 
 import { extractBlocks, extractElement } from '@/lib/extractor';
@@ -19,6 +19,7 @@ import { classifyTier, type Tier } from '@/lib/regions';
 import { validateMarkers, restoreSoleWrapper, stripMarkers } from '@/lib/markers';
 import { rebuild } from '@/lib/rebuilder';
 import { isDomainEnabled, setDomainEnabled, onSettingsChanged, getBilingual } from '@/lib/storage';
+import { detectUiLocale, getMessages, getUiLocale, onUiLocaleChanged } from '@/lib/i18n';
 import type { FailureInfo, FailureKind } from '@/lib/types';
 import {
   PORT_NAME,
@@ -30,9 +31,19 @@ import {
 
 const STYLE_ID = 'immersive-translate-style';
 const FADE_CLASS = 'imt-fade-in';
-const RETRY_LABEL = '重试翻译';
-const RETRY_BUSY = '重试中…';
 const RETRY_CONTEXT = 2; // 重试时连带的上下文段数（目标段前后各 RETRY_CONTEXT 段一起发模型）
+
+// 页内 UI 文案（重试按钮 / 划词气泡）按界面语言本地化。
+// 先用浏览器推断值同步初始化（无闪烁），再异步读回用户设置覆盖；设置页改了即时跟随。
+let CSTR = getMessages(detectUiLocale()).content;
+void getUiLocale().then((l) => {
+  CSTR = getMessages(l).content;
+});
+onUiLocaleChanged(() => {
+  void getUiLocale().then((l) => {
+    CSTR = getMessages(l).content;
+  });
+});
 
 // 段落级元素（Ctrl+悬停整段时，从光标元素向上找的「段」边界）。
 const PARAGRAPH_SELECTOR =
@@ -171,7 +182,21 @@ export default defineContentScript({
       true
     );
 
-    // Ctrl+X：开/关此站点自动整页翻译（增删白名单）；Ctrl（有选区）：划词翻译。
+    // 鼠标最近悬停的元素：供「悬停某段 + 按 Ctrl」翻译当前段落用（段落翻译改为 keydown 驱动，
+    // 鼠标不必移动，只要停在段落上按下 Ctrl 即译）。被动追踪，不做任何翻译。
+    let lastMouseTarget: HTMLElement | null = null;
+    document.addEventListener(
+      'mousemove',
+      (ev) => {
+        lastMouseTarget = ev.target as HTMLElement | null;
+      },
+      true
+    );
+
+    // 按键交互：
+    //  - Ctrl+X：开/关此站点自动整页翻译（增删白名单）；
+    //  - 按 Ctrl（有选区文字）：划词翻译（优先级 > 段落）；
+    //  - 按 Ctrl（无选区、鼠标悬停某段）：翻译该段落。
     document.addEventListener(
       'keydown',
       (ev) => {
@@ -183,30 +208,13 @@ export default defineContentScript({
           void toggleWholeSite();
           return;
         }
-        // 「选中后按住 Ctrl 即译」：按下 Ctrl/⌘ 且当前有选区文字 → 划词翻译（优先级 > 整段）。
+        // 按下 Ctrl/⌘：有选区文字 → 划词（优先）；无选区 → 翻译鼠标悬停的段落。
         if (ev.key === 'Control' || ev.key === 'Meta') {
           const sel = window.getSelection();
           const text = sel && !sel.isCollapsed ? sel.toString().trim() : '';
           if (text) translateSelection(sel!, text);
+          else if (lastMouseTarget) maybeTranslateParagraph(lastMouseTarget);
         }
-      },
-      true
-    );
-
-    // Ctrl+悬停整段：按住 Ctrl/⌘ 移动鼠标、且无选区时，按需翻译光标所在段落。
-    let lastHoverTs = 0;
-    document.addEventListener(
-      'mousemove',
-      (ev) => {
-        if (!(ev.ctrlKey || ev.metaKey)) return;
-        // 选区优先：有选中文字时不做整段（划词优先级更高）。
-        const sel = window.getSelection();
-        if (sel && !sel.isCollapsed && sel.toString().trim()) return;
-        const now = Date.now();
-        if (now - lastHoverTs < 120) return; // 轻节流
-        lastHoverTs = now;
-        const target = ev.target as HTMLElement | null;
-        if (target) maybeTranslateParagraph(target);
       },
       true
     );
@@ -419,19 +427,19 @@ export default defineContentScript({
     function ensureRetryButton(rec: BlockRecord) {
       const existing = rec.retryBtn;
       if (existing && existing.isConnected) {
-        existing.textContent = RETRY_LABEL;
+        existing.textContent = CSTR.retryTranslate;
         existing.removeAttribute('disabled');
         return;
       }
       const btn = document.createElement('button');
       btn.className = 'imt-retry-btn';
       btn.type = 'button';
-      btn.textContent = RETRY_LABEL;
+      btn.textContent = CSTR.retryTranslate;
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         if (btn.hasAttribute('disabled')) return;
-        btn.textContent = RETRY_BUSY;
+        btn.textContent = CSTR.retrying;
         btn.setAttribute('disabled', '');
         retryBlock(rec);
       });
@@ -451,7 +459,7 @@ export default defineContentScript({
       for (const id of ids) {
         const b = state.records.get(id)?.retryBtn;
         if (b && b.isConnected && b.hasAttribute('disabled')) {
-          b.textContent = RETRY_LABEL;
+          b.textContent = CSTR.retryTranslate;
           b.removeAttribute('disabled');
         }
       }
@@ -514,7 +522,16 @@ export default defineContentScript({
       // 若整页处于"看英文"模式或该块被局部锁为英文，则不刷 DOM。
       if (state.mode !== 'zh') return;
       if (state.perBlockMode.get(id) === 'en') return;
-      // 双语：把译文追加在原文下方；替换：用译文换掉原文（默认隐形模式）。
+      // 双语：正文追加对照、外框替换；非双语：一律替换（默认隐形模式）。
+      renderTranslated(rec);
+    }
+
+    /**
+     * 按当前模式决定呈现形态：双语追加对照 / 替换换文。
+     * 双语**对所有块都保留对照**（含导航 / 页眉 / 页脚）——靠 showBilingual 的「同行 vs 换行」
+     * 判定让短标签同行追加（不撑乱横排）、长段落换行追加。
+     */
+    function renderTranslated(rec: BlockRecord) {
       if (state.bilingual) showBilingual(rec);
       else showReplace(rec);
     }
@@ -540,7 +557,15 @@ export default defineContentScript({
         rec.retryBtn = null;
       }
       removeBilingualNode(rec);
-      const inline = isInlineDisplay(rec.root);
+      // 译文与原文完全相同（专有名词 / 纯代码，如标题「Hermes Agent」）→ 追加只会原样复读一行，
+      // 跳过追加、留纯原文即可（仍记为 bilingual 态，关站 / 切换语义不变）。
+      const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+      if (norm(rec.root.textContent ?? '') === norm(rec.translatedFrag.textContent ?? '')) {
+        rec.bilingualNode = null;
+        rec.rendered = 'bilingual';
+        return;
+      }
+      const inline = shouldAppendInline(rec);
       const node = document.createElement('span');
       node.className = inline ? 'imt-bi imt-bi--inline' : 'imt-bi';
       node.appendChild(rec.translatedFrag.cloneNode(true) as DocumentFragment);
@@ -568,8 +593,7 @@ export default defineContentScript({
       for (const rec of state.records.values()) {
         if (rec.status !== 'done' || !rec.translatedFrag) continue;
         if (state.perBlockMode.get(rec.id) === 'en') continue;
-        if (state.bilingual) showBilingual(rec);
-        else showReplace(rec);
+        renderTranslated(rec);
       }
     }
 
@@ -581,8 +605,7 @@ export default defineContentScript({
       if (next === 'en') {
         showOriginal(rec);
       } else if (rec.translatedFrag) {
-        if (state.bilingual) showBilingual(rec);
-        else showReplace(rec);
+        renderTranslated(rec);
       }
     }
 
@@ -616,7 +639,7 @@ export default defineContentScript({
       return p;
     }
 
-    /** Ctrl+悬停整段：抽取并翻译光标所在段落（仅未认领的段；已译/在译/含已认领子块的段跳过）。 */
+    /** 悬停段落按 Ctrl：抽取并翻译光标所在段落（仅未认领的段；已译/在译/含已认领子块的段跳过）。 */
     function maybeTranslateParagraph(target: HTMLElement): void {
       const root = paragraphRootOf(target);
       if (!root) return;
@@ -669,7 +692,7 @@ export default defineContentScript({
         rect = null;
       }
       if (!rect) return;
-      showBubble(rect, '翻译中…', false);
+      showBubble(rect, CSTR.translatingBubble, false);
       bubbleJob?.disconnect();
       const id = 's' + state.adhoc++;
       bubbleJob = startIndependentJob([{ id, source: text, tier: 'content' }], {
@@ -680,7 +703,7 @@ export default defineContentScript({
         },
         onError: (f) => {
           if (bubbleSelText !== text) return;
-          updateBubble(f.kind === 'quota' || f.kind === 'auth' ? f.message : '翻译失败', true);
+          updateBubble(f.kind === 'quota' || f.kind === 'auth' ? f.message : CSTR.translateFailed, true);
         },
       });
     }
@@ -831,10 +854,9 @@ function injectStyle() {
     .imt-retry-btn:hover { text-decoration: underline; opacity: 1; }
     .imt-retry-btn[disabled] { cursor: default; opacity: 0.5; text-decoration: none; }
     /* 双语对照：译文追加在原文下方（块级）或同行其后（inline）。
-       极轻青绿左缘做「这是译文」的安静标识——继承字色/字号，不喧宾夺主。 */
+       继承字色/字号，不喧宾夺主——无左缘竖线等额外装饰。 */
     .imt-bi {
-      display: block; margin-top: 0.18em; padding-left: 0.5em;
-      border-left: 2px solid rgba(2, 172, 177, 0.35);
+      display: block; margin-top: 0.18em; padding: 0; border: 0;
     }
     .imt-bi--inline {
       display: inline; margin: 0 0 0 0.4em; padding: 0;
@@ -866,10 +888,21 @@ function replaceRaw(target: HTMLElement, html: string) {
   target.innerHTML = html;
 }
 
-/** 块根是否 inline 呈现：决定双语译文同行追加（导航链接等）还是换行追加（正文段落）。 */
-function isInlineDisplay(el: HTMLElement): boolean {
+/**
+ * 双语追加节点是「同行追加」（原文 译文 并排）还是「换行追加」（译文另起一行）。
+ * 目标：短标签 / 标题 / 导航 / 按钮同行（不撑乱横排、紧凑对照），长流式段落换行（各占一行好读）。
+ * 判定（命中即同行）：① 本就 inline 呈现；② 外框块（nav/header/footer/aside 全是标签）；
+ * ③ 标题 H1–H6；④ 短文本（可见原文 ≤ 40 字、单行标签/按钮/链接）。其余（典型即正文 <p> 长段）换行。
+ * 同行节点 inline 呈现，宽度不够时自然折行（窄侧栏的长导航项即如此），仍紧贴原文不掉队。
+ */
+function shouldAppendInline(rec: BlockRecord): boolean {
+  const el = rec.root;
   const d = getComputedStyle(el).display;
-  return d === 'inline' || d === 'inline-block' || d === 'inline-flex';
+  if (d === 'inline' || d === 'inline-block' || d === 'inline-flex') return true;
+  if (rec.tier === 'chrome') return true;
+  if (/^H[1-6]$/.test(el.tagName)) return true;
+  if (el.tagName === 'P') return false;
+  return (el.textContent ?? '').trim().length <= 40;
 }
 
 /**

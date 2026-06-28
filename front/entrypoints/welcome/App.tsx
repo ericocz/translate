@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { claimGift } from '@/lib/grant';
 import { getInstanceId } from '@/lib/device';
-import { targetLanguages, defaultTargetLang, isZhUi } from '@/lib/languages';
+import { targetLanguages, defaultTargetLang, type LangOption } from '@/lib/languages';
 import { getTargetLang, setTargetLang } from '@/lib/storage';
+import { useT } from '@/lib/i18n-react';
+import { UI_LOCALES, UI_LOCALE_NAMES, type Messages, type UiLocale } from '@/lib/i18n';
 
 /** 余额（元）→「¥X.XX」。 */
 function yuan(n: number | undefined): string {
@@ -11,174 +13,13 @@ function yuan(n: number | undefined): string {
 
 const TOTAL = 4;
 
-/* ───────────────────────── 文案（中 / 英双语） ───────────────────────── */
-
-type Ui = 'zh' | 'en';
-
-interface DemoLine {
-  src: string;
-  dst: string;
-}
-interface Strings {
-  docTitle: string;
-  brand: string;
-  skip: string;
-  next: string;
-  back: string;
-  // step1
-  s1Title: string;
-  s1Lead: [string, string, string]; // 前 / 高亮 / 后
-  s1Field: string;
-  s1Hint: string;
-  demoTitleSrc: string;
-  demoTitleDst: string;
-  demoLines: DemoLine[];
-  demoCapSrc: string;
-  demoCapDst: string;
-  // step2
-  s2Title: string;
-  s2Lead: [string, string, string];
-  s2c1: string;
-  s2c2: string;
-  s2ext: string;
-  s2name: string;
-  s2List: [string, string];
-  s2Hint: string;
-  // step3
-  s3Title: string;
-  s3PopTo: string;
-  s3PopPill: string;
-  s3PopToggle: string;
-  s3Steps: { t: string; d: string }[];
-  // step4
-  s4Title: string;
-  s4Lead: [string, string, string];
-  s4Claim: string;
-  s4Claiming: string;
-  s4Done: string;
-  s4DoneTail: string;
-  s4Fallback: string;
-  s4ClaimErr: string;
-  s4CloseHint: string;
-}
-
-const STR: Record<Ui, Strings> = {
-  zh: {
-    docTitle: '探索秒懂翻译更多功能',
-    brand: '秒懂翻译',
-    skip: '跳过',
-    next: '下一步 →',
-    back: '← 上一步',
-    s1Title: '打开网页，整页秒变中文',
-    s1Lead: ['导航、正文、按钮、页脚——所有看得见的文字都翻。译文干净、不打扰，', '像这页本来就是中文写的', '。'],
-    s1Field: '我想把网页翻成',
-    s1Hint: '随时可在弹窗里改。',
-    demoTitleSrc: 'A long-form essay',
-    demoTitleDst: '一篇英文长文',
-    demoLines: [
-      { src: 'The real cost of AI is being paid', dst: 'AI 的真实成本，正由远离硅谷的人' },
-      { src: 'by experts far from Silicon Valley.', dst: '在硅谷之外默默承担。' },
-      { src: 'Below is an extract from the report.', dst: '以下是该报告的节选内容。' },
-    ],
-    demoCapSrc: '原文先垫着…',
-    demoCapDst: '译文逐块淡入替换',
-    s2Title: '先把图标固定到工具栏',
-    s2Lead: ['秒懂翻译', '只有一个常驻接触点', '——工具栏上的图标。点一下开、再点一下关，图标自身就告诉你当前站点翻没翻。'],
-    s2c1: '① 点这个拼图图标',
-    s2c2: '② 点图钉固定到工具栏',
-    s2ext: '扩展程序',
-    s2name: '秒懂翻译 · aha translate',
-    s2List: ['点浏览器右上角的拼图（扩展）图标', '在「秒懂翻译」一行点图钉，固定到工具栏'],
-    s2Hint: '固定后图标常驻，照着左图操作即可。',
-    s3Title: '就这么用',
-    s3PopTo: '翻译为',
-    s3PopPill: '简体中文',
-    s3PopToggle: '翻译此页',
-    s3Steps: [
-      {
-        t: '自动翻译',
-        d: '打开网页就整页变成你选的语言——原文先垫着，译文逐块淡入替换，无需任何设置。',
-      },
-      {
-        t: '一键开 / 关',
-        d: '点工具栏图标开、再点一下关；关掉即刻还原原文，无需重译。也可用快捷键 ⌘ / Alt+Shift+A。',
-      },
-      {
-        t: '随时看原文',
-        d: 'Ctrl / ⌘ + 点击任意一段，就地在原文 ↔ 译文间切换，核对不打断阅读。',
-      },
-    ],
-    s4Title: '准备好了，送你 ¥2 体验额度',
-    s4Lead: ['翻译按用量从额度扣费、用完即停（没有匿名免费额度）。新装用户可免费领取', ' ¥2 ', '体验额度，用完可在弹窗里充值。'],
-    s4Claim: '领取 ¥2 体验额度',
-    s4Claiming: '领取中…',
-    s4Done: '已到账',
-    s4DoneTail: '，打开任意网页就会自动翻译。',
-    s4Fallback: '检测不到浏览器标识时，会以设备标识防重领取——不影响领取。',
-    s4ClaimErr: '领取失败，请稍后在弹窗里重试。',
-    s4CloseHint: '关掉本页即可开始使用。',
-  },
-  en: {
-    docTitle: 'Explore aha translate',
-    brand: 'aha translate',
-    skip: 'Skip',
-    next: 'Next →',
-    back: '← Back',
-    s1Title: 'Open any page — read it in your language',
-    s1Lead: ['Nav, body, buttons, footer — every visible word is translated. Clean and unobtrusive, ', 'as if the page were written in your language', '.'],
-    s1Field: 'Translate pages into',
-    s1Hint: 'You can change this anytime in the popup.',
-    demoTitleSrc: '一篇中文长文',
-    demoTitleDst: 'A long-form essay',
-    demoLines: [
-      { src: '人工智能的真实成本，', dst: 'The real cost of AI is being paid' },
-      { src: '正由远离硅谷的人默默承担。', dst: 'by experts far from Silicon Valley.' },
-      { src: '以下是该报告的节选内容。', dst: 'Below is an extract from the report.' },
-    ],
-    demoCapSrc: 'Original shown first…',
-    demoCapDst: 'Translation fades in, block by block',
-    s2Title: 'First, pin the icon to your toolbar',
-    s2Lead: ['aha translate has ', 'just one place you touch', ' — the toolbar icon. Click to turn on, click again to turn off; the icon itself tells you whether the current site is translated.'],
-    s2c1: '① Click the puzzle icon',
-    s2c2: '② Click the pin to add it',
-    s2ext: 'Extensions',
-    s2name: 'aha translate · 秒懂翻译',
-    s2List: ['Click the puzzle (Extensions) icon at the top-right', 'Click the pin next to “aha translate” to add it to the toolbar'],
-    s2Hint: 'Once pinned the icon stays put — just follow the picture on the left.',
-    s3Title: 'How it works',
-    s3PopTo: 'Translate to',
-    s3PopPill: 'Simplified Chinese',
-    s3PopToggle: 'Translate this page',
-    s3Steps: [
-      {
-        t: 'Automatic translation',
-        d: 'Open a page and the whole thing turns into your language — original shown first, translation fading in block by block. No setup needed.',
-      },
-      {
-        t: 'One click on / off',
-        d: 'Click the toolbar icon to turn on, click again to turn off; the original is restored instantly, no re-translation. Shortcut: ⌘ / Alt+Shift+A.',
-      },
-      {
-        t: 'See the original anytime',
-        d: 'Ctrl / ⌘ + click any paragraph to toggle between original and translation in place, without breaking your reading.',
-      },
-    ],
-    s4Title: 'You’re all set — here’s ¥2 to start',
-    s4Lead: ['Translation is billed by usage from your balance and stops when it runs out (no anonymous free tier). New users can claim', ' ¥2 ', 'to get started; top up in the popup when it runs out.'],
-    s4Claim: 'Claim ¥2 credit',
-    s4Claiming: 'Claiming…',
-    s4Done: 'Added',
-    s4DoneTail: ' — open any web page and it translates automatically.',
-    s4Fallback: 'If a browser identifier isn’t available, your device identifier guards against duplicate claims — claiming still works.',
-    s4ClaimErr: 'Claim failed. Please retry from the popup later.',
-    s4CloseHint: 'Close this page to start using.',
-  },
-};
+/** welcome 页文案（中央四语表的 welcome 段）。 */
+type W = Messages['welcome'];
 
 /* ───────────────────────── 左侧视觉演示区 ───────────────────────── */
 
 /** Step 1 演示：原文先垫着、译文逐块淡入替换——「像这页本来就是中文写的」。 */
-function FadeDemo({ L }: { L: Strings }) {
+function FadeDemo({ L }: { L: W }) {
   const [translated, setTranslated] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setTranslated((t) => !t), 2600);
@@ -208,7 +49,7 @@ function FadeDemo({ L }: { L: Strings }) {
 }
 
 /** Step 2 演示：浏览器工具栏 + 扩展菜单，编号标注「点拼图 → 固定图标」。 */
-function PinDemo({ L }: { L: Strings }) {
+function PinDemo({ L }: { L: W }) {
   return (
     <div className="demo-page" aria-hidden>
       <div className="demo-bar">
@@ -233,7 +74,7 @@ function PinDemo({ L }: { L: Strings }) {
 }
 
 /** Step 3 演示：固定后的工具栏图标 + 弹窗（开关 + 目标语言）。无白名单 / 加站——翻译自动。 */
-function PopupDemo({ L }: { L: Strings }) {
+function PopupDemo({ L, brand }: { L: W; brand: string }) {
   return (
     <div className="demo-page" aria-hidden>
       <div className="demo-bar">
@@ -246,7 +87,7 @@ function PopupDemo({ L }: { L: Strings }) {
       <div className="pop">
         <div className="pop-h">
           <img className="pop-ico" src="/icon/on-32.png" alt="" />
-          <span>{L.brand}</span>
+          <span>{brand}</span>
         </div>
         <div className="pop-row">
           <span>{L.s3PopTo}</span>
@@ -271,7 +112,7 @@ type ClaimState =
   | { kind: 'done'; balance: number }
   | { kind: 'error'; msg: string };
 
-function ClaimGift({ L }: { L: Strings }) {
+function ClaimGift({ L, retry }: { L: W; retry: string }) {
   // 浏览器标识（chrome.instanceID）：undefined=检测中、''=取不到、其余=可领取。
   // 注意：instanceID 仅作「防重复领取」的增强键，取不到时后端回退 deviceId 幂等——
   // 故**不再据此禁用按钮**（大陆用户连不上 Google FCM 时 getID 会失败，禁用会误伤正常领取）。
@@ -289,7 +130,7 @@ function ClaimGift({ L }: { L: Strings }) {
     setClaim({ kind: 'busy' });
     const res = await claimGift();
     if (res.ok) setClaim({ kind: 'done', balance: res.balance ?? 2 });
-    else setClaim({ kind: 'error', msg: L.s4ClaimErr });
+    else setClaim({ kind: 'error', msg: res.error === 'server' ? L.s4ErrSrv : L.s4ErrNet });
   };
 
   if (claim.kind === 'done') {
@@ -312,7 +153,7 @@ function ClaimGift({ L }: { L: Strings }) {
           onClick={() => void onClaim()}
           disabled={checking || claim.kind === 'busy'}
         >
-          {claim.kind === 'busy' ? L.s4Claiming : L.s4Claim}
+          {claim.kind === 'busy' ? L.s4Claiming : claim.kind === 'error' ? retry : L.s4Claim}
         </button>
         {claim.kind === 'error' && <span className="claim-err">{claim.msg}</span>}
       </div>
@@ -324,18 +165,23 @@ function ClaimGift({ L }: { L: Strings }) {
 /* ───────────────────────── 主流程 ───────────────────────── */
 
 export function Welcome() {
-  const [ui, setUi] = useState<Ui>(isZhUi() ? 'zh' : 'en');
-  const L = STR[ui];
+  const { m, locale, setLocale } = useT();
+  const L = m.welcome;
 
   const [step, setStep] = useState(0);
-  const langs = targetLanguages(ui === 'zh');
-  const [lang, setLang] = useState<string>(defaultTargetLang(ui === 'zh'));
+  const [langs, setLangs] = useState<LangOption[]>(() => targetLanguages(locale));
+  const [lang, setLang] = useState<string>(() => defaultTargetLang(locale));
 
-  // 页签标题随界面语言。
+  // 页签标题 + 文档语言随界面语言。
   useEffect(() => {
     document.title = L.docTitle;
-    document.documentElement.lang = ui === 'zh' ? 'zh-CN' : 'en';
-  }, [L.docTitle, ui]);
+    document.documentElement.lang = locale;
+  }, [L.docTitle, locale]);
+
+  // 界面语言变化时刷新目标语言清单（显示名 / 排序随之变）。
+  useEffect(() => {
+    setLangs(targetLanguages(locale));
+  }, [locale]);
 
   // 读回已存目标语言（用户可能在 popup 选过）。
   useEffect(() => {
@@ -356,17 +202,21 @@ export function Welcome() {
       <header className="top">
         <div className="brand">
           <img className="brand-logo" src="/icon/on-48.png" alt="" />
-          <span className="brand-name">{L.brand}</span>
+          <span className="brand-name">{m.brand}</span>
         </div>
         <div className="top-r">
-          <div className="lang-toggle" role="group" aria-label="语言 / language">
-            <button className={ui === 'zh' ? 'lt on' : 'lt'} onClick={() => setUi('zh')}>
-              中
-            </button>
-            <button className={ui === 'en' ? 'lt on' : 'lt'} onClick={() => setUi('en')}>
-              EN
-            </button>
-          </div>
+          <select
+            className="lang-toggle-sel"
+            aria-label="语言 / language"
+            value={locale}
+            onChange={(e) => void setLocale(e.target.value as UiLocale)}
+          >
+            {UI_LOCALES.map((l) => (
+              <option key={l} value={l}>
+                {UI_LOCALE_NAMES[l]}
+              </option>
+            ))}
+          </select>
           {!last && (
             <button className="link" onClick={() => setStep(TOTAL - 1)}>
               {L.skip}
@@ -433,7 +283,7 @@ export function Welcome() {
         {step === 2 && (
           <section className="split">
             <div className="visual">
-              <PopupDemo L={L} />
+              <PopupDemo L={L} brand={m.brand} />
             </div>
             <div className="copy">
               <h1>{L.s3Title}</h1>
@@ -462,7 +312,7 @@ export function Welcome() {
               {L.s4Lead[2]}
             </p>
             <div className="claim-box">
-              <ClaimGift L={L} />
+              <ClaimGift L={L} retry={m.retry} />
             </div>
             <span className="muted">{L.s4CloseHint}</span>
           </section>

@@ -60,18 +60,14 @@ body {
 }
 .link:hover { color: var(--fg); }
 
-/* 语言切换 中 / EN */
-.lang-toggle {
-  display: inline-flex; border: 1px solid var(--line); border-radius: 8px;
-  overflow: hidden; background: var(--card);
+/* 界面语言选择（简体 / 繁体台湾 / 繁体香港 / 英文） */
+.lang-toggle-sel {
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--fg2);
+  padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  cursor: pointer;
 }
-.lt {
-  font: inherit; font-size: 12.5px; font-weight: 600;
-  padding: 5px 11px; border: 0; background: transparent;
-  color: var(--fg2); cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
-}
-.lt + .lt { border-left: 1px solid var(--line); }
-.lt.on { background: var(--brand); color: #fff; }
+.lang-toggle-sel:focus { outline: none; border-color: var(--brand); }
 
 /* 进度条：4 段 */
 .progress { display: flex; gap: 6px; }

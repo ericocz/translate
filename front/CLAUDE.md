@@ -18,7 +18,7 @@
 - **整页全部可见文字都翻**，正文与界面（导航 / 按钮 / 页脚）在「翻不翻」上一视同仁；藏在属性里的（图片 `alt`、`placeholder`）暂不翻。**但在调度顺序上做结构识别**（见铁律 7）：正文区先翻、外框（导航/页眉/侧栏/页脚）后翻——为响应速度，刻意反转了早期「完全不做正文识别」的取舍。
 - **失败段静默保持原文 + 段内「重试翻译」文字按钮**：失败段（模型漏译 / 标记校验不过 / 部分失败）与「还没轮到」视觉无异（不报错、不空块）；译流结束后在该段**内部**追加一个极轻的「重试翻译」按钮（在 `[data-trans-id]` 子树内 → 抽取器天然跳过）。点击带**前后各 2 段上下文**重新请求（走 `bypassCache` 确保上下文真发给模型）。系统性失败（quota / auth）不挂按钮，交 popup 引导登录 / 充值。
 - **查看原文**：Ctrl/⌘+点击单段就地粘滞切换中↔英；整页看原文用快捷键 / popup 取消翻译此站（即刻还原、瞬时、无需重译）。
-- **双语对照（opt-in，默认关）**：popup 开关（`storage` 键 `bilingual`），开启时译文**追加**在原文下方（块级换行 / inline 同行）而非替换原文——原文留作对照。默认仍是「替换＝隐形」，双语是显式让渡隐形换对照。实现要点（见 `content.ts` `showBilingual/showReplace/showOriginal/rerenderAll`）：追加节点 `<span class="imt-bi">` 挂在 `[data-trans-id]` 子树内，**抽取器天然跳过、绝不被二次送翻**；`originalHTML` 在抽取期即捕获（早于任何追加），故关站 / 切英文 / 局部翻面走 `originalHTML` 重置 innerHTML 时追加译文随之消失，零额外清理。开关切换**就地重排**（`onSettingsChanged` 监听 storage → `rerenderAll`，已译块不重发服务端、不重译）；`BlockRecord.rendered`（original/replace/bilingual）记录当前呈现形态，供替换↔双语互切时判断是否需先还原原文。Ctrl/⌘+点击在双语模式下＝隐去 / 复现该段译文。
+- **双语对照（opt-in，默认关）**：popup 开关（`storage` 键 `bilingual`），开启时译文**追加**在原文下方（块级换行 / inline 同行）而非替换原文——原文留作对照。默认仍是「替换＝隐形」，双语是显式让渡隐形换对照。**双语对所有块都保留对照（含导航 / 页眉 / 页脚 / 侧栏）**，靠「同行 vs 换行」判定避免撑乱排版（`shouldAppendInline`）：**短标签 / 标题 / 导航 / 按钮 → 同行追加**（原文 译文 并排，命中条件：本就 inline 呈现 ∨ 外框 chrome tier ∨ H1–H6 标题 ∨ 可见原文 ≤ 40 字），**长流式段落（典型即正文 `<p>`）→ 换行追加**（各占一行）。同行节点 inline 呈现、宽度不够自然折行（窄侧栏长导航项即如此）。**为什么**：早期只按 `getComputedStyle(display)` 判 inline，而导航 `<a>` 多是 flex/block→被判块级换行追加→译文掉到下一行错位（Hermes 文档站头部曾整片排版崩坏）；改为结合 tier / 标签 / 文本长度的启发式后，「Docs 文档」类同行紧凑对照、正文段落仍上下对照。**译文与原文逐字相同时（专有名词 / 纯代码，模型原样回译）跳过追加**（`showBilingual` 内 `norm()` 判等），免得「Hermes Agent Hermes Agent」复读一行。**配套抽取改动**：裸 `<a>/<button>` 链接组容器（导航条无 `<li>` 包裹）不再整体认领成一块，下沉让每个链接各成块（`extractor.ts` `isLinkGroupContainer`，保守判定：带文字直接子元素全是 `<a>/<button>` 且 ≥2、无松散文本才拆，句子/混排绝不误伤）——否则双语下「Docs Skills Download」整段译文挤末尾无法逐项对齐；拆后渲染即逐项交错「Docs 文档」「Skills 技能」（替换模式不受影响、仅多几个小块）。实现要点（见 `content.ts` `renderTranslated/showBilingual/showReplace/showOriginal/rerenderAll`）：追加节点 `<span class="imt-bi">` 挂在 `[data-trans-id]` 子树内，**抽取器天然跳过、绝不被二次送翻**；`originalHTML` 在抽取期即捕获（早于任何追加），故关站 / 切英文 / 局部翻面走 `originalHTML` 重置 innerHTML 时追加译文随之消失，零额外清理。开关切换**就地重排**（`onSettingsChanged` 监听 storage → `rerenderAll`，已译块不重发服务端、不重译）；`BlockRecord.rendered`（original/replace/bilingual）记录当前呈现形态，供替换↔双语互切时判断是否需先还原原文。Ctrl/⌘+点击在双语模式下＝隐去 / 复现该段译文。
 - **出错说人话、分来源**：`errorKind` 区分「网络 / 代理未连通」与「模型接口报错」；`quota` 不是错误而是引导（柔和提示 + 登录 / 充值 CTA，不显示红色报错）。
 
 ## 技术栈
@@ -75,7 +75,10 @@ lib/
   markers.ts      # 标记词法 tokenizeMarkers / validateMarkers / restoreSoleWrapper / allowedIdsFromSource
   rebuilder.ts    # 依 styleMap + tokenize 把带标记译文重建为 DOM
   storage.ts      # 白名单 / 设置（缓存开关 / 目标语言 target_lang / 双语对照 bilingual）薄封装
-  languages.ts    # 目标语言清单（languages-{zh,en}.json）+ 界面语言判定 isZhUi + targetLanguages/defaultTargetLang
+  languages.ts    # 目标语言清单（languages-{zh,en}.json，含 zh/zhHant/en 名）+ targetLanguages(locale)/defaultTargetLang(locale)
+  i18n.ts         # 界面语言核心（无框架）：UiLocale(zh-CN/zh-TW/zh-HK/en) + detectUiLocale + ui_lang 存储 + getMessages
+  i18n-messages.ts# 四语全量 UI 文案表 MESSAGES（popup/options/recharge/content/welcome）
+  i18n-react.ts   # React 页用 useT() hook（订阅 storage、跨页即时生效；与 i18n 核心解耦避免 content 打包 React）
   icon.ts         # 工具栏图标两态（off/on，一点开启即 on、不随翻译进度变化）
   config.ts       # BACKEND_URL + SERVER_PUBKEY（空＝明文 dev）+ CREEM_RECHARGE_URL（Creem 充值 link，空＝options 不显美元充值入口）唯一读取处，构建期由 .env 的 WXT_* 注入
   messages.ts     # content ↔ background ↔ popup 协议（含 quota 失败类、StatusReply.errorKind）
@@ -87,9 +90,18 @@ design/           # 工具栏图标资产：build-icons.sh 由 icon-src 生成 4
 
 `BACKEND_URL` 构建期由 `WXT_BACKEND_URL` 注入。用到的端点：`POST /v1/translate`(SSE，正文)、`POST /v1/translate/batch`(非流式 JSON，外框/重试)、`GET /v1/usage`(返分桶余额 giftCny/cny/usd)、`POST /v1/auth/{register,login,refresh,logout}`、`POST /v1/grant/gift`、`POST /v1/recharge/create`(微信充值)、`POST /v1/events`、`POST /v1/errors`。**改协议须同步 `../server`**（事件名、字段、SSE 格式）。
 
+### 界面语言（i18n，4 种）
+
+扩展全部界面（popup / options / welcome / content 页内文案）支持 **4 种界面语言**：简体中文 `zh-CN` / 繁体中文·台湾 `zh-TW` / 繁体中文·香港 `zh-HK` / 英文 `en`。**TW 与 HK 按地区用词真正区分**（如 充值：台湾「儲值」、香港「增值」；网络：台湾「網路」、香港「網絡」），不是单纯简→繁字形转换。
+
+- **判定优先级**：用户在 options 手动选的 > 浏览器首选语言（`navigator.language`）。`detectUiLocale`（`lib/i18n.ts`）：简体（zh/zh-CN/zh-Hans/zh-SG）→`zh-CN`、台湾（含通用 Hant）→`zh-TW`、香港/澳门→`zh-HK`、其余一律 `en`。
+- **存储**：用户选择存 `chrome.storage.local` 的 `ui_lang`（仅存这一处、不进 `storage.ts` 的 KEYS，让 `i18n.ts` 自包含、与 storage 零循环依赖）；未设置即跟随浏览器。`getStoredUiLocale`/`getUiLocale`/`setUiLocale`/`onUiLocaleChanged`。
+- **文案唯一真理处** `lib/i18n-messages.ts`：`MESSAGES: Record<UiLocale, Messages>`，四语全量界面字符串（带插值的用函数承载）。**目标语言下拉里的「语言名」不在这**——见下「目标语言」。
+- **取用**：React 页用 `lib/i18n-react.ts` 的 `useT()`（返回 `{locale, m, stored, setLocale}`，订阅 storage 变化跨页即时生效）；content 脚本（非 React）用 `lib/i18n.ts` 的 `getMessages`+模块级 `CSTR`（**i18n.ts/i18n-messages.ts 都无框架依赖，故 content 不被打包进 React**）。各页 `document.documentElement.lang` 与 `<title>` 随 locale 动态设。
+
 ### 目标语言（用户可选）
 
-popup 顶部「翻译为 …」下拉让用户选目标语言（源语言不检测、交模型自适应）。清单 `lib/languages-{zh,en}.json`（DeepSeek V4 支持语种，各 111 条），下拉据**界面语言**二选一：浏览器为中文 6 变体（zh/zh-CN/zh-TW/zh-HK/zh-SG/zh-MO）用**中文清单+中文名**，否则**英文清单+英文名**（`lib/languages.ts`）。选中持久化到 `storage` 的 `target_lang`（`getTargetLang`，默认=所选清单首项：中文界面 `zh`、英文界面 `en-US`）；若当前站点已开站则就地重译生效（先 toggle off 还原、再 on 重译，不动白名单）。
+popup 顶部「翻译为 …」下拉让用户选目标语言（源语言不检测、交模型自适应）。清单 `lib/languages-{zh,en}.json`（DeepSeek V4 支持语种，各 111 条；每条带 `zh`简体 / `zhHant`繁体 / `en`英文名，繁体名由 opencc-js 一次性生成后提交、运行时不依赖；台湾/香港语言名写法一致故单一繁体集）。下拉据**界面语言**取清单与显示名（`lib/languages.ts` `targetLanguages(locale)`）：中文界面（zh-CN/zh-TW/zh-HK）→**中文清单（中文系排前）**，名按简体/繁体取；英文界面（en）→**英文清单（英语系排前）**、英文名——即「中文界面中文排前、其余英文排前」。选中持久化到 `storage` 的 `target_lang`（`getTargetLang`，**默认跟随界面语言**：zh-CN→`zh`、zh-TW→`zh-TW`、zh-HK→`zh-HK`、en→`en-US`）；若当前站点已开站则就地重译生效（先 toggle off 还原、再 on 重译，不动白名单）。
 
 两处消费：① `api.ts` 翻译请求 body 带 `target` 字段；② `local-cache.ts` 缓存键按目标语言分桶（`auto-<target>`，不同目标互不串扰）。**后端 `../server` 已 honor `target`**（`prompt.system_prompt(target)`：`zh`/缺省走历史简体中文 prompt 逐字节不变、其余走通用模板注入语言英文名；繁体 zh-TW/zh-HK 走通用模板出繁体）。
 
